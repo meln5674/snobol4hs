@@ -23,6 +23,7 @@ library
                       , Language.Snobol4.VM.IO
     build-depends:      base
                       , parsec
+                      , transformers
     default-language:   Haskell2010
 
 executable snobol4c

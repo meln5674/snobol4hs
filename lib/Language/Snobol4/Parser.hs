@@ -8,12 +8,16 @@ module Language.Snobol4.Parser
 
 import Control.Monad
 
+import Control.Monad.Trans.Except
+
 import Text.Parsec ( (<|>) )
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Char as P
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Lexer.Tokens
+
+import qualified Language.Snobol4.Lexer as L
 
 maybeThing p x | p x = Just x
                | otherwise = Nothing
@@ -294,12 +298,33 @@ string_expression = void $ expression
 
 string_code = void $ P.sepBy1 semicolon statement
 
-
+program = P.many $ do
+    P.skipMany (comment_line >> eol)
+    statement
 
 
 
 
 -----
 
-parseStatement = P.runParser statement False ""
+parseStatementFromToksT = P.runParserT statement False ""
 
+parseStatementT
+    = runExceptT 
+    . (ExceptT . L.lexT >=> ExceptT . parseStatementFromToksT)
+
+parseProgramFromToksT = P.runParserT program False ""
+    
+parseProgramT
+    = runExceptT 
+    . (ExceptT . L.lexT >=> ExceptT . parseProgramFromToksT)
+
+
+
+parseStatementFromToks = P.runParser statement False ""
+
+parseStatement = L.lex >=> parseStatementFromToks
+
+parseProgramFromToks = P.runParser program False ""
+    
+parseProgram = L.lex >=> parseProgramFromToks

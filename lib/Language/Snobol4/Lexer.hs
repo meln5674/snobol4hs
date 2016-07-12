@@ -4,6 +4,7 @@
 module Language.Snobol4.Lexer
     ( module Language.Snobol4.Lexer.Tokens
     , lex
+    , lexT
     ) where
 
 import Prelude hiding (lex)
@@ -129,5 +130,8 @@ anyToken
 
 tokens = P.many (locate anyToken)
 
-lex :: Monad m => String -> m (Either P.ParseError [Located Token P.SourcePos])
-lex = P.runParserT tokens () ""
+lex :: String -> Either P.ParseError [Located Token P.SourcePos]
+lex = P.runParser tokens () ""
+
+lexT :: Monad m => String -> m (Either P.ParseError [Located Token P.SourcePos])
+lexT = P.runParserT tokens () ""
