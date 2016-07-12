@@ -1,0 +1,3 @@
+LOOP    PUNCH   =   INPUT   :F(END)
+        OUTPUT  =   PUNCH   :(LOOP)
+END
