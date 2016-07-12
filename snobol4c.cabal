@@ -14,7 +14,13 @@ cabal-version:       >=1.10
 
 library
     hs-source-dirs:     lib
-    exposed-modules:
+    exposed-modules:    Language.Snobol4
+                      , Language.Snobol4.Lexer
+                      , Language.Snobol4.Parser
+                      , Language.Snobol4.Syntax.AST
+                      , Language.Snobol4.VM
+                      , Language.Snobol4.VM.Bytecode
+                      , Language.Snobol4.VM.IO
     build-depends:      base
     default-language:   Haskell2010
 
@@ -23,3 +29,4 @@ executable snobol4c
   main-is:              Main.hs
   default-language:     Haskell2010
   build-depends:        base >= 4.7 && < 5
+                      , snobol4c
