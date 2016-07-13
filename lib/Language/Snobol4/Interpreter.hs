@@ -1,5 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-|
+Module          : Language.Snobol4.Interpreter
+Description     : The SNOBOL4 Interpreter
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portatibility   : Unknown
+
+-}
 
 module Language.Snobol4.Interpreter 
     ( step
@@ -29,6 +38,7 @@ import Language.Snobol4.Syntax.AST
 
 import Language.Snobol4.Interpreter.Types
 
+
 newtype InterpreterInternal m a
     = InterpreterInternal
     { runInterpreterInternal
@@ -49,15 +59,18 @@ newtype Interpreter m a
 instance MonadTrans Interpreter where
     lift m = Interpreter $ lift $ lift $ m
 
+-- | Terminate the program with an error
 programError :: Monad m => ProgramError -> Interpreter m a
 programError = Interpreter . throwE
 
+-- | Fail the evaluation
 failEvaluation :: Monad m => Interpreter m a
 failEvaluation = Interpreter 
                $ lift 
                $ InterpreterInternal 
                $ throwE EvalFailed
 
+-- | Complete the evaluation
 finishEvaluation :: Monad m => Interpreter m a
 finishEvaluation = Interpreter 
                  $ lift 
@@ -392,7 +405,7 @@ catchEval m h = do
             Left x -> return $ h x
 
 
--- Execute a statement in the interpreter
+-- | Execute a statement in the interpreter
 exec :: MonadIO m => Stmt -> Interpreter m ()
 exec (EndStmt _) = programError NormalTermination
 exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
@@ -421,11 +434,12 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
 step :: MonadIO m => Interpreter m ()
 step = fetch >>= exec
 
-load :: Monad m => [Stmt] -> Interpreter m ()
+-- | Load a program into the interpreter
+load :: Monad m => Program -> Interpreter m ()
 load stmts = putStatements $ V.fromList stmts
 
-
-
+-- | Run the interpreter continuously by fetching the next statement 
+-- until the program ends
 run :: MonadIO m => Interpreter m ProgramError
 run = do
     st <- getProgramState
@@ -441,6 +455,7 @@ run = do
             run
         Right (Left x) -> return x
 
+-- | Execute an interpreter action
 interpret :: MonadIO m 
           => ProgramState 
           -> Interpreter m a 
@@ -456,6 +471,7 @@ interpret st m = do
         Right (Left x) -> return $ Left (Left x)
         Left x -> return $ Left (Right x) 
 
+-- | Run a SNOBOL4 program
 runProgram :: MonadIO m => Program -> m ProgramError
 runProgram code = do
     result <- interpret emptyState $ load code >> run
