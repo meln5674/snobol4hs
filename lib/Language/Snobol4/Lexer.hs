@@ -96,9 +96,14 @@ operator = do
 exponentiate = "**" `sifthen` Exponentiate
 
 comment_line = do
-    head <- P.char '*'
-    tail <- P.manyTill P.anyChar (P.try eol)
-    return $ LineComment $ head : tail
+    pos <- P.getPosition
+    let col = P.sourceColumn pos
+    if col /= 1
+        then P.unexpected "Cannot have a label anywhere but the start of the line"
+        else do
+            head <- P.char '*'
+            tail <- P.manyTill P.anyChar (P.try eol)
+            return $ LineComment $ head : tail
 
 ---
 
@@ -120,7 +125,7 @@ anyToken
     <|> blanks
     <|> label
     <|> identifier
-    <|> real
+    <|> P.try real
     <|> integer
     <|> sliteral
     <|> dliteral

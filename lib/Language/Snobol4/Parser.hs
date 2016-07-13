@@ -99,15 +99,10 @@ unary = do
         "?" -> Question
         "$" -> Dollar
         "." -> Dot
-        "!" -> Bang
-        "%" -> Percent
         "*" -> Star
-        "/" -> Slash
-        "#" -> Hash
         "+" -> Plus
         "-" -> Minus
         "@" -> At
-        "|" -> Pipe
         "&" -> And
 
 binary = do
@@ -117,7 +112,15 @@ binary = do
         blanks
         return x
     return $ case join x of
-        Just (Located (Operator op) _) -> Just op
+        Just (Located (Operator op) _) -> case op of
+            "$" -> Just Dollar
+            "!" -> Just Bang
+            "**" -> Just DoubleStar
+            "*" -> Just Star
+            "/" -> Just Slash
+            "+" -> Just Plus
+            "-" -> Just Minus
+            "|" -> Just Pipe
         Nothing -> Nothing
 
 literal = sliteral <|> dliteral <|> integer <|> real
@@ -153,7 +156,7 @@ operation = do
 expression = do
     P.putState False
     P.optional blanks
-    x <- P.optionMaybe (element <|> operation)
+    x <- P.optionMaybe (P.try operation <|> element)
     P.optional (blanks >> P.putState True)
     return $ case x of
         Just x -> x
@@ -228,7 +231,7 @@ assign_statement = do
     obj <- P.optionMaybe object_field
     go <- P.optionMaybe goto_field
     eos
-    return $ AssignStmt lbl sub obj go
+    return $ Stmt lbl (Just sub) Nothing obj go
     
 match_statement = do
     lbl <- P.optionMaybe labelStr
@@ -236,7 +239,7 @@ match_statement = do
     pat <- pattern_field
     go <- P.optionMaybe goto_field
     eos
-    return $ MatchStmt lbl sub pat go
+    return $ Stmt lbl (Just sub) (Just pat) Nothing go
 
 repl_statement = do
     lbl <- P.optionMaybe labelStr
@@ -246,14 +249,14 @@ repl_statement = do
     obj <- P.optionMaybe object_field 
     go <- P.optionMaybe goto_field
     eos
-    return $ ReplStmt lbl sub pat obj go
+    return $ Stmt lbl (Just sub) (Just pat) obj go
 
 degen_statement = do
     lbl <- P.optionMaybe labelStr
     sub <- P.optionMaybe subject_field
     go <- P.optionMaybe goto_field
     eos
-    return $ DegenStmt lbl sub go
+    return $ Stmt lbl sub Nothing Nothing go
 
 end_statement = do
     kwEnd
@@ -263,7 +266,12 @@ end_statement = do
     eos
     return $ EndStmt (join x)
 
-statement = assign_statement <|> match_statement <|> repl_statement <|> degen_statement <|> end_statement
+statement
+    =  P.try end_statement
+   <|> P.try assign_statement 
+   <|> P.try match_statement 
+   <|> P.try repl_statement 
+   <|> P.try degen_statement 
 
 
 control_line = void $ minus >> P.optional blanks >> 
@@ -307,6 +315,10 @@ program = P.many $ do
 
 -----
 
+parseExpression = L.lex >=> parseExpressionFromToks
+
+parseExpressionFromToks = P.runParser expression False ""
+
 parseStatementFromToksT = P.runParserT statement False ""
 
 parseStatementT
@@ -328,3 +340,9 @@ parseStatement = L.lex >=> parseStatementFromToks
 parseProgramFromToks = P.runParser program False ""
     
 parseProgram = L.lex >=> parseProgramFromToks
+
+parseFile :: FilePath -> IO (Either P.ParseError Program)
+parseFile path = do
+    code <- readFile path
+    return $ parseProgram code
+    

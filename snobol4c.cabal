@@ -16,14 +16,20 @@ library
     hs-source-dirs:     lib
     exposed-modules:    Language.Snobol4
                       , Language.Snobol4.Lexer
+                      , Language.Snobol4.Lexer.Tokens
                       , Language.Snobol4.Parser
                       , Language.Snobol4.Syntax.AST
                       , Language.Snobol4.VM
                       , Language.Snobol4.VM.Bytecode
                       , Language.Snobol4.VM.IO
+                      , Language.Snobol4.Interpreter
+                      , Language.Snobol4.Interpreter.Types
     build-depends:      base
                       , parsec
                       , transformers
+                      , containers
+                      , vector
+                      , mtl
     default-language:   Haskell2010
 
 executable snobol4c

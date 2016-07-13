@@ -1,7 +1,13 @@
 module Main where
 
+import System.Environment
+
 import Language.Snobol4
 
 main :: IO ()
 main = do
-  putStrLn "hello world"
+    [path] <- getArgs
+    parseResult <- parseFile path
+    case parseResult of
+        Right code -> runProgram code >> return ()
+        Left err -> print err
