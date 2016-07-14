@@ -38,54 +38,53 @@ import Language.Snobol4.Syntax.AST
 
 import Language.Snobol4.Interpreter.Types
 
-
-newtype InterpreterInternal m a
-    = InterpreterInternal
-    { runInterpreterInternal
-        :: ExceptT EvalStop (StateT ProgramState m) a
+newtype Evaluator m a 
+    = Evaluator
+    { runEvaluator
+        :: ExceptT ProgramError (ExceptT EvalStop (StateT ProgramState m)) a
+    
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
-instance MonadTrans InterpreterInternal where
-    lift m = InterpreterInternal $ lift $ lift m
+instance MonadTrans Evaluator where
+    lift m = Evaluator $ lift $ lift $ lift $ m
 
 newtype Interpreter m a
     = Interpreter
     { runInterpreter
-        :: ExceptT ProgramError (InterpreterInternal m) a
+        :: ExceptT ProgramError (StateT ProgramState m) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadTrans Interpreter where
     lift m = Interpreter $ lift $ lift $ m
 
+liftEval :: Monad m => Interpreter m a -> Evaluator m a
+liftEval = Evaluator . ExceptT . lift . runExceptT . runInterpreter
+
+unliftEval :: Monad m => Evaluator m a -> Interpreter m (Either EvalStop a)
+unliftEval (Evaluator m) = do
+    x <- Interpreter $ lift $ runExceptT $ runExceptT $ m
+    case x of
+        Left stop -> return $ Left stop
+        Right (Left err) -> programError err
+        Right (Right val) -> return $ Right val
+
 -- | Terminate the program with an error
 programError :: Monad m => ProgramError -> Interpreter m a
 programError = Interpreter . throwE
 
 -- | Fail the evaluation
-failEvaluation :: Monad m => Interpreter m a
-failEvaluation = Interpreter 
+failEvaluation :: Monad m => Evaluator m a
+failEvaluation = Evaluator
                $ lift 
-               $ InterpreterInternal 
                $ throwE EvalFailed
 
 -- | Complete the evaluation
-finishEvaluation :: Monad m => Interpreter m a
-finishEvaluation = Interpreter 
+finishEvaluation :: Monad m => Evaluator m a
+finishEvaluation = Evaluator
                  $ lift 
-                 $ InterpreterInternal 
                  $ throwE EvalSuccess
-
-getsProgramStateInternal :: Monad m 
-                         => (ProgramState -> a) 
-                         -> InterpreterInternal m a
-getsProgramStateInternal = InterpreterInternal . lift . gets
-
-modifyProgramStateInternal :: Monad m 
-                           => (ProgramState -> ProgramState) 
-                           -> InterpreterInternal m ()
-modifyProgramStateInternal = InterpreterInternal . lift . modify
 
 getProgramState :: Monad m => Interpreter m ProgramState
 getProgramState = getsProgramState id
@@ -94,13 +93,13 @@ putProgramState :: Monad m => ProgramState -> Interpreter m ()
 putProgramState = modifyProgramState . const
 
 getsProgramState :: Monad m => (ProgramState -> a) -> Interpreter m a
-getsProgramState = Interpreter . lift . getsProgramStateInternal
+getsProgramState = Interpreter . lift . gets
 
 modifyProgramState :: Monad m 
                    => (ProgramState 
                    -> ProgramState) 
                    -> Interpreter m ()
-modifyProgramState = Interpreter . lift . modifyProgramStateInternal
+modifyProgramState = Interpreter . lift . modify
 
 getVariables :: Monad m => Interpreter m (Map String Data)
 getVariables = getsProgramState variables
@@ -184,7 +183,7 @@ isPatternable (PatternData _) = True
 isPatternable x = isStringable x
 -}
 
-toString :: Monad m => Data -> Interpreter m Data
+toString :: Monad m => Data -> Evaluator m Data
 toString (StringData s) = return $ StringData s
 toString (IntegerData i) = return $ StringData $ show i
 toString (RealData r) = return $ StringData $ show r
@@ -193,15 +192,15 @@ toString (PatternData (ConcatPattern a b)) = do
     StringData a' <- toString $ PatternData a
     StringData b' <- toString $ PatternData b
     return $ StringData $ a' ++ b'
-toString _ = programError ProgramError
+toString _ = liftEval $ programError ProgramError
 
-toPattern :: Monad m => Data -> Interpreter m Pattern
+toPattern :: Monad m => Data -> Evaluator m Pattern
 toPattern (PatternData p) = return p
 toPattern x = do
     StringData s <- toString x
     return $ LiteralPattern $ s
 
-toInteger :: Monad m => Data -> Interpreter m Data
+toInteger :: Monad m => Data -> Evaluator m Data
 toInteger (IntegerData i) = return $ IntegerData i
 toInteger x = do
     StringData s <- toString x
@@ -209,7 +208,7 @@ toInteger x = do
         Just i -> return $ IntegerData i
         Nothing -> failEvaluation
 
-toReal :: Monad m => Data -> Interpreter m Data
+toReal :: Monad m => Data -> Evaluator m Data
 toReal (RealData i) = return $ RealData i
 toReal x = do
     StringData s <- toString x
@@ -218,7 +217,7 @@ toReal x = do
         Nothing -> failEvaluation
     
 
-raiseArgs :: Monad m => Data -> Data -> Interpreter m (Data, Data)
+raiseArgs :: Monad m => Data -> Data -> Evaluator m (Data, Data)
 raiseArgs a b
     | isString a && isString b = return (a,b)
     | isInteger a && isInteger b = return (a,b)
@@ -245,9 +244,9 @@ raiseArgs a b
         b' <- toReal b
         return (a,b')
     
-    | otherwise = programError ProgramError
+    | otherwise = liftEval $ programError ProgramError
 
-lowerArgs :: Monad m => Data -> Data -> Interpreter m (Data, Data)
+lowerArgs :: Monad m => Data -> Data -> Evaluator m (Data, Data)
 lowerArgs a b
     | isString a && isString b = return (a,b)
     | isInteger a && isInteger b = return (a,b)
@@ -274,58 +273,58 @@ lowerArgs a b
         a' <- toInteger a
         return (a',b)
     
-    | otherwise = programError ProgramError
+    | otherwise = liftEval $ programError ProgramError
 
-evalOp :: Monad m => Operator -> Data -> Data -> Interpreter m Data
+evalOp :: Monad m => Operator -> Data -> Data -> Evaluator m Data
 evalOp Plus a b = do
     (a',b') <- raiseArgs a b
     case (a',b') of
         (IntegerData a'', IntegerData b'') -> return $ IntegerData (a''+b'')
         (RealData a'', RealData b'') -> return $ RealData (a''+b'')
-        _ -> programError ProgramError
+        _ -> liftEval $ programError ProgramError
 evalOp Minus a b = do
     (a',b') <- raiseArgs a b
     case (a',b') of
         (IntegerData a'', IntegerData b'') -> return $ IntegerData (a''-b'')
         (RealData a'', RealData b'') -> return $ RealData (a''-b'')
-        _ -> programError ProgramError
+        _ -> liftEval $ programError ProgramError
 evalOp Star a b = do
     (a',b') <- raiseArgs a b
     case (a',b') of
         (IntegerData a'', IntegerData b'') -> return $ IntegerData (a''*b'')
         (RealData a'', RealData b'') -> return $ RealData (a''*b'')
-        _ -> programError ProgramError
+        _ -> liftEval $ programError ProgramError
 evalOp Slash a b = do
     (a',b') <- raiseArgs a b
     case (a',b') of
         (IntegerData a'', IntegerData b'') -> return $ IntegerData (a'' `div` b'')
         (RealData a'', RealData b'') -> return $ RealData (a'' / b'')
-        _ -> programError ProgramError
+        _ -> liftEval $ programError ProgramError
 evalOp Bang a b = do
     (a',b') <- raiseArgs a b
     case (a',b') of
         (IntegerData a'', IntegerData b'') -> return $ IntegerData (a'' ^ b'')
         (RealData a'', RealData b'') -> return $ RealData (a'' ** b'')
-        _ -> programError ProgramError
+        _ -> liftEval $ programError ProgramError
 evalOp DoubleStar a b = evalOp Bang a b
 evalOp Pipe a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ PatternData $ AlternativePattern a' b'
 
-evalConcat :: Monad m => Data -> Data -> Interpreter m Data
+evalConcat :: Monad m => Data -> Data -> Evaluator m Data
 evalConcat a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ PatternData $ ConcatPattern a' b'
 
 
-evalExpr :: MonadIO m => Expr -> Interpreter m Data
+evalExpr :: MonadIO m => Expr -> Evaluator m Data
 -- TODO: PrefixExpr
 -- TODO: UnevaluatedExpr
 evalExpr (IdExpr "INPUT") = StringData <$> (liftIO $ getLine)
 evalExpr (IdExpr name) = do
-    d <- varLookup name
+    d <- liftEval $ varLookup name
     case d of
         Just d -> return d
         Nothing -> failEvaluation
@@ -346,7 +345,7 @@ evalExpr (ConcatExpr a b) = do
 evalExpr NullExpr = return $ StringData ""
 
 -- Execute a subject and return the lookup for it
-execSub :: MonadIO m => Expr -> Interpreter m Lookup
+execSub :: MonadIO m => Expr -> Evaluator m Lookup
 execSub (IdExpr "INPUT") = return $ Input
 execSub (IdExpr "OUTPUT") = return $ Output
 execSub (IdExpr "PUNCH") = return $ Punch
@@ -355,55 +354,44 @@ execSub (PrefixExpr Dollar expr) = do
     expr' <- evalExpr expr
     StringData s <- toString expr'
     return $ Lookup s
-execSub _ = programError ProgramError
+execSub _ = liftEval $ programError ProgramError
 
 -- Execute a pattern, and return the pattern structure for it
-execPat :: Monad m => Expr -> Interpreter m Pattern
-execPat _ = programError ProgramError
+execPat :: Monad m => Expr -> Evaluator m Pattern
+execPat _ = liftEval $ programError ProgramError
 
 -- Execute a replacement, and return the new data
-execRepl :: MonadIO m => Lookup -> Pattern -> Expr -> Interpreter m ()
+execRepl :: MonadIO m => Lookup -> Pattern -> Expr -> Evaluator m ()
 execRepl (Lookup s) EverythingPattern expr = do
     val <- evalExpr expr
-    varWrite s val
+    liftEval $ varWrite s val
 execRepl Output EverythingPattern expr = do
     val <- evalExpr expr
     StringData str <- toString val
     liftIO $ putStrLn str
-execRepl _ _ _ = programError ProgramError
+execRepl _ _ _ = liftEval $ programError ProgramError
 
 -- Execute a goto
-execGoto :: Monad m => EvalStop -> Goto -> Interpreter m ()
-execGoto _ _ = programError ProgramError
+execGoto :: Monad m => EvalStop -> Goto -> Evaluator m ()
+execGoto _ _ = liftEval $ programError ProgramError
 
 -- Execute one of the steps above, ignoring if it is missing
 execMaybe :: Monad m 
-          => (x -> Interpreter m y) 
+          => (x -> m y) 
           -> Maybe x 
-          -> Interpreter m (Maybe y)
+          -> m (Maybe y)
 execMaybe f (Just x) = Just <$> f x
 execMaybe _ _ = return Nothing
 
 catchEval :: Monad m 
-          => Interpreter m a 
+          => Evaluator m a 
           -> (EvalStop -> Interpreter m a)
           -> Interpreter m a
 catchEval m h = do
-    st <- getProgramState
-    (m', st') <- lift $ runStateT inner st
-    putProgramState st'
-    m'
-  where
-    inner = do
-        result <- runExceptT 
-               $ runInterpreterInternal
-               $ runExceptT
-               $ runInterpreter m
-        case result of
-            Right (Right x) -> return $ return x
-            Right (Left e) -> return $ programError e
-            Left x -> return $ h x
-
+    result <- unliftEval m
+    case result of
+        Right val -> return val
+        Left stop -> h stop
 
 -- | Execute a statement in the interpreter
 exec :: MonadIO m => Stmt -> Interpreter m ()
@@ -442,34 +430,19 @@ load stmts = putStatements $ V.fromList stmts
 -- until the program ends
 run :: MonadIO m => Interpreter m ProgramError
 run = do
-    st <- getProgramState
-    (result, st') <- lift $ flip runStateT st
-        $ runExceptT 
-        $ runInterpreterInternal 
-        $ runExceptT 
-        $ runInterpreter
-        $ step
+    result <- Interpreter $ lift $ runExceptT $ runInterpreter $ step
     case result of
-        Right (Right x) -> do
-            putProgramState st'
-            run
-        Right (Left x) -> return x
-
+        Right () -> run
+        Left err -> return err
+    
 -- | Execute an interpreter action
 interpret :: MonadIO m 
           => ProgramState 
           -> Interpreter m a 
-          -> m (Either (Either ProgramError EvalStop) a)
-interpret st m = do
-    result <- flip evalStateT st
-        $ runExceptT 
-        $ runInterpreterInternal 
+          -> m (Either ProgramError a)
+interpret st m = flip evalStateT st
         $ runExceptT 
         $ runInterpreter m
-    case result of
-        Right (Right x) -> return $ Right x
-        Right (Left x) -> return $ Left (Left x)
-        Left x -> return $ Left (Right x) 
 
 -- | Run a SNOBOL4 program
 runProgram :: MonadIO m => Program -> m ProgramError
