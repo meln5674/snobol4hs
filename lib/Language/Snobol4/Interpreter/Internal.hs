@@ -98,10 +98,7 @@ evalOp Pipe a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ PatternData $ AlternativePattern a' b'
-
--- | Evaluate a concatenation of data
-evalConcat :: InterpreterShell m => Data -> Data -> Evaluator m Data
-evalConcat a b = do
+evalOp Blank a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ PatternData $ ConcatPattern a' b'
@@ -147,10 +144,6 @@ evalExpr (BinaryExpr a op b) = do
     a' <- evalExpr a
     b' <- evalExpr b
     evalOp op a' b'
-evalExpr (ConcatExpr a b) = do
-    a' <- evalExpr a
-    b' <- evalExpr b
-    evalConcat a' b'
 evalExpr NullExpr = return $ StringData ""
 evalExpr _ = liftEval $ programError ProgramError
 

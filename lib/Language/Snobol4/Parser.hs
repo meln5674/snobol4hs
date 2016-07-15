@@ -252,7 +252,7 @@ operation = do
     b <- (P.try expression <|> element)
     return $ case op of
         Just op -> BinaryExpr a op b
-        Nothing -> ConcatExpr a b
+        Nothing -> BinaryExpr a Blank b
 
 -- | Parse an expression, which is an element or binary operation, optionally 
 -- surounded by blanks
@@ -284,21 +284,22 @@ reference = do
 
     
     
-    
+fixedExpression = liftM (fixPrec . fixAssoc) expression
+
 -- | Parse a subject field, which is blanks followed by an element
 subject_field = blanks >> element
 
 -- | Parse a pattern field, which is blanks followed by an expression
-pattern_field = blanks >> expression
+pattern_field = blanks >> fixedExpression
 
 -- | Parse an object fieild, which is blanks followed by an expression
-object_field = blanks >> expression
+object_field = blanks >> fixedExpression
 
 -- | Parse an equals field, which is blanks followed by an equals sign
 equal = blanks >> equals
 
 -- | Parse an unconditional goto
-goto = Goto <$> (inParens expression <|> inAngles expression)
+goto = Goto <$> (inParens fixedExpression <|> inAngles fixedExpression)
 
 -- | Parse a conditional goto that begins with the success goto
 successGoto = do
@@ -453,13 +454,13 @@ program = P.many $ do
 
 -- | Parse an expression from tokens
 parseExpressionFromToks :: [Located Token SourcePos] -> Either ParseError Expr
-parseExpressionFromToks = wrapError id . P.runParser expression False ""
+parseExpressionFromToks = wrapError id . P.runParser fixedExpression False ""
 
 -- | Parse an expression from tokens in a transformer
 parseExpressionFromToksT :: Monad m 
                          => [Located Token SourcePos] 
                          -> m (Either ParseError Expr)
-parseExpressionFromToksT = liftM (wrapError id) . P.runParserT expression False ""
+parseExpressionFromToksT = liftM (wrapError id) . P.runParserT fixedExpression False ""
 
 -- | Parse a statement from tokens
 parseStatementFromToks :: [Located Token SourcePos] -> Either ParseError Stmt
@@ -484,12 +485,12 @@ parseProgramFromToksT = liftM (wrapError id) . P.runParserT program False ""
 -- Public functions
 
 -- | Parse an expression
-parseExpression = L.lex True >=> parseExpressionFromToks
+parseExpression = L.lex False >=> parseExpressionFromToks
 
 -- | Parse an expression in a transformer
 parseExpressionT 
     = runExceptT 
-    . (ExceptT . L.lexT True >=> ExceptT . parseExpressionFromToksT)
+    . (ExceptT . L.lexT False >=> ExceptT . parseExpressionFromToksT)
 
 -- | Parse a statement
 parseStatement = L.lex True >=> parseStatementFromToks
@@ -513,3 +514,84 @@ parseFile path = liftIO $ do
     code <- readFile path
     return $ parseProgram code
     
+{-
+
+1 - 2 - 3 -> BinaryExpr (LitExpr (Int 1)) Minus (BinaryExpr (LitExpr (Int 2)) Minus (LitExpr (Int 3))
+
+
+  -
+1  -
+  2 3
+
+   -
+ -  3
+1 2
+
+
+1 - 2 - 3 - 4
+
+
+ -
+1 -
+ 2 -
+  3 4
+
+   -
+ -   -
+1 2 3 4
+
+     - 
+   -   4
+ -   3
+1 2
+-}
+
+prec :: Operator -> Int
+prec Not = 12
+prec Question = 12
+prec Dollar = 11
+prec Dot = 11
+prec Bang = 10
+prec DoubleStar = 10
+prec Percent = 9
+prec Star = 8
+prec Slash = 7
+prec Hash = 6
+prec Plus = 5
+prec Minus = 5
+prec At = 4
+prec Blank = 3
+prec Pipe = 2
+prec And = 1
+
+data Assoc = AssocLeft | AssocRight deriving Eq
+
+assoc :: Operator -> Assoc
+assoc Not = AssocRight
+assoc DoubleStar = AssocRight
+assoc _ = AssocLeft
+
+fixPrec :: Expr -> Expr
+fixPrec (PrefixExpr op expr) = PrefixExpr op $ fixPrec expr
+fixPrec (UnevaluatedExpr expr) = UnevaluatedExpr $ fixPrec expr
+fixPrec (CallExpr i args) = CallExpr i $ map fixPrec args
+fixPrec (RefExpr i args) = RefExpr i $ map fixPrec args
+fixPrec (ParenExpr expr) = ParenExpr $ fixPrec expr
+fixPrec (BinaryExpr exprA op exprB) = case fixPrec exprB of
+    BinaryExpr exprA' op' exprB'
+        | prec op > prec op' -> BinaryExpr (BinaryExpr exprA op exprA') op' exprB'
+    x -> BinaryExpr exprA op exprB
+fixPrec x = x
+
+fixAssoc :: Expr -> Expr
+fixAssoc (BinaryExpr exprA op (BinaryExpr exprA' op' exprB))
+    | prec op == prec op' 
+        && assoc op == AssocLeft 
+        && assoc op' == AssocLeft
+        = fixAssoc $ BinaryExpr (BinaryExpr exprA op exprA') op' exprB
+fixAssoc (PrefixExpr op expr) = PrefixExpr op $ fixAssoc expr
+fixAssoc (UnevaluatedExpr expr) = UnevaluatedExpr $ fixAssoc expr
+fixAssoc (CallExpr i args) = CallExpr i $ map fixAssoc args
+fixAssoc (RefExpr i args) = RefExpr i $ map fixAssoc args
+fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr
+fixAssoc x = x

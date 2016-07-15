@@ -83,7 +83,9 @@ data Operator
     | And
     -- | Exponentiation, binary only
     | DoubleStar
-  deriving Show
+    -- | Concat, binary only
+    | Blank
+  deriving (Show, Eq)
 
 -- | A literal value
 data Literal
@@ -115,8 +117,6 @@ data Expr
     | ParenExpr Expr
     -- | Two expressions with a binary operator
     | BinaryExpr Expr Operator Expr
-    -- | Two expressions with a blank between them to be concat'd
-    | ConcatExpr Expr Expr
     -- | The null expression, represents a zero-length string
     | NullExpr
   deriving Show
