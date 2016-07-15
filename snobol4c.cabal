@@ -24,6 +24,9 @@ library
                       , Language.Snobol4.VM.IO
                       , Language.Snobol4.Interpreter
                       , Language.Snobol4.Interpreter.Types
+                      , Language.Snobol4.Interpreter.Shell
+                      , Language.Snobol4.Interpreter.Shell.Console
+    other-modules:      Language.Snobol4.Interpreter.Internal
     build-depends:      base
                       , parsec
                       , transformers
@@ -33,8 +36,18 @@ library
     default-language:   Haskell2010
 
 executable snobol4c
-  hs-source-dirs:       src
+  hs-source-dirs:       src/snobol4c
   main-is:              Main.hs
   default-language:     Haskell2010
   build-depends:        base >= 4.7 && < 5
                       , snobol4c
+
+executable snobol4ci
+  hs-source-dirs:       src/snobol4ci
+  main-is:              Main.hs
+  default-language:     Haskell2010
+  build-depends:        base >= 4.7 && < 5
+                      , snobol4c
+                      , haskeline
+                      , transformers
+                      , mtl

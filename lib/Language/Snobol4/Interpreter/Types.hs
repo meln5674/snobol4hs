@@ -4,7 +4,7 @@ Description     : Types used by the SNOBOL4 Interpreter
 Copyright       : (c) Andrew Melnick 2016
 License         : MIT
 Maintainer      : meln5674@kettering.edu
-Portatibility   : Unknown
+Portability     : Unknown
 
 -}
 
@@ -18,11 +18,13 @@ import qualified Data.Vector as V
 
 import Language.Snobol4.Syntax.AST
 
+
 -- | State of the interpreter
 data ProgramState
     = ProgramState
+    { 
     -- | A map of names to variables bound
-    { variables :: Map String Data
+       variables :: Map String Data 
     -- | The statements in the current program
     , statements :: Vector Stmt
     -- | A map of label names to the index of their statement

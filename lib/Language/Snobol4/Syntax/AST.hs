@@ -1,51 +1,147 @@
+{-|
+Module          : Language.Snobol4.Syntax.AST
+Description     : The SNOBOL4 Abstract Syntax Tree
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+A SNOBOL4 program is represented as a list of statements, which each have:
+
+* A label
+
+* A subject
+
+* A pattern
+
+* An object
+
+* A goto
+
+
+
+All fields are optional, but a statement with no subject may not have a pattern 
+or object
+
+
+Subjects, patterns, objects, and goto targets are expressions.
+
+
+An expression is one of the following:
+
+* A null string
+
+* A literal int, string, or real
+
+* An identifier
+
+* A function call
+
+* A table/array reference
+
+* An expression prefixed by a unary operator
+
+* Two expressions with a binary operator or blanks (concat)
+
+* An unevaluated expression
+
+* Another expression in parenthesis
+-}
+
 module Language.Snobol4.Syntax.AST where
 
+-- | All operators, unary or binary
 data Operator
-    = Not
+    = 
+    -- | Negation, unary only
+      Not
+    -- | Interrogation, unary only
     | Question
+    -- | Indirect reference, unary only
     | Dollar
+    -- | Pattern assignment when binary, Name when unary
     | Dot
+    -- | Exponentiation, binary only
     | Bang
+    -- | None
     | Percent
+    -- | Multiplication when binary, Unevaluated expression when unary
     | Star
+    -- | Division, binary only
     | Slash
+    -- | None
     | Hash
+    -- | Positive when unary, Addtion when binary
     | Plus
+    -- | Negative when unary, Minus when binary
     | Minus
+    -- | Cursor position, unary only
     | At
+    -- | Pattern alternatives, binary only
     | Pipe
+    -- | Keyword, unary only
     | And
+    -- | Exponentiation, binary only
     | DoubleStar
   deriving Show
 
+-- | A literal value
 data Literal
-    = Int Int
+    = 
+    -- | Integer literal
+      Int Int
+    -- | Real literal
     | Real Float
+    -- | String literal
     | String String
   deriving Show
 
+-- | An expression
 data Expr
-    = PrefixExpr Operator Expr
+    = 
+    -- | An expression with a unary prefix operator
+      PrefixExpr Operator Expr
+    -- | An expression marked to be evaluated later
     | UnevaluatedExpr Expr
+    -- | An identifier
     | IdExpr String
+    -- | A literal
     | LitExpr Literal
+    -- | A function call
     | CallExpr String [Expr]
+    -- | An array/table reference
     | RefExpr String [Expr]
+    -- | An expression in parenthesis
     | ParenExpr Expr
+    -- | Two expressions with a binary operator
     | BinaryExpr Expr Operator Expr
+    -- | Two expressions with a blank between them to be concat'd
     | ConcatExpr Expr Expr
+    -- | The null expression, represents a zero-length string
     | NullExpr
   deriving Show
+
+-- | A goto field
 data Goto
-    = Goto Expr 
+    =
+    -- | Unconditional goto
+      Goto Expr 
+    -- | Goto only if statement succeeds
     | SuccessGoto Expr 
+    -- | Goto only if statement fails
     | FailGoto Expr 
+    -- | Goto with both success and failure case
     | BothGoto Expr Expr
   deriving Show
 
+-- | Statement
 data Stmt
-    = Stmt (Maybe String) (Maybe Expr) (Maybe Expr) (Maybe Expr) (Maybe Goto)
+    = 
+    -- | Normal statement with label, subject, pattern, object, and goto
+      Stmt (Maybe String) (Maybe Expr) (Maybe Expr) (Maybe Expr) (Maybe Goto)
+    -- | The end statement
     | EndStmt (Maybe String)
   deriving Show
 
+-- | A list of statements
 type Program = [Stmt]

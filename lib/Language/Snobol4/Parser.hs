@@ -6,12 +6,12 @@ Description     : Parser for the SNOBOL4 implementation
 Copyright       : (c) Andrew Melnick 2016
 License         : MIT
 Maintainer      : meln5674@kettering.edu
-Portatibility   : Unknown
+Portability     : Unknown
 
 The Parser takes as input a list of SNOBOL4 tokens, which can be found at 
-Language.Snobol4.Lexer.Tokens, and produces a list of Statements, which can be 
-found at Language.Snobol4.Syntax.AST, which describe the abstract syntax tree
-of the program.
+"Language.Snobol4.Lexer.Tokens", and produces a list of statements, which can 
+be found at "Language.Snobol4.Syntax.AST", which describe the abstract syntax 
+tree of a SNOBOL4 program.
 -}
 module Language.Snobol4.Parser
     ( parseStatement
@@ -25,6 +25,7 @@ module Language.Snobol4.Parser
 
 import Control.Monad
 
+import Control.Monad.Trans
 import Control.Monad.Trans.Except
 
 import Text.Parsec ( (<|>) )
@@ -191,7 +192,10 @@ binary = do
         Nothing -> Nothing
 
 -- | Parse any literal
-literal = sliteral <|> dliteral <|> integer <|> real
+literal =  sliteral 
+       <|> dliteral 
+       <|> integer 
+       <|> real
 
 -- | Parse an identifier and wrap it in an expression
 identifierE = do
@@ -204,15 +208,19 @@ literalE = do
     return $ LitExpr $ case t of
         IntLiteral s -> Int (read s)
         RealLiteral s -> Real (read s)
-        SLiteral s -> String (read s)
-        DLiteral s -> String (read s)
+        SLiteral s -> String $ init $ tail $ s
+        DLiteral s -> String $ init $ tail $ s
 
 -- | Parse an element, which optionally begins with a unary operator, then is 
 -- either an identifier, literal, function call, reference, or an expression in
 -- parenthesis
 element = do
     prefix <- P.optionMaybe unary
-    rest <- identifierE <|> literalE <|> function_call <|> reference <|> inParens expression
+    rest <-  identifierE 
+         <|> literalE 
+         <|> function_call 
+         <|> reference 
+         <|> inParens expression
     return $ case prefix of
         Just x -> PrefixExpr x rest
         Nothing -> rest
@@ -221,7 +229,7 @@ element = do
 operation = do
     a <- element
     op <- binary
-    b <- (element <|> expression)
+    b <- (P.try expression <|> element)
     return $ case op of
         Just op -> BinaryExpr a op b
         Nothing -> ConcatExpr a b
@@ -468,8 +476,8 @@ parseProgramT
     . (ExceptT . L.lexT >=> ExceptT . parseProgramFromToksT)
 
 -- | Parse a source file
-parseFile :: FilePath -> IO (Either P.ParseError Program)
-parseFile path = do
+parseFile :: MonadIO m => FilePath -> m (Either P.ParseError Program)
+parseFile path = liftIO $ do
     code <- readFile path
     return $ parseProgram code
     

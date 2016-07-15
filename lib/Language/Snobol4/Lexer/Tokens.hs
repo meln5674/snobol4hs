@@ -4,7 +4,7 @@ Description     : Tokens produced by the Lexer for the SNOBOL4 implementation
 Copyright       : (c) Andrew Melnick 2016
 License         : MIT
 Maintainer      : meln5674@kettering.edu
-Portatibility   : Unknown
+Portability     : Unknown
 
 -}
 

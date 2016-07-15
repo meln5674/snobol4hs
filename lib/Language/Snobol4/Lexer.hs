@@ -6,7 +6,7 @@ Description     : Lexer for the SNOBOL4 implementation
 Copyright       : (c) Andrew Melnick 2016
 License         : MIT
 Maintainer      : meln5674@kettering.edu
-Portatibility   : Unknown
+Portability     : Unknown
 
 The lexer takes as input a string containing SNOBOL4 source code,
 and returns a list of tokens, which can be found at 
