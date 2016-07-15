@@ -58,6 +58,7 @@ data Lookup
     | Input
     -- | The output variable
     | Punch
+    | LookupLiteral Data
   deriving (Show, Eq, Ord)
 
 

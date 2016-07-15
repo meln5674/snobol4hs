@@ -152,6 +152,7 @@ execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data)
 execLookup Input = (Just . StringData) <$> lift input
 execLookup Output = (Just . StringData) <$> lift lastOutput
 execLookup Punch = (Just . StringData) <$> lift lastPunch
+execLookup (LookupLiteral x) = return $ Just x
 execLookup (LookupId i) = liftEval $ varLookup i
 execLookup (LookupAggregate id args) = do
     base <- liftEval $ varLookup id
@@ -171,6 +172,7 @@ execLookup (LookupAggregate id args) = do
 
 -- Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
+execSub expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
 execSub (IdExpr "INPUT") = return $ Input
 execSub (IdExpr "OUTPUT") = return $ Output
 execSub (IdExpr "PUNCH") = return $ Punch
