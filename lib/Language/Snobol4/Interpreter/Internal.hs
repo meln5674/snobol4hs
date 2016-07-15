@@ -183,19 +183,6 @@ execSub (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
 execSub _ = liftEval $ programError ProgramError
 
 
-{-
-
-idea: using parsec for pattern evaluation
-
-
-user state: list of pairs of Lookups and strings
-
-assignment: create parser which applies pattern and adds a 
-
--}
-
-
-
 -- Execute a pattern, and return the pattern structure for it
 execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
 execPat = evalExpr >=> toPattern
@@ -222,9 +209,23 @@ execRepl lookup pattern expr = do
                             assign lookup $ StringData val'
                             finishEvaluation $ Nothing
 
+goto :: InterpreterShell m => Expr -> Evaluator m ()
+goto expr = do
+    result <- evalExpr expr
+    StringData label <- toString result
+    pc <- liftEval $ labelLookup label
+    case pc of
+        Nothing -> liftEval $ programError ProgramError
+        Just pc -> liftEval $ putProgramCounter pc
+
 -- Execute a goto
 execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m ()
-execGoto _ _ = liftEval $ programError ProgramError
+execGoto _ (Goto expr) = goto expr
+execGoto (EvalSuccess _) (SuccessGoto expr) = goto expr
+execGoto EvalFailed (FailGoto expr) = goto expr
+execGoto (EvalSuccess _) (BothGoto expr _) = goto expr
+execGoto EvalFailed (BothGoto _ expr) = goto expr
+execGoto _ _ = liftEval $ modifyProgramCounter (+1)
 
 -- Execute one of the steps above, ignoring if it is missing
 execMaybe :: Monad m 
