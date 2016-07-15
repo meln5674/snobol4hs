@@ -484,28 +484,28 @@ parseProgramFromToksT = liftM (wrapError id) . P.runParserT program False ""
 -- Public functions
 
 -- | Parse an expression
-parseExpression = L.lex >=> parseExpressionFromToks
+parseExpression = L.lex True >=> parseExpressionFromToks
 
 -- | Parse an expression in a transformer
 parseExpressionT 
     = runExceptT 
-    . (ExceptT . L.lexT >=> ExceptT . parseExpressionFromToksT)
+    . (ExceptT . L.lexT True >=> ExceptT . parseExpressionFromToksT)
 
 -- | Parse a statement
-parseStatement = L.lex >=> parseStatementFromToks
+parseStatement = L.lex True >=> parseStatementFromToks
 
 -- | Parse a statement in a transformer
 parseStatementT
     = runExceptT 
-    . (ExceptT . L.lexT >=> ExceptT . parseStatementFromToksT)
+    . (ExceptT . L.lexT True >=> ExceptT . parseStatementFromToksT)
 
 -- | Parse a program
-parseProgram = L.lex >=> parseProgramFromToks
+parseProgram = L.lex True >=> parseProgramFromToks
 
 -- | Parse a program in a transformer
 parseProgramT
     = runExceptT 
-    . (ExceptT . L.lexT >=> ExceptT . parseProgramFromToksT)
+    . (ExceptT . L.lexT True >=> ExceptT . parseProgramFromToksT)
 
 -- | Parse a source file
 parseFile :: MonadIO m => FilePath -> m (Either L.ParseError Program)

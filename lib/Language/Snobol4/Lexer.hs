@@ -160,8 +160,8 @@ comment_line = do
         then P.unexpected "Cannot have a label anywhere but the start of the line"
         else do
             head <- P.char '*'
-            tail <- P.manyTill P.anyChar (P.try eol)
-            return $ LineComment $ head : tail
+            tail <- P.manyTill P.anyChar (P.try (void eol) <|> P.eof)
+            return $ LineComment $ tail
 
 -- | Modifie a parser so that, if it succeeds, it wraps the result in a Located 
 -- value with the position the parser started at
@@ -188,9 +188,9 @@ anyToken
     <|> integer
     <|> sliteral
     <|> dliteral
+    <|> comment_line
     <|> P.try exponentiate
     <|> operator
-    <|> comment_line
 
 -- | Parse any number of legal SNOBOL4 tokens
 tokens = P.many (locate anyToken)
@@ -198,12 +198,21 @@ tokens = P.many (locate anyToken)
 -- Public functions
 
 -- | Produce a list of tokens tagged with their source locations from an input 
--- stream
-lex :: String -> Either ParseError [Located Token SourcePos]
-lex = wrapError (map wrapPos) . P.runParser tokens () ""
+-- stream. First parameter sets if the lexing should assume that the input is
+-- from the start of a line or not.
+lex :: Bool -> String -> Either ParseError [Located Token SourcePos]
+lex x = wrapError (map wrapPos) . P.runParser (fixPosition >> tokens) () ""
+  where
+    fixPosition = if x
+        then return ()
+        else (flip P.incSourceColumn 1 <$> P.getPosition) >>= P.setPosition
+        
 
 -- | Produce a list of tokens tagged with their source locations from an input 
 -- stream, inside of a monad transformer
-lexT :: Monad m => String -> m (Either ParseError [Located Token SourcePos])
-lexT = liftM (wrapError (map wrapPos)) . P.runParserT tokens () ""
-
+lexT :: Monad m => Bool -> String -> m (Either ParseError [Located Token SourcePos])
+lexT x = liftM (wrapError (map wrapPos)) . P.runParserT (fixPosition >> tokens) () ""
+  where
+    fixPosition = if x 
+        then return ()
+        else (flip P.incSourceColumn 1 <$> P.getPosition) >>= P.setPosition
