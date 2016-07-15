@@ -58,7 +58,7 @@ data Match
 
 data ScanResult
     = NoScan
-    | Scan Data [(Lookup,Data)]
+    | Scan Data [(Lookup,Data)] Int Int
 
 
 -- | Lift an operation from non-evaluation stack into evaluation stack

@@ -187,11 +187,25 @@ execPat = evalExpr >=> toPattern
 
 -- Execute a replacement on a subject and pattern with an object
 execRepl :: InterpreterShell m => Lookup -> Pattern -> Expr -> Evaluator m ()
-execRepl l EverythingPattern expr = do
-    val <- evalExpr expr
-    assign l val
--- TODO: Replacements on patterns
-execRepl _ _ _ = liftEval $ programError ProgramError
+execRepl lookup pattern expr = do
+    repl <- evalExpr expr
+    case pattern of
+        EverythingPattern -> assign lookup repl
+        pattern -> do
+            val <- execLookup lookup
+            case val of
+                Nothing -> liftEval $ programError ProgramError
+                Just d -> do
+                    StringData str <- toString d
+                    scanResult <- scanPattern str pattern
+                    case scanResult of
+                        NoScan -> failEvaluation
+                        Scan match assignments startIndex endIndex -> do
+                            mapM_ (uncurry assign) assignments
+                            StringData replStr <- toString repl
+                            let val' = take startIndex str ++ replStr ++ drop endIndex str
+                            assign lookup $ StringData val'
+                            finishEvaluation $ Nothing
 
 -- Execute a goto
 execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m ()
@@ -236,17 +250,16 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
             val <- execLookup lookup
             case val of
                 Nothing -> liftEval $ programError ProgramError
-                Just d -> do
-                    case pattern of
-                        EverythingPattern -> return $ Just d
-                        pattern -> do
-                            StringData str <- toString d
-                            scanResult <- scanPattern str pattern
-                            case scanResult of
-                                NoScan -> failEvaluation
-                                Scan match assignments -> do
-                                    mapM_ (uncurry assign) assignments
-                                    finishEvaluation $ Just match
+                Just d -> case pattern of
+                    EverythingPattern -> finishEvaluation $ Just d
+                    pattern -> do
+                        StringData str <- toString d
+                        scanResult <- scanPattern str pattern
+                        case scanResult of
+                            NoScan -> failEvaluation
+                            Scan match assignments _ _ -> do
+                                mapM_ (uncurry assign) assignments
+                                finishEvaluation $ Just match
   where
     handler :: InterpreterShell m => EvalStop -> Interpreter m (Maybe Data)
     handler r = do

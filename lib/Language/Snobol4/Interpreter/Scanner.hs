@@ -71,7 +71,7 @@ matchPatOuter s p = do
         Just endIndex = posToIndex endRow endColumn rows
         s' = take startIndex s ++ result ++ drop endIndex s
 --    return $ Scan (StringData s') endState
-    return $ Scan (StringData result) endState
+    return $ Scan (StringData result) endState startIndex endIndex
 
 scanPattern :: InterpreterShell m 
             => String 
