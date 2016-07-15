@@ -85,7 +85,7 @@ data Operator
     | DoubleStar
     -- | Concat, binary only
     | Blank
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | A literal value
 data Literal
@@ -96,7 +96,7 @@ data Literal
     | Real Float
     -- | String literal
     | String String
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 -- | An expression
 data Expr
@@ -119,7 +119,7 @@ data Expr
     | BinaryExpr Expr Operator Expr
     -- | The null expression, represents a zero-length string
     | NullExpr
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 -- | A goto field
 data Goto

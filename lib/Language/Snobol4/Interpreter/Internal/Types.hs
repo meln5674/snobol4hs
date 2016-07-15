@@ -323,7 +323,31 @@ lowerArgs a b
     | otherwise = liftEval $ programError ProgramError
 
 assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
-assign (Lookup s) val = liftEval $ varWrite s val
+assign (LookupId s) val = liftEval $ varWrite s val
+assign (LookupAggregate id args) val = do
+    let loop (ArrayData vec) [IntegerData i] = return $ ArrayData $ vec V.// [(i,val)]
+        loop (ArrayData vec) ((IntegerData i):as) = do
+            case vec V.!? i of
+                Just d -> do
+                    d' <- loop d as
+                    return $ ArrayData $ vec V.// [(i,d')]
+                Nothing -> liftEval $ programError ProgramError
+        loop (ArrayData _) _ = liftEval $ programError ProgramError
+        loop (TableData tab) [a] = return $ TableData $ M.insert a val tab
+        loop (TableData tab) (a:as) = do
+            case M.lookup a tab of
+                Just d -> do
+                    d' <- loop d as
+                    return $ TableData $ M.insert a d' tab
+                Nothing -> liftEval $ programError ProgramError
+        loop (TableData _) _ = liftEval $ programError ProgramError
+        loop _ _ = liftEval $ programError ProgramError
+    base <- liftEval $ varLookup id
+    case base of
+        Just base -> do
+            base' <- loop base args
+            liftEval $ varWrite id base'
+        Nothing -> liftEval $ programError ProgramError
 assign Output val = do
     StringData str <- toString val
     lift $ output str

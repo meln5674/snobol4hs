@@ -49,14 +49,17 @@ data EvalStop
 -- | A lookup request
 data Lookup 
     -- | Lookup a variable by name
-    = Lookup String
+    = LookupId String
+    -- | Lookup an element in an array by index or a table by key
+    | LookupAggregate String [Data]
     -- | The output varaible
     | Output
     -- | The input variable
     | Input
     -- | The output variable
     | Punch
-  deriving Show
+  deriving (Show, Eq, Ord)
+
 
 -- | The data types allowed in a snobol4 program
 data Data
@@ -76,7 +79,7 @@ data Data
     | Name Expr
     -- | An unevaluated expression
     | Unevaluated Expr
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 -- | A pattern
 data Pattern
@@ -96,7 +99,7 @@ data Pattern
     | LengthPattern Int
     -- | A pattern which matches anything
     | EverythingPattern
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 -- | A program error INCOMPLETE
 data ProgramError

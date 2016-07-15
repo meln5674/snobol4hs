@@ -152,19 +152,34 @@ execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data)
 execLookup Input = (Just . StringData) <$> lift input
 execLookup Output = (Just . StringData) <$> lift lastOutput
 execLookup Punch = (Just . StringData) <$> lift lastPunch
-execLookup (Lookup i) = liftEval $ varLookup i
-    
+execLookup (LookupId i) = liftEval $ varLookup i
+execLookup (LookupAggregate id args) = do
+    base <- liftEval $ varLookup id
+    case base of
+        Nothing -> return Nothing
+        Just val -> do
+            let loop (ArrayData vec) ((IntegerData i):as) = case vec V.!? i of
+                    Nothing -> Nothing
+                    Just d -> loop d as
+                loop (ArrayData _) _ = Nothing
+                loop (TableData tab) (a:as) = case M.lookup a tab of
+                    Nothing -> Nothing
+                    Just d -> loop d as
+                loop x [] = Just x
+                loop x _ = Nothing
+            return $ loop val args
 
 -- Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
 execSub (IdExpr "INPUT") = return $ Input
 execSub (IdExpr "OUTPUT") = return $ Output
 execSub (IdExpr "PUNCH") = return $ Punch
-execSub (IdExpr s) = return $ Lookup s
+execSub (IdExpr s) = return $ LookupId s
 execSub (PrefixExpr Dollar expr) = do
     expr' <- evalExpr expr
     StringData s <- toString expr'
-    return $ Lookup s
+    return $ LookupId s
+execSub (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
 execSub _ = liftEval $ programError ProgramError
 
 
