@@ -21,6 +21,8 @@ module Language.Snobol4.Parser
     , parseExpression
     , parseExpressionT
     , parseFile
+    , ParseError
+    , SourcePos
     ) where
 
 import Control.Monad
@@ -35,25 +37,43 @@ import qualified Text.Parsec.Char as P
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Lexer.Tokens
 
+import Language.Snobol4.Parser.Types
+
 import qualified Language.Snobol4.Lexer as L
+
+
+wrapPos :: Located a P.SourcePos -> Located a SourcePos
+wrapPos (Located x pos) = Located x $ SourcePos pos
+
+wrapError :: (a -> b) -> Either P.ParseError a -> Either ParseError b
+wrapError _ (Left err) = Left $ ParseError err
+wrapError f (Right x) = Right $ f x
 
 -- Parser utilities
 
 -- | Utility function, returns x if the predicate p on x holds, Nothing 
 -- otherwise
+maybeThing :: (a -> Bool) -> a -> Maybe a
 maybeThing p x | p x = Just x
                | otherwise = Nothing
 
 -- | Utility function for getting the position of the next token
+nextPos :: P.SourcePos -> a -> [Located b SourcePos] -> P.SourcePos
 nextPos pos _ [] = pos
-nextPos pos _ (t:ts) = getPos t
+nextPos pos _ (t:ts) = let SourcePos pos' = getPos t in pos'
 
 -- Parser primitives
 
 -- | Create a parser which accepts a token which satisfies the predicate f
+token' :: Monad m 
+       => (Token -> Bool) 
+       -> P.ParsecT [Located Token SourcePos] u m (Located Token SourcePos)
 token' p = P.tokenPrim showToken nextPos (maybeThing (p . getToken))
 
 -- | Create a parser which accepts the token t
+token :: Monad m 
+      => Token 
+      -> P.ParsecT [Located Token SourcePos] u m (Located Token SourcePos)
 token t = token' (t==)
 
 -- Parser combinators
@@ -432,22 +452,34 @@ program = P.many $ do
 -- Parsing from token lists
 
 -- | Parse an expression from tokens
-parseExpressionFromToks = P.runParser expression False ""
+parseExpressionFromToks :: [Located Token SourcePos] -> Either ParseError Expr
+parseExpressionFromToks = wrapError id . P.runParser expression False ""
 
 -- | Parse an expression from tokens in a transformer
-parseExpressionFromToksT = P.runParserT expression False ""
+parseExpressionFromToksT :: Monad m 
+                         => [Located Token SourcePos] 
+                         -> m (Either ParseError Expr)
+parseExpressionFromToksT = liftM (wrapError id) . P.runParserT expression False ""
 
 -- | Parse a statement from tokens
-parseStatementFromToks = P.runParser statement False ""
+parseStatementFromToks :: [Located Token SourcePos] -> Either ParseError Stmt
+parseStatementFromToks = wrapError id .  P.runParser statement False ""
 
 -- | Parse a statement from tokens in a transformer
-parseStatementFromToksT = P.runParserT statement False ""
+parseStatementFromToksT :: Monad m
+                        => [Located Token SourcePos] 
+                        -> m (Either ParseError Stmt)
+parseStatementFromToksT = liftM (wrapError id) . P.runParserT statement False ""
 
 -- | Parse a program from tokens
-parseProgramFromToks = P.runParser program False ""
+parseProgramFromToks :: [Located Token SourcePos] -> Either ParseError Program
+parseProgramFromToks = wrapError id . P.runParser program False ""
 
 -- | Parse a program from tokens in a transformer
-parseProgramFromToksT = P.runParserT program False ""
+parseProgramFromToksT :: Monad m
+                      => [Located Token SourcePos] 
+                      -> m (Either ParseError Program)
+parseProgramFromToksT = liftM (wrapError id) . P.runParserT program False ""
 
 -- Public functions
 
@@ -476,7 +508,7 @@ parseProgramT
     . (ExceptT . L.lexT >=> ExceptT . parseProgramFromToksT)
 
 -- | Parse a source file
-parseFile :: MonadIO m => FilePath -> m (Either P.ParseError Program)
+parseFile :: MonadIO m => FilePath -> m (Either L.ParseError Program)
 parseFile path = liftIO $ do
     code <- readFile path
     return $ parseProgram code

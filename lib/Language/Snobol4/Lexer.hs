@@ -17,6 +17,8 @@ module Language.Snobol4.Lexer
     ( module Language.Snobol4.Lexer.Tokens
     , lex
     , lexT
+    , ParseError
+    , SourcePos
     ) where
 
 import Prelude hiding (lex)
@@ -28,6 +30,16 @@ import qualified Text.Parsec as P
 import qualified Text.Parsec.Char as P
 
 import Language.Snobol4.Lexer.Tokens
+
+import Language.Snobol4.Parser.Types
+
+
+wrapPos :: Located a P.SourcePos -> Located a SourcePos
+wrapPos (Located x pos) = Located x $ SourcePos pos
+
+wrapError :: (a -> b) -> Either P.ParseError a -> Either ParseError b
+wrapError _ (Left err) = Left $ ParseError err
+wrapError f (Right x) = Right $ f x
 
 -- | Create a parser which returns x if p succeeds
 p `ifthen` x = p >> return x
@@ -176,21 +188,22 @@ anyToken
     <|> integer
     <|> sliteral
     <|> dliteral
+    <|> P.try exponentiate
     <|> operator
-    <|> exponentiate
     <|> comment_line
 
 -- | Parse any number of legal SNOBOL4 tokens
 tokens = P.many (locate anyToken)
 
 -- Public functions
- 
+
 -- | Produce a list of tokens tagged with their source locations from an input 
 -- stream
-lex :: String -> Either P.ParseError [Located Token P.SourcePos]
-lex = P.runParser tokens () ""
+lex :: String -> Either ParseError [Located Token SourcePos]
+lex = wrapError (map wrapPos) . P.runParser tokens () ""
 
 -- | Produce a list of tokens tagged with their source locations from an input 
 -- stream, inside of a monad transformer
-lexT :: Monad m => String -> m (Either P.ParseError [Located Token P.SourcePos])
-lexT = P.runParserT tokens () ""
+lexT :: Monad m => String -> m (Either ParseError [Located Token SourcePos])
+lexT = liftM (wrapError (map wrapPos)) . P.runParserT tokens () ""
+

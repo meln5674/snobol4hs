@@ -85,7 +85,7 @@ data Pattern
     = AssignmentPattern Pattern Lookup
     -- | A pattern which records the matched value in the provided lookup 
     -- immediately after matching
-    | ImmediateAssignmentPattern String String
+    | ImmediateAssignmentPattern Pattern Lookup
     -- | A pattern to match a literal string
     | LiteralPattern String
     -- | An alternative between two pattern
