@@ -51,6 +51,7 @@ import qualified Data.Map as M
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
+import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
@@ -59,7 +60,7 @@ import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
-
+import Language.Snobol4.Interpreter.Scanner
 
 -- | Evaluate a binary operation on data
 evalOp :: InterpreterShell m => Operator -> Data -> Data -> Evaluator m Data
@@ -147,6 +148,13 @@ evalExpr (BinaryExpr a op b) = do
 evalExpr NullExpr = return $ StringData ""
 evalExpr _ = liftEval $ programError ProgramError
 
+execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data)
+execLookup Input = (Just . StringData) <$> lift input
+execLookup Output = (Just . StringData) <$> lift lastOutput
+execLookup Punch = (Just . StringData) <$> lift lastPunch
+execLookup (Lookup i) = liftEval $ varLookup i
+    
+
 -- Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
 execSub (IdExpr "INPUT") = return $ Input
@@ -175,11 +183,7 @@ assignment: create parser which applies pattern and adds a
 
 -- Execute a pattern, and return the pattern structure for it
 execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
-execPat expr = do
-    result <- evalExpr expr
-    case result of
-        PatternData pattern -> return pattern
-        _ -> liftEval $ programError ProgramError
+execPat = evalExpr >=> toPattern
 
 -- Execute a replacement on a subject and pattern with an object
 execRepl :: InterpreterShell m => Lookup -> Pattern -> Expr -> Evaluator m ()
@@ -214,33 +218,52 @@ catchEval m h = do
         Left stop -> h stop
 
 -- | Execute a statement in the interpreter
-exec :: InterpreterShell m => Stmt -> Interpreter m ()
+exec :: InterpreterShell m => Stmt -> Interpreter m (Maybe Data)
 exec (EndStmt _) = programError NormalTermination
 exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
     subResult <- execMaybe execSub sub
     lookup <- case subResult of
         Just lookup -> return lookup
-        Nothing -> finishEvaluation
+        Nothing -> finishEvaluation Nothing
     patResult <- execMaybe execPat pat
     pattern <- case patResult of
         Just pattern -> return pattern
         Nothing -> return EverythingPattern
-    execMaybe (execRepl lookup pattern) obj
-    finishEvaluation
+    replResult <- execMaybe (execRepl lookup pattern) obj
+    case replResult of
+        Just _ -> finishEvaluation Nothing
+        Nothing -> do
+            val <- execLookup lookup
+            case val of
+                Nothing -> liftEval $ programError ProgramError
+                Just d -> do
+                    case pattern of
+                        EverythingPattern -> return $ Just d
+                        pattern -> do
+                            StringData str <- toString d
+                            scanResult <- scanPattern str pattern
+                            case scanResult of
+                                NoScan -> failEvaluation
+                                Scan match assignments -> do
+                                    mapM_ (uncurry assign) assignments
+                                    finishEvaluation $ Just match
   where
-    handler :: InterpreterShell m => EvalStop -> Interpreter m ()
+    handler :: InterpreterShell m => EvalStop -> Interpreter m (Maybe Data)
     handler r = do
         gotoResult <- catchEval (execMaybe (execGoto r) go) 
                    $ \_ -> programError ProgramError
         case gotoResult of
             Just _ -> return ()
             Nothing -> modifyProgramCounter (+1)
+        case r of
+            EvalFailed -> return Nothing
+            EvalSuccess x -> return x
             
 
                         
                         
 -- | Execute the next statement pointed to by the program counter
-step :: InterpreterShell m => Interpreter m ()
+step :: InterpreterShell m => Interpreter m (Maybe Data)
 step = fetch >>= exec
 
 -- | Load a program into the interpreter
@@ -253,7 +276,7 @@ run :: InterpreterShell m => Interpreter m ProgramError
 run = do
     result <- Interpreter $ lift $ runExceptT $ runInterpreter $ step
     case result of
-        Right () -> run
+        Right _ -> run
         Left err -> return err
     
 -- | Execute an interpreter action

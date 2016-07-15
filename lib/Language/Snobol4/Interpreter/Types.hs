@@ -41,7 +41,7 @@ emptyState = ProgramState M.empty V.empty M.empty 0
 -- | The reason evaluation stopped
 data EvalStop
     -- | The evaluation succeeded and there is nothing else to evaluate
-    = EvalSuccess
+    = EvalSuccess (Maybe Data)
     -- | The evaluation failed
     | EvalFailed
   deriving Show

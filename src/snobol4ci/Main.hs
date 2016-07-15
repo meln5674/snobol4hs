@@ -46,6 +46,8 @@ main = shell $ do
     st <- load []
     loopMain st
 
+outputStrLn' = HaskelineShell . lift . outputStrLn
+
 loopMain :: PausedInterpreter -> HaskelineShell ()
 loopMain st = do
     i <- HaskelineShell $ lift $ getInputLine ">>"
@@ -55,10 +57,25 @@ loopMain st = do
             result <- parseStatementT (i ++ "\n")
             case result of
                 Right stmt -> do
-                    st' <- exec stmt st
-                    loopMain st'
+                    (st', val) <- exec stmt st
+                    case val of
+                        Just val -> case val of
+                            StringData s -> outputStrLn' $ show s ++ " :: STRING"
+                            IntegerData i -> outputStrLn' $ show i ++ " :: INTEGER"
+                            RealData r -> outputStrLn' $ show r ++ " :: REAL"
+                            PatternData _ -> outputStrLn' "[PATTERN]"
+                            ArrayData _ -> outputStrLn' "[ARRAY]"
+                            TableData _ -> outputStrLn' "[TABLE]"
+                            Name _ -> outputStrLn' "[NAME]"
+                            Unevaluated _ -> outputStrLn' "[UNEVAL]"
+                        Nothing -> return ()
+                    case isTerminated st' of
+                        Just err -> do
+                            outputStrLn' $ "ERROR: " ++ show err
+                            loopMain st
+                        Nothing -> loopMain st'
                 Left err -> do
-                    HaskelineShell $ lift $ outputStrLn $ "ERROR: " ++ show err
+                    outputStrLn' $ "ERROR: " ++ show err
                     loopMain st
     return ()
     

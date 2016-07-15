@@ -17,6 +17,8 @@ module Language.Snobol4.Interpreter
     , eval
     , exec
     , run
+    , isTerminated
+    , module Language.Snobol4.Interpreter.Types
     ) where
 
 import Control.Monad
@@ -107,13 +109,17 @@ eval expr (Paused st) = do
 exec :: InterpreterShell m
      => Stmt
      -> PausedInterpreter
-     -> m PausedInterpreter
-exec _ (Terminated err) = return $ Terminated err
+     -> m (PausedInterpreter, Maybe Data)
+exec _ (Terminated err) = return $ (Terminated err, Nothing)
 exec stmt (Paused st) = do
     result <- I.interpret st $ do
-        I.exec stmt
-        I.getProgramState
+        result <- I.exec stmt
+        st <- I.getProgramState
+        return (st, result)
     case result of
-        Left err -> return $ Terminated err
-        Right x -> return $ Paused x
+        Left err -> return $ (Terminated err, Nothing)
+        Right (st, x) -> return $ (Paused st, x)
 
+isTerminated :: PausedInterpreter -> Maybe ProgramError
+isTerminated (Terminated err) = Just err
+isTerminated _ = Nothing

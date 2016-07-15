@@ -43,11 +43,11 @@ posToIndex :: Int -> Int -> [String] -> Maybe Int
 posToIndex 0 0 [] = Just 0
 posToIndex _ _ [] = Nothing
 posToIndex 0 column [line]
-    | length line < column = Just column
+    | column <= length line = Just column
     | otherwise = Nothing 
 posToIndex _ _ [line] = Nothing
 posToIndex row column (line:lines)
-    | length line < column = do
+    | column <= length line = do
         x <- posToIndex (row - 1) column lines
         return $ x + column + 1 -- NEWLINE LENGTH?
     | otherwise = Nothing
@@ -70,7 +70,8 @@ matchPatOuter s p = do
         Just startIndex = posToIndex startRow startColumn rows
         Just endIndex = posToIndex endRow endColumn rows
         s' = take startIndex s ++ result ++ drop endIndex s
-    return $ Scan (StringData s') endState
+--    return $ Scan (StringData s') endState
+    return $ Scan (StringData result) endState
 
 scanPattern :: InterpreterShell m 
             => String 

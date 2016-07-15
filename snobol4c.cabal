@@ -15,6 +15,10 @@ cabal-version:       >=1.10
 library
     hs-source-dirs:     lib
     exposed-modules:    Language.Snobol4
+                      , Language.Snobol4.Interpreter
+                      , Language.Snobol4.Interpreter.Types
+                      , Language.Snobol4.Interpreter.Shell
+                      , Language.Snobol4.Interpreter.Shell.Console
                       , Language.Snobol4.Lexer
                       , Language.Snobol4.Lexer.Tokens
                       , Language.Snobol4.Parser
@@ -22,14 +26,11 @@ library
                       , Language.Snobol4.VM
                       , Language.Snobol4.VM.Bytecode
                       , Language.Snobol4.VM.IO
-                      , Language.Snobol4.Interpreter
-                      , Language.Snobol4.Interpreter.Types
-                      , Language.Snobol4.Interpreter.Shell
-                      , Language.Snobol4.Interpreter.Shell.Console
     other-modules:      Language.Snobol4.Interpreter.Internal
-                      , Language.Snobol4.Parser.Types
-                      , Language.Snobol4.Interpreter.Scanner
                       , Language.Snobol4.Interpreter.Internal.Types
+                      , Language.Snobol4.Interpreter.Scanner
+                      , Language.Snobol4.Parser.Types
+                      , Language.Snobol4.Parser.Internal
     build-depends:      base
                       , parsec
                       , transformers

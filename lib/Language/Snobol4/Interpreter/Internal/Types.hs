@@ -82,13 +82,15 @@ programError = Interpreter . throwE
 failEvaluation :: InterpreterShell m => Evaluator m a
 failEvaluation = Evaluator
                $ lift 
-               $ throwE EvalFailed
+               $ throwE 
+               $ EvalFailed
 
 -- | Mark the current evaluation as successful and prohibit additional evaluation
-finishEvaluation :: InterpreterShell m => Evaluator m a
+finishEvaluation :: InterpreterShell m => Maybe Data -> Evaluator m a
 finishEvaluation = Evaluator
-                 $ lift 
-                 $ throwE EvalSuccess
+                 . lift 
+                 . throwE
+                 . EvalSuccess
 
 -- | Get the state of the interpreter
 getProgramState :: InterpreterShell m => Interpreter m ProgramState
