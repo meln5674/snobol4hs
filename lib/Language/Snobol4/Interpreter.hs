@@ -34,24 +34,25 @@ import Language.Snobol4.Interpreter.Internal
     , ExecResult(..)
     )
 import Language.Snobol4.Interpreter.Shell
+import Language.Snobol4.Interpreter.State
 import qualified Language.Snobol4.Interpreter.Internal as I
 
 -- | Run an interpreter action using an empty starting state
 startInterpreter :: InterpreterShell m 
                  => Interpreter m a 
-                 -> m (PausedInterpreter, Maybe a)
+                 -> m (PausedInterpreter m, Maybe a)
 startInterpreter = resumeInterpreter (Paused emptyState)
 
 -- | Run an interpreter action using an empty starting state, and discard the 
 -- result 
-startInterpreter' :: InterpreterShell m => Interpreter m a -> m PausedInterpreter
+startInterpreter' :: InterpreterShell m => Interpreter m a -> m (PausedInterpreter m)
 startInterpreter' = liftM fst . startInterpreter
 
 -- | Run an interpreter action in a paused interpreter
 resumeInterpreter :: InterpreterShell m 
-                  => PausedInterpreter 
+                  => PausedInterpreter m
                   -> Interpreter m a 
-                  -> m (PausedInterpreter, Maybe a)
+                  -> m (PausedInterpreter m, Maybe a)
 resumeInterpreter (Terminated err) _ = return (Terminated err, Nothing)
 resumeInterpreter (Paused st) m = do
     result <- I.interpret st $ do
@@ -64,9 +65,9 @@ resumeInterpreter (Paused st) m = do
 
 -- | Run an interpreter action in a paused interpreter, and discard the result
 resumeInterpreter' :: InterpreterShell m
-                   => PausedInterpreter
+                   => PausedInterpreter m
                    -> Interpreter m a
-                   -> m PausedInterpreter
+                   -> m (PausedInterpreter m)
 resumeInterpreter' st = liftM fst . resumeInterpreter st
     
 -- | Run a SNOBOL4 program
@@ -78,12 +79,12 @@ run code = do
 
 
 -- | Load a program into the interpreter and then pause it
-load :: InterpreterShell m => Program -> m PausedInterpreter
+load :: InterpreterShell m => Program -> m (PausedInterpreter m)
 load code = startInterpreter' $ I.load code
     
 
 -- | Take a paused interpreter and execute the next statement
-step :: InterpreterShell m => PausedInterpreter -> m PausedInterpreter
+step :: InterpreterShell m => PausedInterpreter m -> m (PausedInterpreter m)
 step (Terminated err) = return $ Terminated err
 step (Paused st) = do
     result <- I.interpret st $ do
@@ -96,8 +97,8 @@ step (Paused st) = do
 -- | Evaluate an expression in a paused interpreter
 eval :: InterpreterShell m 
      => Expr
-     -> PausedInterpreter
-     -> m (PausedInterpreter, Maybe Data)
+     -> PausedInterpreter m
+     -> m (PausedInterpreter m, Maybe Data)
 eval _ (Terminated err) = return $ (Terminated err, Nothing)
 eval expr (Paused st) = do
     result <- I.interpret st $ do
@@ -113,8 +114,8 @@ eval expr (Paused st) = do
 -- | Execute a statement in a paused interpreter
 exec :: InterpreterShell m
      => Stmt
-     -> PausedInterpreter
-     -> m (PausedInterpreter, Maybe Data)
+     -> PausedInterpreter m
+     -> m (PausedInterpreter m, Maybe Data)
 exec _ (Terminated err) = return $ (Terminated err, Nothing)
 exec stmt (Paused st) = do
     result <- I.interpret st $ do
@@ -127,6 +128,6 @@ exec stmt (Paused st) = do
         Right (_, Return) -> return (Terminated ProgramError, Nothing)
         Right (_, FReturn) -> return (Terminated ProgramError, Nothing)
 
-isTerminated :: PausedInterpreter -> Maybe ProgramError
+isTerminated :: PausedInterpreter m -> Maybe ProgramError
 isTerminated (Terminated err) = Just err
 isTerminated _ = Nothing

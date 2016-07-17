@@ -41,6 +41,7 @@ module Language.Snobol4.Interpreter.Internal
     , module Language.Snobol4.Interpreter.Internal.Types
     , module Language.Snobol4.Interpreter.Scanner
     , module Language.Snobol4.Interpreter.Evaluator
+    , module Language.Snobol4.Interpreter.State
     ) where
 
 import Prelude hiding (toInteger)
@@ -64,7 +65,7 @@ import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner
-
+import Language.Snobol4.Interpreter.State
 
 call :: InterpreterShell m => String -> [Data] -> Interpreter m (Maybe Data)
 call funcName evaldArgs = do
@@ -215,7 +216,7 @@ run = do
     
 -- | Execute an interpreter action
 interpret :: InterpreterShell m 
-          => ProgramState 
+          => ProgramState m
           -> Interpreter m a 
           -> m (Either ProgramError a)
 interpret st m = flip evalStateT st

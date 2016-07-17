@@ -34,8 +34,8 @@ data CallStackNode
     }
 
 -- | Information for calling a function
-data Function
-     = Function
+data Function m
+     = UserFunction
      { 
      -- | Name of the function
        funcName :: String
@@ -46,13 +46,19 @@ data Function
      -- | Index of the statement to start this function
      , entryPoint :: Int
      }
+     | PrimitiveFunction
+     {
+        funcName :: String
+     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
+     }
 
+ 
 -- | State of the interpreter
-data ProgramState
+data ProgramState m
     = ProgramState
     { 
     -- | A map of names to variables bound
-       variables :: Map String Data 
+      variables :: Map String Data 
     -- | The statements in the current program
     , statements :: Vector Stmt
     -- | A map of label names to the index of their statement
@@ -60,21 +66,17 @@ data ProgramState
     -- | The index of the current statement
     , programCounter :: Int
     -- | The functions known to the interpreter
-    , functions :: Map String Function
+    , functions :: Map String (Function m)
     -- | The call stack
     , callStack :: [CallStackNode]
     }
 
--- | A ProgramState with no variable, statements, or labels, pointed at the 
--- first statement
-emptyState :: ProgramState
-emptyState = ProgramState M.empty V.empty M.empty 0 M.empty []
 
 -- | Transformer stack which represents the interpreter
 newtype Interpreter m a
     = Interpreter
     { runInterpreter
-        :: ExceptT ProgramError (StateT ProgramState m) a
+        :: ExceptT ProgramError (StateT (ProgramState m) m) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
@@ -85,7 +87,7 @@ instance MonadTrans Interpreter where
 newtype Evaluator m a 
     = Evaluator
     { runEvaluator
-        :: ExceptT ProgramError (ExceptT EvalStop (StateT ProgramState m)) a
+        :: ExceptT ProgramError (ExceptT EvalStop (StateT (ProgramState m) m)) a
     
     }
   deriving (Functor, Applicative, Monad, MonadIO)
@@ -94,10 +96,10 @@ instance MonadTrans Evaluator where
     lift m = Evaluator $ lift $ lift $ lift $ m
 
 -- | A paused interpreter
-data PausedInterpreter
+data PausedInterpreter m
     =
     -- | An interpreter that has been paused
-      Paused ProgramState
+      Paused (ProgramState m)
     -- | An interpreter that has been terminated
     | Terminated ProgramError
 
@@ -149,21 +151,21 @@ finishEvaluation = Evaluator
                  . EvalSuccess
 
 -- | Get the state of the interpreter
-getProgramState :: InterpreterShell m => Interpreter m ProgramState
+getProgramState :: InterpreterShell m => Interpreter m (ProgramState m)
 getProgramState = getsProgramState id
 
 -- | Set the state of the interpreter
-putProgramState :: InterpreterShell m => ProgramState -> Interpreter m ()
+putProgramState :: InterpreterShell m => (ProgramState m) -> Interpreter m ()
 putProgramState = modifyProgramState . const
 
 -- | Apply an accessor function to the state of the interpreter
-getsProgramState :: InterpreterShell m => (ProgramState -> a) -> Interpreter m a
+getsProgramState :: InterpreterShell m => (ProgramState m -> a) -> Interpreter m a
 getsProgramState = Interpreter . lift . gets
 
 -- | Apply an update function to the state of the interpreter
 modifyProgramState :: InterpreterShell m 
-                   => (ProgramState 
-                   -> ProgramState) 
+                   => (ProgramState m
+                   -> ProgramState m) 
                    -> Interpreter m ()
 modifyProgramState = Interpreter . lift . modify
 
@@ -183,7 +185,7 @@ getLabels = getsProgramState labels
 getProgramCounter :: InterpreterShell m => Interpreter m Int
 getProgramCounter = getsProgramState programCounter
 
-getFunctions :: InterpreterShell m => Interpreter m (Map String Function)
+getFunctions :: InterpreterShell m => Interpreter m (Map String (Function m))
 getFunctions = getsProgramState functions
 
 getCallStack :: InterpreterShell m => Interpreter m [CallStackNode]
@@ -288,10 +290,10 @@ varWrite id val = do
         Just (GlobalVar,_) -> globalWrite id val
         Nothing -> globalWrite id val
 
-funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe Function)
+funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe (Function m))
 funcLookup id = M.lookup id <$> getFunctions
 
-pushFuncNode :: InterpreterShell m => Function -> Interpreter m ()
+pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
 pushFuncNode f = do
     pc <- getProgramCounter
     pushCallStack

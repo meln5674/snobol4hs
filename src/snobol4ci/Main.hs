@@ -48,7 +48,7 @@ main = shell $ do
 
 outputStrLn' = HaskelineShell . lift . outputStrLn
 
-loopMain :: PausedInterpreter -> HaskelineShell ()
+loopMain :: PausedInterpreter HaskelineShell -> HaskelineShell ()
 loopMain st = do
     i <- HaskelineShell $ lift $ getInputLine ">>"
     case i of
