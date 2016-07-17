@@ -62,47 +62,35 @@ import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner
 
+arithmetic :: InterpreterShell m 
+           => (Int -> Int -> Int) 
+           -> (Float -> Float -> Float)
+           -> Data 
+           -> Data 
+           -> Evaluator m Data
+arithmetic f_int f_real a b = do
+    (a',b') <- raiseArgs a b
+    case (a',b') of
+        (IntegerData a'', IntegerData b'') -> return $ IntegerData $ f_int a'' b''
+        (RealData a'', RealData b'') -> return $ RealData $ f_real a'' b''
+        _ -> liftEval $ programError ProgramError
+
+pattern :: InterpreterShell m => (Pattern -> Pattern -> Pattern) -> Data -> Data -> Evaluator m Data
+pattern f a b = do
+    a' <- toPattern a
+    b' <- toPattern b
+    return $ PatternData $ f a' b'
+
 -- | Evaluate a binary operation on data
 evalOp :: InterpreterShell m => Operator -> Data -> Data -> Evaluator m Data
-evalOp Plus a b = do
-    (a',b') <- raiseArgs a b
-    case (a',b') of
-        (IntegerData a'', IntegerData b'') -> return $ IntegerData (a''+b'')
-        (RealData a'', RealData b'') -> return $ RealData (a''+b'')
-        _ -> liftEval $ programError ProgramError
-evalOp Minus a b = do
-    (a',b') <- raiseArgs a b
-    case (a',b') of
-        (IntegerData a'', IntegerData b'') -> return $ IntegerData (a''-b'')
-        (RealData a'', RealData b'') -> return $ RealData (a''-b'')
-        _ -> liftEval $ programError ProgramError
-evalOp Star a b = do
-    (a',b') <- raiseArgs a b
-    case (a',b') of
-        (IntegerData a'', IntegerData b'') -> return $ IntegerData (a''*b'')
-        (RealData a'', RealData b'') -> return $ RealData (a''*b'')
-        _ -> liftEval $ programError ProgramError
-evalOp Slash a b = do
-    (a',b') <- raiseArgs a b
-    case (a',b') of
-        (IntegerData a'', IntegerData b'') -> return $ IntegerData (a'' `div` b'')
-        (RealData a'', RealData b'') -> return $ RealData (a'' / b'')
-        _ -> liftEval $ programError ProgramError
-evalOp Bang a b = do
-    (a',b') <- raiseArgs a b
-    case (a',b') of
-        (IntegerData a'', IntegerData b'') -> return $ IntegerData (a'' ^ b'')
-        (RealData a'', RealData b'') -> return $ RealData (a'' ** b'')
-        _ -> liftEval $ programError ProgramError
-evalOp DoubleStar a b = evalOp Bang a b
-evalOp Pipe a b = do
-    a' <- toPattern a
-    b' <- toPattern b
-    return $ PatternData $ AlternativePattern a' b'
-evalOp Blank a b = do
-    a' <- toPattern a
-    b' <- toPattern b
-    return $ PatternData $ ConcatPattern a' b'
+evalOp Plus = arithmetic (+) (+)
+evalOp Minus = arithmetic (-) (-)
+evalOp Star = arithmetic (*) (*)
+evalOp Slash = arithmetic div (/)
+evalOp Bang = arithmetic (^) (**)
+evalOp DoubleStar = evalOp Bang
+evalOp Pipe = pattern AlternativePattern 
+evalOp Blank = pattern ConcatPattern
 
 -- | Evaluate an expression
 evalExpr :: InterpreterShell m => Expr -> Evaluator m Data
@@ -139,7 +127,12 @@ evalExpr (LitExpr (Int i)) = return $ IntegerData i
 evalExpr (LitExpr (Real r)) = return $ RealData r
 evalExpr (LitExpr (String s)) = return $ StringData s
 -- TODO: CallExpr
--- TODO: RefExpr
+evalExpr (RefExpr id args) = do
+    args' <- mapM evalExpr args
+    x <- execLookup (LookupAggregate id args')
+    case x of
+        Just x -> return x
+        Nothing -> liftEval $ programError ProgramError
 evalExpr (ParenExpr expr) = evalExpr expr
 evalExpr (BinaryExpr a op b) = do
     a' <- evalExpr a
