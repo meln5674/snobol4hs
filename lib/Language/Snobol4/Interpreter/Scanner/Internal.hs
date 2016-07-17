@@ -6,6 +6,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Maybe
 
 import Language.Snobol4.Interpreter.Types
+import Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 
@@ -123,6 +124,17 @@ matchPat (ConcatPattern p1 p2) = do
     r2 <- matchPat p2
     return $ r1 ++ r2
 matchPat (LengthPattern len) = consumeN len
+matchPat (UnevaluatedExprPattern expr) = do 
+    pat <- Scanner $ lift $ lift $ do
+        result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
+        case result of
+            Just result -> Just <$> toPattern result
+            Nothing -> return Nothing
+    case pat of
+        Just pat -> matchPat pat
+        Nothing -> throwScan
+
+    
 matchPat EverythingPattern = consumeAll
     
 -- | Create a start state from input

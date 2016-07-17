@@ -120,3 +120,15 @@ execLookup (LookupAggregate id args) = do
                 loop x [] = Just x
                 loop x _ = Nothing
             return $ loop val args
+
+-- | Take an evaluation and return it to the interpreter stack, with a handler 
+-- for a failed evaluation
+catchEval :: InterpreterShell m 
+          => Evaluator m a 
+          -> (EvalStop -> Interpreter m a)
+          -> Interpreter m a
+catchEval m h = do
+    result <- unliftEval m
+    case result of
+        Right val -> return val
+        Left stop -> h stop

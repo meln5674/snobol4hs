@@ -133,18 +133,6 @@ execMaybe :: Monad m
 execMaybe f (Just x) = Just <$> f x
 execMaybe _ _ = return Nothing
 
--- | Take an evaluation and return it to the interpreter stack, with a handler 
--- for a failed evaluation
-catchEval :: InterpreterShell m 
-          => Evaluator m a 
-          -> (EvalStop -> Interpreter m a)
-          -> Interpreter m a
-catchEval m h = do
-    result <- unliftEval m
-    case result of
-        Right val -> return val
-        Left stop -> h stop
-
 -- | Execute a statement in the interpreter
 exec :: InterpreterShell m => Stmt -> Interpreter m (Maybe Data)
 exec (EndStmt _) = programError NormalTermination
