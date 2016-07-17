@@ -28,6 +28,7 @@ library
                       , Language.Snobol4.VM.IO
     other-modules:      Language.Snobol4.Interpreter.Internal
                       , Language.Snobol4.Interpreter.Internal.Types
+                      , Language.Snobol4.Interpreter.Evaluator
                       , Language.Snobol4.Interpreter.Scanner
                       , Language.Snobol4.Interpreter.Scanner.Internal
                       , Language.Snobol4.Parser.Types

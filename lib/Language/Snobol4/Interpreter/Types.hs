@@ -100,6 +100,8 @@ data Pattern
     | LengthPattern Int
     -- | A pattern which matches anything
     | EverythingPattern
+    -- | A pattern which contains an unevaluated expression
+    | UnevaluatedExprPattern Expr
   deriving (Show, Eq, Ord)
 
 -- | A program error INCOMPLETE
