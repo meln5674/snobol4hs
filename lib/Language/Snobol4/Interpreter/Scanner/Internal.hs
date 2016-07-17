@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Scanner.Internal where
 
+import Data.List
+
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Maybe
@@ -58,6 +60,9 @@ catchScan try catch = do
 getInput :: Monad m => Scanner m String
 getInput = Scanner $ gets inputStr
 
+nextChar :: Monad m => Scanner m Char
+nextChar = Scanner $ gets $ head . inputStr
+
 -- | Set the input yet to be scanned
 setInput :: Monad m => String -> Scanner m ()
 setInput s = Scanner $ modify $ \st -> st{inputStr = s}
@@ -65,6 +70,12 @@ setInput s = Scanner $ modify $ \st -> st{inputStr = s}
 -- | Increment the number of characters scanned
 incEndPos :: Monad m => Int -> Scanner m ()
 incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + len}
+
+getCursorPos :: Monad m => Scanner m Int
+getCursorPos = Scanner $ gets endPos
+
+getRCursorPos :: Monad m => Scanner m Int
+getRCursorPos = length <$> getInput
 
 -- | Add an assignment to be performed after success
 addAssignment :: Monad m => Lookup -> Data -> Scanner m ()
@@ -107,6 +118,91 @@ consumeAll = do
     incEndPos (length str)
     return str
 
+getAlternatives :: InterpreterShell m => Pattern -> Scanner m [Scanner m String]
+getAlternatives (AssignmentPattern p l) = getAlternatives p >>= return . map after
+  where
+    after m = do
+        result <- m
+        addAssignment l (StringData result)
+        return result
+getAlternatives (ImmediateAssignmentPattern p l) = getAlternatives p >>= return . map after
+  where
+    after m = do
+        result <- m
+        immediateAssignment l $ StringData result
+        return result
+getAlternatives (LiteralPattern s) = return $ (:[]) $ consume s
+getAlternatives (AlternativePattern p1 p2) = (++) <$> getAlternatives p1 <*> getAlternatives p2
+getAlternatives (ConcatPattern p1 p2) = do
+    as1 <- getAlternatives p1
+    x <- return $ flip mapM as1 $ \a1 -> do
+        a1' <- a1
+        as2 <- getAlternatives p2
+        return $ flip map as2 $ \a2 -> do
+            a2' <- a2
+            return $ a1' ++ a2'
+    concat <$> x
+getAlternatives (LengthPattern l) = return $ (:[]) $ consumeN l
+getAlternatives EverythingPattern = return $ (:[]) $ consumeAll
+getAlternatives (UnevaluatedExprPattern expr) = do 
+    pat <- Scanner $ lift $ lift $ do
+        result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
+        case result of
+            Just result -> Just <$> toPattern result
+            Nothing -> return Nothing
+    case pat of
+        Just pat -> getAlternatives pat
+        Nothing -> return $ (:[]) $ throwScan
+getAlternatives (HeadPattern l) = return $ (:[]) $ do
+    pos <- getCursorPos
+    immediateAssignment l $ IntegerData pos
+    return ""
+getAlternatives (SpanPattern cs) = do
+    str <- getInput
+    let (longest,rest) = span (`elem` cs) str
+    let matches = reverse $ inits longest
+    return $ map consume matches
+getAlternatives (BreakPattern cs) = do
+    str <- getInput
+    let (longest,rest) = span (`notElem` cs) str
+    let matches = reverse $ tails longest
+    return $ map consume matches
+getAlternatives (AnyPattern cs) = return $ (:[]) $ do
+    c <- nextChar
+    if c `elem` cs
+        then consumeN 1
+        else throwScan
+getAlternatives (NotAnyPattern cs) = return $ (:[]) $ do
+    c <- nextChar
+    if c `notElem` cs
+        then consumeN 1
+        else throwScan
+getAlternatives (TabPattern pos) = return $ (:[]) $ do
+    pos' <- getCursorPos
+    if pos <= pos'
+        then return ""
+        else throwScan
+getAlternatives (RTabPattern pos) = return $ (:[]) $ do
+    pos' <- getRCursorPos
+    if pos' <= pos
+        then return ""
+        else throwScan
+getAlternatives (PosPattern pos) = return $ (:[]) $ do
+    pos' <- getCursorPos
+    if pos' == pos
+        then return ""
+        else throwScan
+getAlternatives (RPosPattern pos) = return $ (:[]) $ do
+    pos' <- getRCursorPos
+    if pos' == pos
+        then return ""
+        else throwScan
+getAlternatives FailPattern = return $ (:[]) $ throwScan
+getAlternatives FencePattern = undefined
+getAlternatives AbortPattern = undefined
+
+
+{-
 -- | Match a pattern
 matchPat :: InterpreterShell m => Pattern -> Scanner m String
 matchPat (AssignmentPattern p l) = do
@@ -119,6 +215,16 @@ matchPat (ImmediateAssignmentPattern p l) = do
     return result
 matchPat (LiteralPattern s) = consume s
 matchPat (AlternativePattern p1 p2) = catchScan (matchPat p1) (matchPat p2)
+matchPat (ConcatPattern (AlternativePattern p1 p2) p3) = do
+    let try1 = do
+            r1 <- matchPat p1
+            r2 <- matchPat p3
+            return $ r1 ++ r2
+        try2 = do
+            r1 <- matchPat p2
+            r2 <- matchPat p3
+            return $ r1 ++ r2
+    catchScan try1 try2
 matchPat (ConcatPattern p1 p2) = do
     r1 <- matchPat p1
     r2 <- matchPat p2
@@ -133,9 +239,51 @@ matchPat (UnevaluatedExprPattern expr) = do
     case pat of
         Just pat -> matchPat pat
         Nothing -> throwScan
-
-    
+matchPat (HeadPattern l) = do
+    pos <- getCursorPos
+    immediateAssignment l $ IntegerData pos
+    return ""
+matchPat (SpanPattern chars) = do
+    let loop buf = do
+            c <- nextChar
+            if c `elem` chars
+                then catchScan (consumeN 1 >> (loop $ buf ++ [c])) (
+matchPat (BreakPattern chars) = undefined
+matchPat (AnyPattern chars) = do
+    c <- nextChar
+    if c `elem` chars
+        then consumeN 1
+        else throwScan
+matchPat (NotAnyPattern chars) = do
+    c <- nextChar
+    if c `notelem` chars
+        then consumeN 1
+        else throwScan
+matchPat (TabPattern pos) = do
+    pos' <- getCursorPos
+    if pos <= pos'
+        then return ""
+        else throwScan
+matchPat (RTabPAttern pos) = do
+    pos' <- getCursorPos
+    if pos' <= pos
+        then return ""
+        else throwScan 
+matchPat (PosPattern pos) = do
+    pos' <- getCursorPos
+    if pos == pos'
+        then return ""
+        else throwScan
+matchPat (RPosPattern pos) = do
+    pos' <- getRCursorPos
+    if pos == pos'
+        then return ""
+        else throwScan
+matchPat FailPattern = throwScan
+matchPat FencePattern = undefined
+matchPat AbortPattern = undefined  
 matchPat EverythingPattern = consumeAll
+-}    
     
 -- | Create a start state from input
 startState :: String -> ScannerState
@@ -145,3 +293,12 @@ startState s = ScannerState
              , startPos = 0
              , endPos = 0
              }
+
+evaluateAlternatives :: InterpreterShell m  
+                     => [Scanner m a]
+                     -> Scanner m a
+evaluateAlternatives [] = throwScan
+evaluateAlternatives (a:as) = catchScan a $ evaluateAlternatives as
+
+matchPat :: InterpreterShell m => Pattern -> Scanner m String
+matchPat p = getAlternatives p >>= evaluateAlternatives

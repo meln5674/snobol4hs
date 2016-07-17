@@ -102,10 +102,12 @@ test-suite scanner
   hs-source-dirs:       lib, test/scanner
   other-modules:        Language.Snobol4.Syntax.AST
                       , Language.Snobol4.Interpreter.Types
+                      , Language.Snobol4.Interpreter.Evaluator
                       , Language.Snobol4.Interpreter.Internal
                       , Language.Snobol4.Interpreter.Internal.Types
                       , Language.Snobol4.Interpreter.Shell
                       , Language.Snobol4.Interpreter.Scanner
+                      , Language.Snobol4.Interpreter.Scanner.Internal
   build-depends:        base, HUnit, vector, containers, mtl, transformers, parsec
   default-language:     Haskell2010
 

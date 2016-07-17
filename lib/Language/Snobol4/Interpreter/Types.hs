@@ -92,9 +92,9 @@ data Pattern
     | ImmediateAssignmentPattern Pattern Lookup
     -- | A pattern to match a literal string
     | LiteralPattern String
-    -- | An alternative between two pattern
+    -- | An alternative between two ore more patterns
     | AlternativePattern Pattern Pattern
-    -- | A concatination of two patterns
+    -- | A concatination of two or more patterns
     | ConcatPattern Pattern Pattern
     -- | A pattern which matches any string of N characters
     | LengthPattern Int
@@ -102,6 +102,37 @@ data Pattern
     | EverythingPattern
     -- | A pattern which contains an unevaluated expression
     | UnevaluatedExprPattern Expr
+    -- | A pattern which assigns the cursor position to a variable and matches
+    -- the null string
+    | HeadPattern Lookup
+    -- | A pattern which matches the longest string containing only certain
+    -- characters
+    | SpanPattern [Char]
+    -- | A pattern which matches the longest string not containing certain
+    -- characters
+    | BreakPattern [Char]
+    -- | A pattern which matches one character of a list of characters
+    | AnyPattern [Char]
+    -- | A pattern which matches one character not in a list of characters
+    | NotAnyPattern [Char]
+    -- | A pattern which succeeds if the cursor is before the given column
+    -- measured from the start
+    | TabPattern Int
+    -- | A pattern which succeeds if the cursor is after the given column
+    -- measured from the end
+    | RTabPattern Int
+    -- | A pattern which succeeds if the cursor is at the given column measured
+    -- from the start
+    | PosPattern Int
+    -- | A pattern which succeeds if the cursor is at the given column measured
+    -- from the end
+    | RPosPattern Int
+    -- | A pattern which always fails
+    | FailPattern
+    -- | A pattern which succeeds the first time, but fails any time after
+    | FencePattern
+    -- | A pattern which aborts the scanner
+    | AbortPattern
   deriving (Show, Eq, Ord)
 
 -- | A program error INCOMPLETE
