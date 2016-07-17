@@ -27,7 +27,12 @@ import Control.Monad.Trans
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 
-import Language.Snobol4.Interpreter.Internal (PausedInterpreter (..), Interpreter)
+import Language.Snobol4.Interpreter.Internal
+    ( PausedInterpreter (..)
+    , Interpreter
+    , emptyState
+    , ExecResult(..)
+    )
 import Language.Snobol4.Interpreter.Shell
 import qualified Language.Snobol4.Interpreter.Internal as I
 
@@ -117,8 +122,10 @@ exec stmt (Paused st) = do
         st <- I.getProgramState
         return (st, result)
     case result of
-        Left err -> return $ (Terminated err, Nothing)
-        Right (st, x) -> return $ (Paused st, x)
+        Left err -> return (Terminated err, Nothing)
+        Right (st, (StmtResult x)) -> return (Paused st, x)
+        Right (_, Return) -> return (Terminated ProgramError, Nothing)
+        Right (_, FReturn) -> return (Terminated ProgramError, Nothing)
 
 isTerminated :: PausedInterpreter -> Maybe ProgramError
 isTerminated (Terminated err) = Just err

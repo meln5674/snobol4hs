@@ -19,24 +19,6 @@ import qualified Data.Vector as V
 import Language.Snobol4.Syntax.AST
 
 
--- | State of the interpreter
-data ProgramState
-    = ProgramState
-    { 
-    -- | A map of names to variables bound
-       variables :: Map String Data 
-    -- | The statements in the current program
-    , statements :: Vector Stmt
-    -- | A map of label names to the index of their statement
-    , labels :: Map String Int
-    -- | The index of the current statement
-    , programCounter :: Int
-    }
-
--- | A ProgramState with no variable, statements, or labels, pointed at the 
--- first statement
-emptyState :: ProgramState
-emptyState = ProgramState M.empty V.empty M.empty 0
 
 -- | The reason evaluation stopped
 data EvalStop

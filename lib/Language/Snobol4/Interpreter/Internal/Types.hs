@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Internal.Types where
 
@@ -12,12 +13,62 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
+
+-- | A node of the call stack
+data CallStackNode
+    = Node
+    { 
+    -- | Local variables
+      locals :: Map String Data
+    -- | The index of the statement that called this function
+    , returnAddr :: Int
+    -- | The name of the function called
+    , callName :: String
+    }
+
+-- | Information for calling a function
+data Function
+     = Function
+     { 
+     -- | Name of the function
+       funcName :: String
+     -- | The names of the formal arguments of the function
+     , formalArgs :: [String]
+     -- | The names of the local variables of the function
+     , localNames :: [String]
+     -- | Index of the statement to start this function
+     , entryPoint :: Int
+     }
+
+-- | State of the interpreter
+data ProgramState
+    = ProgramState
+    { 
+    -- | A map of names to variables bound
+       variables :: Map String Data 
+    -- | The statements in the current program
+    , statements :: Vector Stmt
+    -- | A map of label names to the index of their statement
+    , labels :: Map String Int
+    -- | The index of the current statement
+    , programCounter :: Int
+    -- | The functions known to the interpreter
+    , functions :: Map String Function
+    -- | The call stack
+    , callStack :: [CallStackNode]
+    }
+
+-- | A ProgramState with no variable, statements, or labels, pointed at the 
+-- first statement
+emptyState :: ProgramState
+emptyState = ProgramState M.empty V.empty M.empty 0 M.empty []
 
 -- | Transformer stack which represents the interpreter
 newtype Interpreter m a
@@ -60,6 +111,11 @@ data ScanResult
     = NoScan
     | Scan Data [(Lookup,Data)] Int Int
 
+
+data ExecResult
+    = StmtResult (Maybe Data)
+    | Return
+    | FReturn
 
 -- | Lift an operation from non-evaluation stack into evaluation stack
 liftEval :: InterpreterShell m => Interpreter m a -> Evaluator m a
@@ -127,6 +183,12 @@ getLabels = getsProgramState labels
 getProgramCounter :: InterpreterShell m => Interpreter m Int
 getProgramCounter = getsProgramState programCounter
 
+getFunctions :: InterpreterShell m => Interpreter m (Map String Function)
+getFunctions = getsProgramState functions
+
+getCallStack :: InterpreterShell m => Interpreter m [CallStackNode]
+getCallStack = getsProgramState callStack
+
 -- | Set the variables known to the interpreter
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
 
@@ -135,6 +197,8 @@ putStatements stmts = modifyProgramState $ \st -> st { statements = stmts }
 
 -- | Set the labels known to the interpreter
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
+
+putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
 
 -- | Set the program counter
 putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
@@ -155,6 +219,20 @@ modifyLabels f = modifyProgramState $
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }
 
+modifyCallStack f = modifyProgramState $
+    \st -> st { callStack = f $ callStack st }
+
+modifyCallStackHead f = modifyCallStack $ \(n:ns) -> (f n):ns
+
+pushCallStack n = modifyCallStack $ (n:)
+
+popCallStack :: InterpreterShell m => Interpreter m CallStackNode
+popCallStack = do
+    n <- head <$> getCallStack 
+    modifyCallStack $ \(_:ns) -> ns
+    putProgramCounter $ returnAddr n
+    return n
+
 -- Fetches the next statement to execute
 fetch :: InterpreterShell m => Interpreter m Stmt
 fetch = (V.!) <$> getStatements <*> getProgramCounter
@@ -164,12 +242,66 @@ labelLookup :: InterpreterShell m => String -> Interpreter m (Maybe Int)
 labelLookup lbl = M.lookup lbl <$> getLabels
 
 -- Retreive the value of a variable
-varLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
-varLookup id = M.lookup id <$> getVariables
+globalLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
+globalLookup id = M.lookup id <$> getVariables
+
+localLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
+localLookup id = do
+    stk <- getCallStack
+    case stk of
+        [] -> return Nothing
+        (n:ns) -> return $ M.lookup id $ locals n
+
+
+data VarType = LocalVar | GlobalVar
+
+varLookup :: InterpreterShell m => String -> Interpreter m (Maybe (VarType,Data))
+varLookup id = do
+    localResult <- localLookup id
+    case localResult of
+        Just localResult -> return $ Just (LocalVar, localResult)
+        Nothing -> do
+            globalResult <- globalLookup id
+            case globalResult of
+                Just globalResult -> return $ Just (GlobalVar, globalResult)
+                Nothing -> return Nothing
+
+
+varLookup' :: InterpreterShell m => String -> Interpreter m (Maybe Data)
+varLookup' id = varLookup id >>= \case
+    Nothing -> return Nothing
+    Just (_,val) -> return $ Just val    
+    
 
 -- Write the value of a variable
+globalWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
+globalWrite id val = modifyVariables (M.insert id val)
+
+localWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
+localWrite id val = modifyVariables (M.insert id val)
+
 varWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
-varWrite id val = modifyVariables (M.insert id val)
+varWrite id val = do
+    result <- varLookup id
+    case result of
+        Just (LocalVar,_) -> localWrite id val
+        Just (GlobalVar,_) -> globalWrite id val
+        Nothing -> globalWrite id val
+
+funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe Function)
+funcLookup id = M.lookup id <$> getFunctions
+
+pushFuncNode :: InterpreterShell m => Function -> Interpreter m ()
+pushFuncNode f = do
+    pc <- getProgramCounter
+    pushCallStack
+        $ Node 
+        { callName = funcName f
+        , locals = M.fromList $ map (\x -> (x,StringData "")) 
+                              $ funcName f : localNames f ++ formalArgs f
+        , returnAddr = pc
+        }
+
 
 -- | Check if a value can be turned into a string
 isStringable :: Data -> Bool
@@ -344,7 +476,7 @@ assign (LookupAggregate id args) val = do
         loop _ _ = liftEval $ programError ProgramError
     base <- liftEval $ varLookup id
     case base of
-        Just base -> do
+        Just (_,base) -> do
             base' <- loop base args
             liftEval $ varWrite id base'
         Nothing -> liftEval $ programError ProgramError
@@ -354,3 +486,5 @@ assign Output val = do
 assign Punch val = do
     StringData str <- toString val
     lift $ punch str
+
+

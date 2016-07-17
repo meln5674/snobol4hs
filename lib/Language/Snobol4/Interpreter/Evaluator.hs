@@ -79,7 +79,7 @@ evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ lastPunch)
 evalExpr (IdExpr name) = do
     d <- liftEval $ varLookup name
     case d of
-        Just d -> return d
+        Just (_,d) -> return d
         Nothing -> failEvaluation
 evalExpr (LitExpr (Int i)) = return $ IntegerData i
 evalExpr (LitExpr (Real r)) = return $ RealData r
@@ -99,14 +99,14 @@ evalExpr (BinaryExpr a op b) = do
 evalExpr NullExpr = return $ StringData ""
 evalExpr _ = liftEval $ programError ProgramError
 
-execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data)
-execLookup Input = (Just . StringData) <$> lift input
-execLookup Output = (Just . StringData) <$> lift lastOutput
-execLookup Punch = (Just . StringData) <$> lift lastPunch
-execLookup (LookupLiteral x) = return $ Just x
-execLookup (LookupId i) = liftEval $ varLookup i
+execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data) 
+execLookup Input = (Just . StringData) <$> lift input 
+execLookup Output = (Just . StringData) <$> lift lastOutput 
+execLookup Punch = (Just . StringData) <$> lift lastPunch 
+execLookup (LookupLiteral x) = return $ Just x 
+execLookup (LookupId i) = liftEval $ varLookup' i
 execLookup (LookupAggregate id args) = do
-    base <- liftEval $ varLookup id
+    base <- liftEval $ varLookup' id
     case base of
         Nothing -> return Nothing
         Just val -> do

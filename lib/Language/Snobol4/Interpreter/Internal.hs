@@ -66,6 +66,25 @@ import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner
 
 
+call :: InterpreterShell m => String -> [Data] -> Interpreter m (Maybe Data)
+call funcName evaldArgs = do
+    func <- funcLookup funcName
+    case func of
+        Nothing -> programError ProgramError
+        Just func -> do
+            pushFuncNode func
+            mapM (uncurry varWrite) $ zip (formalArgs func) evaldArgs
+            putProgramCounter $ entryPoint func
+            let loop = do
+                    result <- step
+                    case result of
+                        Return -> do
+                            popCallStack
+                            varLookup' $ funcName
+                        FReturn -> return Nothing
+                        StmtResult _ -> loop
+            loop
+
 -- Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
 execSub expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
@@ -134,7 +153,7 @@ execMaybe f (Just x) = Just <$> f x
 execMaybe _ _ = return Nothing
 
 -- | Execute a statement in the interpreter
-exec :: InterpreterShell m => Stmt -> Interpreter m (Maybe Data)
+exec :: InterpreterShell m => Stmt -> Interpreter m ExecResult
 exec (EndStmt _) = programError NormalTermination
 exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
     subResult <- execMaybe execSub sub
@@ -163,7 +182,7 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
                                 mapM_ (uncurry assign) assignments
                                 finishEvaluation $ Just match
   where
-    handler :: InterpreterShell m => EvalStop -> Interpreter m (Maybe Data)
+    handler :: InterpreterShell m => EvalStop -> Interpreter m ExecResult
     handler r = do
         gotoResult <- catchEval (execMaybe (execGoto r) go) 
                    $ \_ -> programError ProgramError
@@ -171,14 +190,14 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
             Just _ -> return ()
             Nothing -> modifyProgramCounter (+1)
         case r of
-            EvalFailed -> return Nothing
-            EvalSuccess x -> return x
+            EvalFailed -> return $ StmtResult Nothing
+            EvalSuccess x -> return $ StmtResult x
             
 
                         
                         
 -- | Execute the next statement pointed to by the program counter
-step :: InterpreterShell m => Interpreter m (Maybe Data)
+step :: InterpreterShell m => Interpreter m ExecResult
 step = fetch >>= exec
 
 -- | Load a program into the interpreter
