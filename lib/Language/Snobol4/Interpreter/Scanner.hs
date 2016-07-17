@@ -2,6 +2,8 @@
 module Language.Snobol4.Interpreter.Scanner where
 
 import Control.Monad.Trans
+import Control.Monad.Trans.State
+import Control.Monad.Trans.Maybe
 
 import Text.Parsec ( (<|>), ParsecT, runParserT )
 import qualified Text.Parsec as P
@@ -12,73 +14,122 @@ import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 
+
+data ScannerState
+    = ScannerState
+    { inputStr :: String
+    , assignments :: [(Lookup,Data)]
+    , startPos :: Int
+    , endPos :: Int
+    }
+
 newtype Scanner m a
     = Scanner
     { runScanner
-        :: ParsecT String [(Lookup,Data)] (Evaluator m) a
+        :: StateT ScannerState (MaybeT (Evaluator m)) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
-    
-    
+
+throwScan :: Monad m => Scanner m a
+throwScan = Scanner $ lift $ MaybeT $ return Nothing
+
+catchScan :: Monad m => Scanner m a -> Scanner m a -> Scanner m a
+catchScan try catch = do
+    st <- Scanner get
+    result <- Scanner 
+            $ lift
+            $ lift
+            $ runMaybeT 
+            $ flip runStateT st
+            $ runScanner 
+            $ try
+    case result of
+        Just (x,st') -> do
+            Scanner $ put st'
+            return x
+        Nothing -> catch
+
+getInput :: Monad m => Scanner m String
+getInput = Scanner $ gets inputStr
+
+setInput :: Monad m => String -> Scanner m ()
+setInput s = Scanner $ modify $ \st -> st{inputStr = s}
+
+incEndPos :: Monad m => Int -> Scanner m ()
+incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + len}
+
+addAssignment :: Monad m => Lookup -> Data -> Scanner m ()
+addAssignment l d = Scanner $ modify $ \st -> st{ assignments = (l,d):assignments st}
+
+immediateAssignment :: InterpreterShell m => Lookup -> Data -> Scanner m ()
+immediateAssignment l d = Scanner $ lift $ lift $ assign l $ d
+
+consume :: Monad m => String -> Scanner m String
+consume s = do
+    str <- getInput
+    let prefix = take (length s) str
+    if prefix == s
+        then do
+            setInput $ drop (length s) str
+            incEndPos (length s)
+            return prefix
+    else throwScan
+
+consumeN :: Monad m => Int -> Scanner m String
+consumeN len = do
+    str <- getInput
+    let prefix = take len str
+    if len < length str
+        then do
+            setInput $ drop len str
+            incEndPos len
+            return prefix
+        else throwScan
+
+consumeAll :: Monad m => Scanner m String
+consumeAll = do
+    str <- getInput
+    setInput ""
+    incEndPos (length str)
+    return str
+
+
 matchPat :: InterpreterShell m => Pattern -> Scanner m String
 matchPat (AssignmentPattern p l) = do
     result <- matchPat p
-    Scanner $ P.modifyState $ ((l,StringData result):)
+    addAssignment l (StringData result)
     return result
 matchPat (ImmediateAssignmentPattern p l) = do
     result <- matchPat p
-    Scanner $ lift $ assign l $ StringData result
+    immediateAssignment l $ StringData result
     return result
-matchPat (LiteralPattern s) = Scanner $ P.string s
-matchPat (AlternativePattern a b) = do
-    Scanner $ (runScanner $ matchPat a) <|> (runScanner $ matchPat b)
-matchPat (ConcatPattern a b) = do
-    a' <- matchPat a 
-    b' <- matchPat b
-    return $ a' ++ b'
-matchPat (LengthPattern len) = Scanner $ P.count len P.anyChar
-matchPat EverythingPattern = Scanner $ P.many P.anyChar
-
-posToIndex :: Int -> Int -> [String] -> Maybe Int
-posToIndex 0 0 [] = Just 0
-posToIndex _ _ [] = Nothing
-posToIndex 0 column [line]
-    | column <= length line = Just column
-    | otherwise = Nothing 
-posToIndex _ _ [line] = Nothing
-posToIndex row column (line:lines)
-    | column <= length line = do
-        x <- posToIndex (row - 1) column lines
-        return $ x + column + 1 -- NEWLINE LENGTH?
-    | otherwise = Nothing
+matchPat (LiteralPattern s) = consume s
+matchPat (AlternativePattern p1 p2) = catchScan (matchPat p1) (matchPat p2)
+matchPat (ConcatPattern p1 p2) = do
+    r1 <- matchPat p1
+    r2 <- matchPat p2
+    return $ r1 ++ r2
+matchPat (LengthPattern len) = consumeN len
+matchPat EverythingPattern = consumeAll
+    
 
 
-matchPatOuter :: InterpreterShell m
-              => String 
-              -> Pattern 
-              -> Scanner m ScanResult
-matchPatOuter s p = do
-    startPos <- Scanner $ P.getPosition
-    result <- matchPat p
-    endPos <- Scanner $ P.getPosition
-    endState <- Scanner $ P.getState
-    let startColumn = P.sourceColumn startPos - 1
-        startRow = P.sourceLine startPos - 1
-        endColumn = P.sourceColumn endPos - 1
-        endRow = P.sourceLine endPos - 1
-        rows = lines s
-        Just startIndex = posToIndex startRow startColumn rows
-        Just endIndex = posToIndex endRow endColumn rows
-        s' = take startIndex s ++ result ++ drop endIndex s
---    return $ Scan (StringData s') endState
-    return $ Scan (StringData result) endState startIndex endIndex
+startState :: String -> ScannerState
+startState s = ScannerState
+             { inputStr = s
+             , assignments = []
+             , startPos = 0
+             , endPos = 0
+             }
 
-scanPattern :: InterpreterShell m 
-            => String 
-            -> Pattern 
+scanPattern :: InterpreterShell m
+            => String
+            -> Pattern
             -> Evaluator m ScanResult
 scanPattern s pat = do
-    result <- runParserT (runScanner $ matchPatOuter s pat) [] "" s
+    result <- runMaybeT $ flip runStateT (startState s) $ runScanner $ matchPat pat
     case result of
-        Left _ -> return NoScan
-        Right result -> return result
+        Just (x, st) -> do
+            let ScannerState{assignments=as,startPos=a,endPos=b} = st
+            return $ Scan (StringData x) as a b
+        Nothing -> return NoScan
