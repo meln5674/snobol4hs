@@ -8,7 +8,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Maybe
 
 import Language.Snobol4.Interpreter.Types
-import Language.Snobol4.Interpreter.Evaluator
+import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 

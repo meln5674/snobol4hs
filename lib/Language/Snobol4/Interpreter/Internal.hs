@@ -60,7 +60,7 @@ import Control.Monad.Trans.State
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
-import Language.Snobol4.Interpreter.Evaluator
+import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner

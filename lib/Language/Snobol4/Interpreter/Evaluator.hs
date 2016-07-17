@@ -18,6 +18,7 @@ import Control.Monad.Trans.State
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
+import Language.Snobol4.Interpreter.Internal
 import Language.Snobol4.Interpreter.Internal.Types
 
 arithmetic :: InterpreterShell m 
@@ -84,7 +85,12 @@ evalExpr (IdExpr name) = do
 evalExpr (LitExpr (Int i)) = return $ IntegerData i
 evalExpr (LitExpr (Real r)) = return $ RealData r
 evalExpr (LitExpr (String s)) = return $ StringData s
--- TODO: CallExpr
+evalExpr (CallExpr id args) = do
+    args' <- mapM evalExpr args
+    result <- liftEval $ call id args'
+    case result of
+        Just result -> return result
+        Nothing -> failEvaluation
 evalExpr (RefExpr id args) = do
     args' <- mapM evalExpr args
     x <- execLookup (LookupAggregate id args')
