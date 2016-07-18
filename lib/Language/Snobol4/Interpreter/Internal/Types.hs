@@ -398,7 +398,7 @@ toString (PatternData (ConcatPattern a b)) = do
     a' <- toString $ PatternData a
     b' <- toString $ PatternData b
     return $ a' ++ b'
-toString _ = liftEval $ programError ProgramError
+toString _ = liftEval $ programError IllegalDataType
 
 -- | Convert data to a pattern
 -- Throws a ProgramError if this is not valid
@@ -461,7 +461,7 @@ raiseArgs a b
         b' <- toReal b
         return (a,RealData b')
     
-    | otherwise = liftEval $ programError ProgramError
+    | otherwise = liftEval $ programError IllegalDataType
 
 -- | Take two arguments and cast the "higher" one on the scale of
 -- String -> Int -> Real to match the "lower" one
@@ -492,7 +492,7 @@ lowerArgs a b
         a' <- toInteger a
         return (IntegerData a',b)
     
-    | otherwise = liftEval $ programError ProgramError
+    | otherwise = liftEval $ programError IllegalDataType
 
 -- | Utility function, safe lookup for arrays
 arrayGet :: A.Ix i => Array i e -> i -> Maybe e
@@ -512,23 +512,23 @@ assign (LookupAggregate id args) val = do
                 Just d -> do
                     d' <- loop d as
                     return $ ArrayData $ arr A.// [(i,d')]
-                Nothing -> liftEval $ programError ProgramError
-        loop (ArrayData _) _ = liftEval $ programError ProgramError
+                Nothing -> liftEval $ programError ErroneousArrayOrTableReference
+        loop (ArrayData _) _ = liftEval $ programError ErroneousArrayOrTableReference
         loop (TableData tab) [a] = return $ TableData $ M.insert a val tab
         loop (TableData tab) (a:as) = do
             case M.lookup a tab of
                 Just d -> do
                     d' <- loop d as
                     return $ TableData $ M.insert a d' tab
-                Nothing -> liftEval $ programError ProgramError
-        loop (TableData _) _ = liftEval $ programError ProgramError
-        loop _ _ = liftEval $ programError ProgramError
+                Nothing -> liftEval $ programError ErroneousArrayOrTableReference
+        loop (TableData _) _ = liftEval $ programError ErroneousArrayOrTableReference
+        loop _ _ = liftEval $ programError ErroneousArrayOrTableReference
     base <- liftEval $ varLookup id
     case base of
         Just (_,base) -> do
             base' <- loop base args
             liftEval $ varWrite id base'
-        Nothing -> liftEval $ programError ProgramError
+        Nothing -> liftEval $ programError ErroneousArrayOrTableReference
 assign Output val = toString val >>= lift . output
 assign Punch val = toString val >>= lift . punch
-assign _ _ = liftEval $ programError ProgramError
+assign _ _ = liftEval $ programError VariableNotPresentWhereRequired

@@ -47,7 +47,7 @@ arithmetic f_int f_real a b = do
     case (a',b') of
         (IntegerData a'', IntegerData b'') -> return $ IntegerData $ f_int a'' b''
         (RealData a'', RealData b'') -> return $ RealData $ f_real a'' b''
-        _ -> liftEval $ programError ProgramError
+        _ -> liftEval $ programError IllegalDataType
 
 -- | Evaluate a pattern operation
 pattern :: InterpreterShell m 
@@ -105,7 +105,7 @@ evalExpr (PrefixExpr Minus expr) = do
             return $ RealData $ -r
         (IntegerData i) -> return $ IntegerData $ -i
         (RealData r) -> return $ RealData $ -r
-        _ -> liftEval $ programError ProgramError
+        _ -> liftEval $ programError IllegalDataType
 evalExpr (UnevaluatedExpr expr) = return $ PatternData $ UnevaluatedExprPattern expr
 evalExpr (IdExpr "INPUT") = StringData <$> (lift $ input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ lastOutput)
@@ -129,14 +129,14 @@ evalExpr (RefExpr id args) = do
     x <- execLookup (LookupAggregate id args')
     case x of
         Just x -> return x
-        Nothing -> liftEval $ programError ProgramError
+        Nothing -> liftEval $ programError ErroneousArrayOrTableReference
 evalExpr (ParenExpr expr) = evalExpr expr
 evalExpr (BinaryExpr a op b) = do
     a' <- evalExpr a
     b' <- evalExpr b
     evalOp op a' b'
 evalExpr NullExpr = return $ StringData ""
-evalExpr _ = liftEval $ programError ProgramError
+evalExpr _ = liftEval $ programError ErrorInSnobol4System
 
 -- | Execute a lookup
 execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data) 

@@ -72,7 +72,7 @@ call :: InterpreterShell m => String -> [Data] -> Interpreter m (Maybe Data)
 call funcName evaldArgs = do
     func <- funcLookup funcName
     case func of
-        Nothing -> programError ProgramError
+        Nothing -> programError UndefinedFunctionOrOperation
         Just func@UserFunction{} -> do
             pushFuncNode func
             mapM (uncurry varWrite) $ zip (formalArgs func) evaldArgs
@@ -101,7 +101,7 @@ execSub (PrefixExpr Dollar expr) = do
     s <- toString expr'
     return $ LookupId s
 execSub (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
-execSub _ = liftEval $ programError ProgramError
+execSub _ = liftEval $ programError IllegalDataType
 
 
 -- | Execute a pattern, and return the pattern structure for it
@@ -116,21 +116,20 @@ execRepl lookup pattern expr = do
         EverythingPattern -> assign lookup repl
         pattern -> do
             val <- execLookup lookup
-            case val of
-                Nothing -> liftEval $ programError ProgramError
-                Just d -> do
-                    str <- toString d
-                    scanResult <- scanPattern str pattern
-                    case scanResult of
-                        NoScan -> failEvaluation
-                        Scan match assignments startIndex endIndex -> do
-                            mapM_ (uncurry assign) assignments
-                            replStr <- toString repl
-                            let val' = take startIndex str 
-                                       ++ replStr 
-                                       ++ drop endIndex str
-                            assign lookup $ StringData val'
-                            finishEvaluation $ Nothing
+            str <- case val of
+                Nothing -> return $ ""
+                Just d -> toString d
+            scanResult <- scanPattern str pattern
+            case scanResult of
+                NoScan -> failEvaluation
+                Scan match assignments startIndex endIndex -> do
+                    mapM_ (uncurry assign) assignments
+                    replStr <- toString repl
+                    let val' = take startIndex str 
+                               ++ replStr 
+                               ++ drop endIndex str
+                    assign lookup $ StringData val'
+                    finishEvaluation $ Nothing
 
 -- | Evaluate an expression and jump to the label named by the result
 goto :: InterpreterShell m => Expr -> Evaluator m ()
@@ -139,7 +138,7 @@ goto expr = do
     label <- toString result
     pc <- liftEval $ labelLookup label
     case pc of
-        Nothing -> liftEval $ programError ProgramError
+        Nothing -> liftEval $ programError UndefinedOrErroneousGoto
         Just pc -> liftEval $ putProgramCounter pc
 
 -- | Execute a goto
@@ -176,23 +175,22 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
         Just _ -> finishEvaluation Nothing
         Nothing -> do
             val <- execLookup lookup
-            case val of
-                Nothing -> liftEval $ programError ProgramError
+            str <- case val of
+                Nothing -> return ""
                 Just d -> case pattern of
                     EverythingPattern -> finishEvaluation $ Just d
-                    pattern -> do
-                        str <- toString d
-                        scanResult <- scanPattern str pattern
-                        case scanResult of
-                            NoScan -> failEvaluation
-                            Scan match assignments _ _ -> do
-                                mapM_ (uncurry assign) assignments
-                                finishEvaluation $ Just match
+                    pattern -> toString d
+            scanResult <- scanPattern str pattern
+            case scanResult of
+                NoScan -> failEvaluation
+                Scan match assignments _ _ -> do
+                    mapM_ (uncurry assign) assignments
+                    finishEvaluation $ Just match
   where
     handler :: InterpreterShell m => EvalStop -> Interpreter m ExecResult
     handler r = do
         gotoResult <- catchEval (execMaybe (execGoto r) go) 
-                   $ \_ -> programError ProgramError
+                   $ \_ -> programError FailureDuringGotoEvaluation
         case gotoResult of
             Just _ -> return ()
             Nothing -> modifyProgramCounter (+1)

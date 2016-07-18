@@ -64,7 +64,7 @@ len (a:_) = do
     i <- toInteger a
     if i >= 0
         then return $ Just $ PatternData $ LengthPattern i
-        else liftEval $ programError ProgramError
+        else liftEval $ programError NegativeNumberInIllegalContext
 len [] = len [StringData ""]
 
 -- | The span function, returns a pattern which matches the longest string
@@ -73,7 +73,7 @@ span :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 span (a:_) = do
     s <- toString a
     case s of
-        "" -> liftEval $ programError ProgramError
+        "" -> liftEval $ programError NullStringInIllegalContext
         _ -> return $ Just $ PatternData $ SpanPattern s
 span [] = span [StringData ""]
 
@@ -83,7 +83,7 @@ break :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 break (a:_) = do
     s <- toString a
     case s of
-        "" -> liftEval $ programError ProgramError 
+        "" -> liftEval $ programError NullStringInIllegalContext
         _ -> return $ Just $ PatternData $ BreakPattern s
 break [] = break [StringData ""]
 
@@ -93,7 +93,7 @@ any :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 any (a:_) = do
     cs <- toString a
     case cs of
-        "" -> liftEval $ programError ProgramError 
+        "" -> liftEval $ programError NullStringInIllegalContext
         _ -> return $ Just $ PatternData $ AnyPattern cs
 any [] = any [StringData ""]
 
@@ -103,7 +103,7 @@ notany :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 notany (a:_) = do
     cs <- toString a
     case cs of
-        "" -> liftEval $ programError ProgramError 
+        "" -> liftEval $ programError NullStringInIllegalContext
         _ -> return $ Just $ PatternData $ AnyPattern cs
 notany [] = notany [StringData ""]
 
@@ -114,7 +114,7 @@ tab (a:_) = do
     i <- toInteger a
     if i >= 0
         then return $ Just $ PatternData $ TabPattern i
-        else liftEval $ programError ProgramError
+        else liftEval $ programError NegativeNumberInIllegalContext
 tab [] = tab [StringData ""]
 
 -- | The rtab function, returns a pattern which matches the null string if the
@@ -124,7 +124,7 @@ rtab (a:_) = do
     i <- toInteger a
     if i >= 0
         then return $ Just $ PatternData $ RTabPattern i
-        else liftEval $ programError ProgramError
+        else liftEval $ programError NegativeNumberInIllegalContext
 rtab [] = rtab [StringData ""]
 
 -- | The arbno function, returns a pattern which matches an arbitrary number of
@@ -141,7 +141,7 @@ table (a:_) = do
     i <- toInteger a
     if i >= 0
         then return $ Just $ TableData $ M.empty
-        else liftEval $ programError ProgramError
+        else liftEval $ programError NegativeNumberInIllegalContext
 table _ = return $ Just $ TableData $ M.empty
 
 -- | The dimension of an array
@@ -207,4 +207,5 @@ array [dimStr,item] = do
         Right dims -> do
              return $ Just $ mkArray dims item
 array [dimStr] = array [dimStr, StringData ""]
-array _ = liftEval $ programError ProgramError
+array [] = liftEval $ programError NullStringInIllegalContext
+array _ = liftEval $ programError IncorrectNumberOfArguments

@@ -121,8 +121,35 @@ data Pattern
 
 -- | A program error INCOMPLETE
 data ProgramError
-    -- | The program terminated due to an error
-    = ProgramError
+    = 
     -- | The program ended by reaching the END statement
-    | NormalTermination
+      NormalTermination
+    | IllegalDataType
+    | ErrorInArithmeticOperation
+    | ErroneousArrayOrTableReference
+    | NullStringInIllegalContext
+    | UndefinedFunctionOrOperation
+    | ErroneousPrototype
+    | UnknownKeyword
+    | VariableNotPresentWhereRequired
+    | EntryPointOfFunctionNotLabel
+    | IllegalArgumentToPrimitiveFunction
+    | ReadingError
+    | IllegalIOUnit
+    | LimitOnDefinedDataTypesExceeded
+    | NegativeNumberInIllegalContext
+    | StringOverflow
+    | OverflowDuringPatternMatching
+    | ErrorInSnobol4System
+    | ReturnFromZeroLevel
+    | FailureDuringGotoEvaluation
+    | InsufficientStorageToContinue
+    | StackOverflow
+    | LimitOnStatementExecutionExceeded
+    | ObjectExceedsSizeLimit
+    | UndefinedOrErroneousGoto
+    | IncorrectNumberOfArguments
+    | LimitOnCompilationErrorsExceeded
+    | ErroneousEndStatement
+    | ExecutionOfStatementWithACompilationError
   deriving Show
