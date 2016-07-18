@@ -214,10 +214,10 @@ literalE = do
 -- parenthesis
 element = do
     prefix <- P.optionMaybe unary
-    rest <-  identifierE 
+    rest <-  P.try function_call 
+         <|> P.try reference 
+         <|> identifierE 
          <|> literalE 
-         <|> function_call 
-         <|> reference 
          <|> inParens expression
     return $ case prefix of
         Just x -> PrefixExpr x rest

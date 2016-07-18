@@ -54,7 +54,9 @@ catchScan try catch = do
         Just (x,st') -> do
             Scanner $ put st'
             return x
-        Nothing -> catch
+        Nothing -> do
+            Scanner $ put st
+            catch
 
 -- | Get the input yet to be scanned
 getInput :: Monad m => Scanner m String
@@ -103,7 +105,7 @@ consumeN :: Monad m => Int -> Scanner m String
 consumeN len = do
     str <- getInput
     let prefix = take len str
-    if len < length str
+    if len <= length str
         then do
             setInput $ drop len str
             incEndPos len
@@ -301,4 +303,8 @@ evaluateAlternatives [] = throwScan
 evaluateAlternatives (a:as) = catchScan a $ evaluateAlternatives as
 
 matchPat :: InterpreterShell m => Pattern -> Scanner m String
-matchPat p = getAlternatives p >>= evaluateAlternatives
+matchPat p = do
+    st <- Scanner get
+    as <- getAlternatives p
+    Scanner $ put st
+    evaluateAlternatives as

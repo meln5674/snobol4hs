@@ -72,7 +72,7 @@ call funcName evaldArgs = do
     func <- funcLookup funcName
     case func of
         Nothing -> programError ProgramError
-        Just func -> do
+        Just func@UserFunction{} -> do
             pushFuncNode func
             mapM (uncurry varWrite) $ zip (formalArgs func) evaldArgs
             putProgramCounter $ entryPoint func
@@ -85,6 +85,8 @@ call funcName evaldArgs = do
                         FReturn -> return Nothing
                         StmtResult _ -> loop
             loop
+        Just PrimitiveFunction{funcPrim=action} -> do
+            catchEval (action evaldArgs) $ const $ return Nothing
 
 -- Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup

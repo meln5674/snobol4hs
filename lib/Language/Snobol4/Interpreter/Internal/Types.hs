@@ -112,7 +112,7 @@ data Match
 data ScanResult
     = NoScan
     | Scan Data [(Lookup,Data)] Int Int
-
+  deriving Show
 
 data ExecResult
     = StmtResult (Maybe Data)
