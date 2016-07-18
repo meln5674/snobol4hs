@@ -128,6 +128,7 @@ exec stmt (Paused st) = do
         Right (_, Return) -> return (Terminated ProgramError, Nothing)
         Right (_, FReturn) -> return (Terminated ProgramError, Nothing)
 
+-- | Check if a paused interpreter is terminated, and if so, return the error
 isTerminated :: PausedInterpreter m -> Maybe ProgramError
 isTerminated (Terminated err) = Just err
 isTerminated _ = Nothing

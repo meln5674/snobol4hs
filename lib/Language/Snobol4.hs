@@ -1,3 +1,15 @@
+{-|
+Module          : Language.Snobol4
+Description     : Lexing, Parsing, Evaluating, Scanning and Executing SNOBOL4 source code
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+
+Public interface to the SNOBOL4 interpreter
+-}
+
 module Language.Snobol4 
     ( module Language.Snobol4.Lexer
     , module Language.Snobol4.Parser

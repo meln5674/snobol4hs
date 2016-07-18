@@ -1,3 +1,18 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Shell.Console
+Description     : Console implementation of the InterpreterShell typeclass
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+
+This module contains an example of the 'InterpreterShell' instance.
+
+The ConsoleShell type uses stdin for INPUT, stdout for OUTPUT, and stderr for
+PUNCH. It also uses a StateT transformer to hold the last values of each.
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -19,6 +34,7 @@ import qualified Language.Snobol4.Interpreter.Shell
     , InterpreterShellRun (..)
     )
 
+-- | The state of the shell
 data ConsoleShellState
     = ConsoleShellState
     { lastInput :: String
@@ -26,16 +42,28 @@ data ConsoleShellState
     , lastPunch :: String
     }
 
-putLastInput s = ConsoleShell $ modify $ \st -> st{ lastInput = s }
-putLastOutput s = ConsoleShell $ modify $ \st -> st{ lastOutput = s }
-putLastPunch s = ConsoleShell $ modify $ \st -> st{ lastPunch = s }
-
+--  Get the last string inputted
 getLastInput = ConsoleShell $ gets lastInput
+
+--  Get the last string outputted
 getLastOutput = ConsoleShell $ gets lastOutput
+
+--  Get the last string punched
 getLastPunch = ConsoleShell $ gets lastPunch
 
+-- | Set the last string inputted
+putLastInput s = ConsoleShell $ modify $ \st -> st{ lastInput = s }
+
+-- | Set the last string outputted
+putLastOutput s = ConsoleShell $ modify $ \st -> st{ lastOutput = s }
+
+-- | Set the last string punched
+putLastPunch s = ConsoleShell $ modify $ \st -> st{ lastPunch = s }
+
+-- | Initial state of the shell
 emptyState = ConsoleShellState "" "" ""
 
+-- | A monad for running the interpreter using the console for IO
 newtype ConsoleShell a 
     = ConsoleShell 
     { runConsoleShell

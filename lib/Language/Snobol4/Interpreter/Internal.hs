@@ -67,6 +67,7 @@ import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner
 import Language.Snobol4.Interpreter.State
 
+-- | Call a function by name with arguments
 call :: InterpreterShell m => String -> [Data] -> Interpreter m (Maybe Data)
 call funcName evaldArgs = do
     func <- funcLookup funcName
@@ -88,7 +89,7 @@ call funcName evaldArgs = do
         Just PrimitiveFunction{funcPrim=action} -> do
             catchEval (action evaldArgs) $ const $ return Nothing
 
--- Execute a subject and return the lookup for it
+-- | Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
 execSub expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
 execSub (IdExpr "INPUT") = return $ Input
@@ -97,17 +98,17 @@ execSub (IdExpr "PUNCH") = return $ Punch
 execSub (IdExpr s) = return $ LookupId s
 execSub (PrefixExpr Dollar expr) = do
     expr' <- evalExpr expr
-    StringData s <- toString expr'
+    s <- toString expr'
     return $ LookupId s
 execSub (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
 execSub _ = liftEval $ programError ProgramError
 
 
--- Execute a pattern, and return the pattern structure for it
+-- | Execute a pattern, and return the pattern structure for it
 execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
 execPat = evalExpr >=> toPattern
 
--- Execute a replacement on a subject and pattern with an object
+-- | Execute a replacement on a subject and pattern with an object
 execRepl :: InterpreterShell m => Lookup -> Pattern -> Expr -> Evaluator m ()
 execRepl lookup pattern expr = do
     repl <- evalExpr expr
@@ -118,27 +119,30 @@ execRepl lookup pattern expr = do
             case val of
                 Nothing -> liftEval $ programError ProgramError
                 Just d -> do
-                    StringData str <- toString d
+                    str <- toString d
                     scanResult <- scanPattern str pattern
                     case scanResult of
                         NoScan -> failEvaluation
                         Scan match assignments startIndex endIndex -> do
                             mapM_ (uncurry assign) assignments
-                            StringData replStr <- toString repl
-                            let val' = take startIndex str ++ replStr ++ drop endIndex str
+                            replStr <- toString repl
+                            let val' = take startIndex str 
+                                       ++ replStr 
+                                       ++ drop endIndex str
                             assign lookup $ StringData val'
                             finishEvaluation $ Nothing
 
+-- | Evaluate an expression and jump to the label named by the result
 goto :: InterpreterShell m => Expr -> Evaluator m ()
 goto expr = do
     result <- evalExpr expr
-    StringData label <- toString result
+    label <- toString result
     pc <- liftEval $ labelLookup label
     case pc of
         Nothing -> liftEval $ programError ProgramError
         Just pc -> liftEval $ putProgramCounter pc
 
--- Execute a goto
+-- | Execute a goto
 execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m ()
 execGoto _ (Goto expr) = goto expr
 execGoto (EvalSuccess _) (SuccessGoto expr) = goto expr
@@ -147,7 +151,7 @@ execGoto (EvalSuccess _) (BothGoto expr _) = goto expr
 execGoto EvalFailed (BothGoto _ expr) = goto expr
 execGoto _ _ = liftEval $ modifyProgramCounter (+1)
 
--- Execute one of the steps above, ignoring if it is missing
+-- | Execute one of the steps above, ignoring if it is missing
 execMaybe :: Monad m 
           => (x -> m y) 
           -> Maybe x 
@@ -177,7 +181,7 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
                 Just d -> case pattern of
                     EverythingPattern -> finishEvaluation $ Just d
                     pattern -> do
-                        StringData str <- toString d
+                        str <- toString d
                         scanResult <- scanPattern str pattern
                         case scanResult of
                             NoScan -> failEvaluation

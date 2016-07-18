@@ -1,3 +1,14 @@
+{-|
+Module          : Language.Snobol4.Interpreter
+Description     : Low level types and operations
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+
+-}
+
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Internal.Types where
@@ -38,22 +49,25 @@ data CallStackNode
 
 -- | Information for calling a function
 data Function m
-     = UserFunction
-     { 
-     -- | Name of the function
+    -- A user defined function
+    = UserFunction
+    { 
+    -- | Name of the function
+      funcName :: String
+    -- | The names of the formal arguments of the function
+    , formalArgs :: [String]
+    -- | The names of the local variables of the function
+    , localNames :: [String]
+    -- | Index of the statement to start this function
+    , entryPoint :: Int
+    }
+    | PrimitiveFunction
+    {
+    -- | Name of the function
        funcName :: String
-     -- | The names of the formal arguments of the function
-     , formalArgs :: [String]
-     -- | The names of the local variables of the function
-     , localNames :: [String]
-     -- | Index of the statement to start this function
-     , entryPoint :: Int
-     }
-     | PrimitiveFunction
-     {
-        funcName :: String
-     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
-     }
+    -- | The primitive function to call
+    ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
+    }
 
  
 -- | State of the interpreter
@@ -75,7 +89,7 @@ data ProgramState m
     }
 
 
--- | Transformer stack which represents the interpreter
+-- | Transformer stack which represents the actions of the interpreter
 newtype Interpreter m a
     = Interpreter
     { runInterpreter
@@ -106,20 +120,25 @@ data PausedInterpreter m
     -- | An interpreter that has been terminated
     | Terminated ProgramError
 
-
-
-data Match
-    = NoMatch
-    | Replace Int Int [(Lookup,Data)]
-
+-- | A result from running the pattern scanner
 data ScanResult
-    = NoScan
+    = 
+    -- | No match
+      NoScan
+    -- | A match with the matched part, assignments to perform, and the start
+    -- and end index of the entire match
     | Scan Data [(Lookup,Data)] Int Int
   deriving Show
 
+-- | The result of executing a statement
 data ExecResult
-    = StmtResult (Maybe Data)
+    = 
+    -- | The statement executed and returned a result or nothing
+      StmtResult (Maybe Data)
+    -- | The statement resulted in returning from the current function call
     | Return
+    -- | The statement resulted in returning from the current function call
+    -- with failure
     | FReturn
 
 -- | Lift an operation from non-evaluation stack into evaluation stack
@@ -188,11 +207,14 @@ getLabels = getsProgramState labels
 getProgramCounter :: InterpreterShell m => Interpreter m Int
 getProgramCounter = getsProgramState programCounter
 
+-- | Get the functions known to the interpreter
 getFunctions :: InterpreterShell m => Interpreter m (Map String (Function m))
 getFunctions = getsProgramState functions
 
+-- | Get the call stack
 getCallStack :: InterpreterShell m => Interpreter m [CallStackNode]
 getCallStack = getsProgramState callStack
+
 
 -- | Set the variables known to the interpreter
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
@@ -203,10 +225,12 @@ putStatements stmts = modifyProgramState $ \st -> st { statements = stmts }
 -- | Set the labels known to the interpreter
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
 
-putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
-
 -- | Set the program counter
 putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
+
+-- | Set the call stack
+putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
+
 
 -- | Apply a function to the variables known to the interpreter
 modifyVariables f = modifyProgramState $
@@ -224,13 +248,17 @@ modifyLabels f = modifyProgramState $
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }
 
+-- | Apply a function to the call stack
 modifyCallStack f = modifyProgramState $
     \st -> st { callStack = f $ callStack st }
 
+-- | Apply a function to the head of the call stack
 modifyCallStackHead f = modifyCallStack $ \(n:ns) -> (f n):ns
 
+-- | Push a node onto the call stack
 pushCallStack n = modifyCallStack $ (n:)
 
+-- | Pop a node off of the call stack and set the program counter accordingly
 popCallStack :: InterpreterShell m => Interpreter m CallStackNode
 popCallStack = do
     n <- head <$> getCallStack 
@@ -238,28 +266,29 @@ popCallStack = do
     putProgramCounter $ returnAddr n
     return n
 
--- Fetches the next statement to execute
+-- | Fetch the next statement to execute
 fetch :: InterpreterShell m => Interpreter m Stmt
 fetch = (V.!) <$> getStatements <*> getProgramCounter
 
--- Find the index of the statement with a label
+-- | Find the index of the statement with a label
 labelLookup :: InterpreterShell m => String -> Interpreter m (Maybe Int)
 labelLookup lbl = M.lookup lbl <$> getLabels
 
--- Retreive the value of a variable
+-- | Retreive the value of a global variable
 globalLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
 globalLookup id = M.lookup id <$> getVariables
 
+-- | Retreive the value of a local variable
 localLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
 localLookup id = do
     stk <- getCallStack
     case stk of
         [] -> return Nothing
         (n:ns) -> return $ M.lookup id $ locals n
-
-
+-- | Flag for variables as local or global
 data VarType = LocalVar | GlobalVar
 
+-- | Retreive the value of a variable, first checking locals, then globals
 varLookup :: InterpreterShell m => String -> Interpreter m (Maybe (VarType,Data))
 varLookup id = do
     localResult <- localLookup id
@@ -271,20 +300,24 @@ varLookup id = do
                 Just globalResult -> return $ Just (GlobalVar, globalResult)
                 Nothing -> return Nothing
 
-
+-- | Retreive the value of a variable, first checking locals, then globals,
+-- then discard the flag stating which it is
 varLookup' :: InterpreterShell m => String -> Interpreter m (Maybe Data)
 varLookup' id = varLookup id >>= \case
     Nothing -> return Nothing
     Just (_,val) -> return $ Just val    
     
 
--- Write the value of a variable
+-- | Write the value of a global variable
 globalWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
 globalWrite id val = modifyVariables (M.insert id val)
 
+-- | Write the value of a local variable
 localWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
 localWrite id val = modifyVariables (M.insert id val)
 
+-- | Write the value of a variable, first checking if there are any locals with
+-- that name, then writing as a global if there isn't
 varWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
 varWrite id val = do
     result <- varLookup id
@@ -293,9 +326,11 @@ varWrite id val = do
         Just (GlobalVar,_) -> globalWrite id val
         Nothing -> globalWrite id val
 
+-- | Look up a function by name
 funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe (Function m))
 funcLookup id = M.lookup id <$> getFunctions
 
+-- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
 pushFuncNode f = do
     pc <- getProgramCounter
@@ -354,15 +389,15 @@ isPatternable x = isStringable x
 
 -- | Convert data to a string
 -- Throws a ProgramError if this is not valid
-toString :: InterpreterShell m => Data -> Evaluator m Data
-toString (StringData s) = return $ StringData s
-toString (IntegerData i) = return $ StringData $ show i
-toString (RealData r) = return $ StringData $ show r
-toString (PatternData (LiteralPattern s)) = return $ StringData s
+toString :: InterpreterShell m => Data -> Evaluator m String
+toString (StringData s) = return s
+toString (IntegerData i) = return $ show i
+toString (RealData r) = return $ show r
+toString (PatternData (LiteralPattern s)) = return $ s
 toString (PatternData (ConcatPattern a b)) = do
-    StringData a' <- toString $ PatternData a
-    StringData b' <- toString $ PatternData b
-    return $ StringData $ a' ++ b'
+    a' <- toString $ PatternData a
+    b' <- toString $ PatternData b
+    return $ a' ++ b'
 toString _ = liftEval $ programError ProgramError
 
 -- | Convert data to a pattern
@@ -370,31 +405,31 @@ toString _ = liftEval $ programError ProgramError
 toPattern :: InterpreterShell m => Data -> Evaluator m Pattern
 toPattern (PatternData p) = return p
 toPattern x = do
-    StringData s <- toString x
+    s <- toString x
     return $ LiteralPattern $ s
 
 -- | Convert data to an integer
 -- Fails the evaluation if this can be turned into a string, but not into an 
 -- integer
 -- Throws a ProgramError if this is not valid
-toInteger :: InterpreterShell m => Data -> Evaluator m Data
-toInteger (IntegerData i) = return $ IntegerData i
+toInteger :: InterpreterShell m => Data -> Evaluator m Int
+toInteger (IntegerData i) = return i
 toInteger x = do
-    StringData s <- toString x
+    s <- toString x
     case readMaybe s of
-        Just i -> return $ IntegerData i
+        Just i -> return i
         Nothing -> failEvaluation
 
 -- | Convert data to a real
 -- Fails the evaluation if this can be turned into a string, but not into an 
 -- real
 -- Throws a ProgramError if this is not valid
-toReal :: InterpreterShell m => Data -> Evaluator m Data
-toReal (RealData i) = return $ RealData i
+toReal :: InterpreterShell m => Data -> Evaluator m Float
+toReal (RealData r) = return r
 toReal x = do
-    StringData s <- toString x
+    s <- toString x
     case readMaybe s of
-        Just i -> return $ RealData i
+        Just r -> return r
         Nothing -> failEvaluation
     
 -- | Take two arguments and cast the "lower" one on the scale of
@@ -407,24 +442,24 @@ raiseArgs a b
     
     | isString a && isInteger b = do
         a' <- toInteger a
-        return (a',b)
+        return (IntegerData a',b)
     | isInteger a && isString b = do
         b' <- toInteger b
-        return (a,b')
+        return (a,IntegerData b')
     
     | isString a && isReal b = do
         a' <- toReal a
-        return (a',b)
+        return (RealData a',b)
     | isReal a && isString b = do
         b' <- toReal b
-        return (a,b')
+        return (a,RealData b')
     
     | isInteger a && isReal b = do
         a' <- toReal a
-        return (a',b)
+        return (RealData a',b)
     | isReal a && isInteger b = do
         b' <- toReal b
-        return (a,b')
+        return (a,RealData b')
     
     | otherwise = liftEval $ programError ProgramError
 
@@ -438,27 +473,28 @@ lowerArgs a b
     
     | isString a && isInteger b = do
         b' <- toString b
-        return (a,b')
+        return (a,StringData b')
     | isInteger a && isString b = do
         a' <- toString a
-        return (a',b)
+        return (StringData a',b)
     
     | isString a && isReal b = do
         b' <- toString b
-        return (a,b')
+        return (a,StringData b')
     | isReal a && isString b = do
         a' <- toString a
-        return (a',b)
+        return (StringData a',b)
     
     | isInteger a && isReal b = do
         b' <- toInteger b
-        return (a,b')
+        return (a,IntegerData b')
     | isReal a && isInteger b = do
         a' <- toInteger a
-        return (a',b)
+        return (IntegerData a',b)
     
     | otherwise = liftEval $ programError ProgramError
 
+-- | Utility function, safe lookup for arrays
 arrayGet :: A.Ix i => Array i e -> i -> Maybe e
 arr `arrayGet` ix
     | arr `inBounds` ix = Just $ arr A.! ix
@@ -466,6 +502,7 @@ arr `arrayGet` ix
   where
     arr `inBounds` ix = let (min,max) = A.bounds arr in min <= ix && ix < max
 
+-- | Assign a value using a lookup
 assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
 assign (LookupId s) val = liftEval $ varWrite s val
 assign (LookupAggregate id args) val = do
@@ -492,11 +529,6 @@ assign (LookupAggregate id args) val = do
             base' <- loop base args
             liftEval $ varWrite id base'
         Nothing -> liftEval $ programError ProgramError
-assign Output val = do
-    StringData str <- toString val
-    lift $ output str
-assign Punch val = do
-    StringData str <- toString val
-    lift $ punch str
-
-
+assign Output val = toString val >>= lift . output
+assign Punch val = toString val >>= lift . punch
+assign _ _ = liftEval $ programError ProgramError

@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Parser.Internal
+Description     : Internal functions for the parser
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Language.Snobol4.Parser.Internal where
@@ -19,10 +29,13 @@ import Language.Snobol4.Parser.Types
 
 import qualified Language.Snobol4.Lexer as L
 
-
+-- | Take a token located using a parsec source position and wrap it to use
+-- the internal source position
 wrapPos :: Located a P.SourcePos -> Located a SourcePos
 wrapPos (Located x pos) = Located x $ SourcePos pos
 
+-- | Take a value that is either a parsec error or a result, if it is an error,
+-- wrap it using the internal error type
 wrapError :: (a -> b) -> Either P.ParseError a -> Either ParseError b
 wrapError _ (Left err) = Left $ ParseError err
 wrapError f (Right x) = Right $ f x
@@ -265,7 +278,7 @@ reference = do
     return $ RefExpr ref args
 
     
-    
+-- | Parse an expression and then fix the associativity and precedence    
 fixedExpression = liftM (fixPrec . fixAssoc) expression
 
 -- | Parse a subject field, which is blanks followed by an element
@@ -435,6 +448,65 @@ program = P.many $ do
     P.skipMany (comment_line >> eol)
     statement
 
+-- Operator Associativity and Precedence
+
+-- | Get the precidence of an operator
+prec :: Operator -> Int
+prec Not = 12
+prec Question = 12
+prec Dollar = 11
+prec Dot = 11
+prec Bang = 10
+prec DoubleStar = 10
+prec Percent = 9
+prec Star = 8
+prec Slash = 7
+prec Hash = 6
+prec Plus = 5
+prec Minus = 5
+prec At = 4
+prec Blank = 3
+prec Pipe = 2
+prec And = 1
+
+-- | The associativity of an operator
+data Assoc = AssocLeft | AssocRight deriving Eq
+
+-- | Get the associativity of an operator
+assoc :: Operator -> Assoc
+assoc Not = AssocRight
+assoc DoubleStar = AssocRight
+assoc _ = AssocLeft
+
+-- | Take an expression tree and manipulate it so that a top-down evalution
+-- will respect the precedence of the operators
+fixPrec :: Expr -> Expr
+fixPrec (PrefixExpr op expr) = PrefixExpr op $ fixPrec expr
+fixPrec (UnevaluatedExpr expr) = UnevaluatedExpr $ fixPrec expr
+fixPrec (CallExpr i args) = CallExpr i $ map fixPrec args
+fixPrec (RefExpr i args) = RefExpr i $ map fixPrec args
+fixPrec (ParenExpr expr) = ParenExpr $ fixPrec expr
+fixPrec (BinaryExpr exprA op exprB) = case fixPrec exprB of
+    BinaryExpr exprA' op' exprB'
+        | prec op > prec op' -> BinaryExpr (BinaryExpr exprA op exprA') op' exprB'
+    x -> BinaryExpr exprA op exprB
+fixPrec x = x
+
+-- | Take an expression tree and manipulate it so that a top-down evaluation
+-- will respect the associativity of the operators
+fixAssoc :: Expr -> Expr
+fixAssoc (BinaryExpr exprA op (BinaryExpr exprA' op' exprB))
+    | prec op == prec op' 
+        && assoc op == AssocLeft 
+        && assoc op' == AssocLeft
+        = fixAssoc $ BinaryExpr (BinaryExpr exprA op exprA') op' exprB
+fixAssoc (PrefixExpr op expr) = PrefixExpr op $ fixAssoc expr
+fixAssoc (UnevaluatedExpr expr) = UnevaluatedExpr $ fixAssoc expr
+fixAssoc (CallExpr i args) = CallExpr i $ map fixAssoc args
+fixAssoc (RefExpr i args) = RefExpr i $ map fixAssoc args
+fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr
+fixAssoc x = x
+
 
 -- Parsing from token lists
 
@@ -467,87 +539,3 @@ parseProgramFromToksT :: Monad m
                       => [Located Token SourcePos] 
                       -> m (Either ParseError Program)
 parseProgramFromToksT = liftM (wrapError id) . P.runParserT program False ""
-
-    
-{-
-
-1 - 2 - 3 -> BinaryExpr (LitExpr (Int 1)) Minus (BinaryExpr (LitExpr (Int 2)) Minus (LitExpr (Int 3))
-
-
-  -
-1  -
-  2 3
-
-   -
- -  3
-1 2
-
-
-1 - 2 - 3 - 4
-
-
- -
-1 -
- 2 -
-  3 4
-
-   -
- -   -
-1 2 3 4
-
-     - 
-   -   4
- -   3
-1 2
--}
-
-prec :: Operator -> Int
-prec Not = 12
-prec Question = 12
-prec Dollar = 11
-prec Dot = 11
-prec Bang = 10
-prec DoubleStar = 10
-prec Percent = 9
-prec Star = 8
-prec Slash = 7
-prec Hash = 6
-prec Plus = 5
-prec Minus = 5
-prec At = 4
-prec Blank = 3
-prec Pipe = 2
-prec And = 1
-
-data Assoc = AssocLeft | AssocRight deriving Eq
-
-assoc :: Operator -> Assoc
-assoc Not = AssocRight
-assoc DoubleStar = AssocRight
-assoc _ = AssocLeft
-
-fixPrec :: Expr -> Expr
-fixPrec (PrefixExpr op expr) = PrefixExpr op $ fixPrec expr
-fixPrec (UnevaluatedExpr expr) = UnevaluatedExpr $ fixPrec expr
-fixPrec (CallExpr i args) = CallExpr i $ map fixPrec args
-fixPrec (RefExpr i args) = RefExpr i $ map fixPrec args
-fixPrec (ParenExpr expr) = ParenExpr $ fixPrec expr
-fixPrec (BinaryExpr exprA op exprB) = case fixPrec exprB of
-    BinaryExpr exprA' op' exprB'
-        | prec op > prec op' -> BinaryExpr (BinaryExpr exprA op exprA') op' exprB'
-    x -> BinaryExpr exprA op exprB
-fixPrec x = x
-
-fixAssoc :: Expr -> Expr
-fixAssoc (BinaryExpr exprA op (BinaryExpr exprA' op' exprB))
-    | prec op == prec op' 
-        && assoc op == AssocLeft 
-        && assoc op' == AssocLeft
-        = fixAssoc $ BinaryExpr (BinaryExpr exprA op exprA') op' exprB
-fixAssoc (PrefixExpr op expr) = PrefixExpr op $ fixAssoc expr
-fixAssoc (UnevaluatedExpr expr) = UnevaluatedExpr $ fixAssoc expr
-fixAssoc (CallExpr i args) = CallExpr i $ map fixAssoc args
-fixAssoc (RefExpr i args) = RefExpr i $ map fixAssoc args
-fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr
-fixAssoc x = x
-

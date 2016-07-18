@@ -1,3 +1,17 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Evaluator
+Description     : Expression Evaluation
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+Expressions are evaluated as actions of the 'Evaluator' type, which can be
+returned to the 'Interpreter' type using either 'unliftEval', which yields an
+Either value, or by 'catchEval', which takes a function to call if the
+evaluation fails.
+-}
+
 module Language.Snobol4.Interpreter.Evaluator where
 
 import Prelude hiding (toInteger)
@@ -21,11 +35,12 @@ import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal
 import Language.Snobol4.Interpreter.Internal.Types
 
+-- | Evaluate an arithmetic operation
 arithmetic :: InterpreterShell m 
-           => (Int -> Int -> Int) 
-           -> (Float -> Float -> Float)
-           -> Data 
-           -> Data 
+           => (Int -> Int -> Int) -- ^ Integer version 
+           -> (Float -> Float -> Float) -- ^ Real version
+           -> Data -- ^ Left argument
+           -> Data -- ^ Right argument
            -> Evaluator m Data
 arithmetic f_int f_real a b = do
     (a',b') <- raiseArgs a b
@@ -34,14 +49,23 @@ arithmetic f_int f_real a b = do
         (RealData a'', RealData b'') -> return $ RealData $ f_real a'' b''
         _ -> liftEval $ programError ProgramError
 
-pattern :: InterpreterShell m => (Pattern -> Pattern -> Pattern) -> Data -> Data -> Evaluator m Data
+-- | Evaluate a pattern operation
+pattern :: InterpreterShell m 
+        => (Pattern -> Pattern -> Pattern) 
+        -> Data 
+        -> Data 
+        -> Evaluator m Data
 pattern f a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ PatternData $ f a' b'
 
 -- | Evaluate a binary operation on data
-evalOp :: InterpreterShell m => Operator -> Data -> Data -> Evaluator m Data
+evalOp :: InterpreterShell m 
+       => Operator 
+       -> Data 
+       -> Data 
+       -> Evaluator m Data
 evalOp Plus = arithmetic (+) (+)
 evalOp Minus = arithmetic (-) (-)
 evalOp Star = arithmetic (*) (*)
@@ -51,29 +75,38 @@ evalOp DoubleStar = evalOp Bang
 evalOp Pipe = pattern AlternativePattern 
 evalOp Blank = pattern ConcatPattern
 
+-- | Evaluate an expression, then choose one of two actions/values to use
+checkSuccess :: InterpreterShell m 
+             => Expr -- ^ Expression to evaluate
+             -> Evaluator m Data -- ^ Action on success
+             -> Evaluator m Data -- ^ Action on failure
+             -> Evaluator m Data
+checkSuccess expr success failure = do
+    result <- liftEval $ unliftEval $ evalExpr expr
+    case result of
+        Right _ -> success
+        Left _ -> failure
+
 -- | Evaluate an expression
 evalExpr :: InterpreterShell m => Expr -> Evaluator m Data
-evalExpr (PrefixExpr Not expr) = do
-    result <- liftEval $ unliftEval $ evalExpr expr
-    case result of
-        Right x -> failEvaluation
-        Left x -> return $ StringData ""
-evalExpr (PrefixExpr Question expr) = do
-    result <- liftEval $ unliftEval $ evalExpr expr
-    case result of
-        Right x -> return $ StringData ""
-        Left x -> failEvaluation
+evalExpr (PrefixExpr Not expr) = checkSuccess 
+    expr 
+    failEvaluation 
+    (return $ StringData "")
+evalExpr (PrefixExpr Question expr) = checkSuccess 
+    expr 
+    (return $ StringData "") 
+    failEvaluation
 evalExpr (PrefixExpr Minus expr) = do
     data_ <- evalExpr expr
     case data_ of
         s@(StringData _) -> do
-            i <- toReal s
-            case i of
-                RealData i -> return $ RealData $ -i
+            r <- toReal s
+            return $ RealData $ -r
         (IntegerData i) -> return $ IntegerData $ -i
         (RealData r) -> return $ RealData $ -r
-           
--- TODO: UnevaluatedExpr
+        _ -> liftEval $ programError ProgramError
+evalExpr (UnevaluatedExpr expr) = return $ PatternData $ UnevaluatedExprPattern expr
 evalExpr (IdExpr "INPUT") = StringData <$> (lift $ input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ lastOutput)
 evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ lastPunch)
@@ -105,7 +138,7 @@ evalExpr (BinaryExpr a op b) = do
 evalExpr NullExpr = return $ StringData ""
 evalExpr _ = liftEval $ programError ProgramError
 
-
+-- | Execute a lookup
 execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data) 
 execLookup Input = (Just . StringData) <$> lift input 
 execLookup Output = (Just . StringData) <$> lift lastOutput 

@@ -1,5 +1,3 @@
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-|
 Module          : Language.Snobol4.Parser
 Description     : Parser for the SNOBOL4 implementation
@@ -13,6 +11,9 @@ The Parser takes as input a list of SNOBOL4 tokens, which can be found at
 be found at "Language.Snobol4.Syntax.AST", which describe the abstract syntax 
 tree of a SNOBOL4 program.
 -}
+
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Language.Snobol4.Parser
     ( parseStatement
     , parseStatementT

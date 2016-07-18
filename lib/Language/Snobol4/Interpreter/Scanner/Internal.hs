@@ -1,3 +1,27 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Scanner.Internal
+Description     : Internal functions of the scanner
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+Overview of the scanner:
+
+The scanner works similarly to the evaluator or interpreter in that actions by
+it are represented by a newtype hiding a stack of transformers.
+
+The scanner's stack consists of an Evaluator at the bottom, with a MaybeT used
+to catch failures, and a StateT on top which contains the input yet to be
+scanned, the assignments to be performed after scanning, and the range of input
+that has been scanned.
+
+The scanner operates by finding all alternatives at the current position, then
+attempting each one. If an alternative fails, represented by the Nothing value
+in the MaybeT transformer, the state is rewound and the next alternative is
+tried.
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Scanner.Internal where
 
@@ -62,6 +86,7 @@ catchScan try catch = do
 getInput :: Monad m => Scanner m String
 getInput = Scanner $ gets inputStr
 
+-- | Peek at the next character to be scanned
 nextChar :: Monad m => Scanner m Char
 nextChar = Scanner $ gets $ head . inputStr
 
@@ -73,9 +98,11 @@ setInput s = Scanner $ modify $ \st -> st{inputStr = s}
 incEndPos :: Monad m => Int -> Scanner m ()
 incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + len}
 
+-- | Get the position of the cursor
 getCursorPos :: Monad m => Scanner m Int
 getCursorPos = Scanner $ gets endPos
 
+-- | Get the distance of the cursor from the end of input
 getRCursorPos :: Monad m => Scanner m Int
 getRCursorPos = length <$> getInput
 
@@ -120,6 +147,7 @@ consumeAll = do
     incEndPos (length str)
     return str
 
+-- | Given a pattern, find all alternatives at the current position
 getAlternatives :: InterpreterShell m => Pattern -> Scanner m [Scanner m String]
 getAlternatives (AssignmentPattern p l) = getAlternatives p >>= return . map after
   where
@@ -299,12 +327,15 @@ startState s = ScannerState
              , endPos = 0
              }
 
+-- | Try each of a set of alternatives, backtracking if any fail and trying the
+-- next
 evaluateAlternatives :: InterpreterShell m  
                      => [Scanner m a]
                      -> Scanner m a
 evaluateAlternatives [] = throwScan
 evaluateAlternatives (a:as) = catchScan a $ evaluateAlternatives as
 
+-- | Run the scanner
 matchPat :: InterpreterShell m => Pattern -> Scanner m String
 matchPat p = do
     st <- Scanner get

@@ -1,3 +1,14 @@
+{-|
+Module          : Language.Snobol4.Interpreter.State
+Description     : State of the interpreter
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+Functions relating to the state of the interpreter
+-}
+
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.Snobol4.Interpreter.State where
 
@@ -12,8 +23,8 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 
--- | A ProgramState with no variable, statements, or labels, pointed at the 
--- first statement
+-- | A ProgramState with the primitive functions and variables, no program
+-- loaded, an empty call stack, and pointing at the first statement
 emptyState :: forall m . InterpreterShell m => ProgramState m
 emptyState = ProgramState
     (M.fromList primitiveVars) 
