@@ -13,6 +13,7 @@ primitiveVars =
     , ("FAIL",  PatternData FailPattern)
     , ("FENCE", PatternData FencePattern)
     , ("ABORT", PatternData AbortPattern)
+    , ("ARB", PatternData ArbPattern)
     ]
     
 primitiveFunctions :: InterpreterShell m => [Function m]
@@ -24,6 +25,7 @@ primitiveFunctions =
     , PrimitiveFunction "NOTANY"    notany
     , PrimitiveFunction "TAB"       rtab
     , PrimitiveFunction "RTAB"      rtab
+    , PrimitiveFunction "ARBNO"     arbno
     ]
 
 len :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -81,3 +83,10 @@ rtab (a:_) = do
         then return $ Just $ PatternData $ RTabPattern i
         else liftEval $ programError ProgramError
 rtab [] = rtab [StringData ""]
+
+
+arbno :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
+arbno (a:_) = do
+    p <- toPattern a
+    return $ Just $ PatternData $ ArbNoPattern p
+arbno [] = arbno [StringData ""]

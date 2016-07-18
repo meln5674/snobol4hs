@@ -115,6 +115,8 @@ data Pattern
     | FencePattern
     -- | A pattern which aborts the scanner
     | AbortPattern
+    | ArbPattern
+    | ArbNoPattern Pattern
   deriving (Show, Eq, Ord)
 
 -- | A program error INCOMPLETE

@@ -202,7 +202,10 @@ getAlternatives (RPosPattern pos) = return $ (:[]) $ do
 getAlternatives FailPattern = return $ (:[]) $ throwScan
 getAlternatives FencePattern = undefined
 getAlternatives AbortPattern = undefined
-
+getAlternatives ArbPattern = do
+    str <- getInput
+    return $ map consume $ tails str
+--getAlternatives (ArbNoPattern p) = return $ flip map [0..] $ liftM concat . replicateM (getAlternatives
 
 {-
 -- | Match a pattern
