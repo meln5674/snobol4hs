@@ -13,8 +13,8 @@ module Language.Snobol4.Interpreter.Types where
 import Data.Map (Map)
 import qualified Data.Map as M
 
-import Data.Vector (Vector)
-import qualified Data.Vector as V
+import Data.Array (Array)
+import qualified Data.Array as A
 
 import Language.Snobol4.Syntax.AST
 
@@ -55,7 +55,7 @@ data Data
     -- | A real number
     | RealData Float
     -- | An array
-    | ArrayData (Vector Data)
+    | ArrayData (Array Int Data)
     -- | A table
     | TableData (Map Data Data)
     -- | Passing an expression by name

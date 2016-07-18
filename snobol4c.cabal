@@ -41,6 +41,7 @@ library
                       , containers
                       , vector
                       , mtl
+                      , array
     default-language:   Haskell2010
 
 

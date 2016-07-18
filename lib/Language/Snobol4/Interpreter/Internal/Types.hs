@@ -9,6 +9,9 @@ import Text.Read hiding (lift, String, step, get)
 import Data.Map (Map)
 import qualified Data.Map as M
 
+import Data.Array (Array)
+import qualified Data.Array as A
+
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
@@ -456,15 +459,22 @@ lowerArgs a b
     
     | otherwise = liftEval $ programError ProgramError
 
+arrayGet :: A.Ix i => Array i e -> i -> Maybe e
+arr `arrayGet` ix
+    | arr `inBounds` ix = Just $ arr A.! ix
+    | otherwise = Nothing
+  where
+    arr `inBounds` ix = let (min,max) = A.bounds arr in min <= ix && ix < max
+
 assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
 assign (LookupId s) val = liftEval $ varWrite s val
 assign (LookupAggregate id args) val = do
-    let loop (ArrayData vec) [IntegerData i] = return $ ArrayData $ vec V.// [(i,val)]
-        loop (ArrayData vec) ((IntegerData i):as) = do
-            case vec V.!? i of
+    let loop (ArrayData arr) [IntegerData i] = return $ ArrayData $ arr A.// [(i,val)]
+        loop (ArrayData arr) ((IntegerData i):as) = do
+            case arr `arrayGet` i of
                 Just d -> do
                     d' <- loop d as
-                    return $ ArrayData $ vec V.// [(i,d')]
+                    return $ ArrayData $ arr A.// [(i,d')]
                 Nothing -> liftEval $ programError ProgramError
         loop (ArrayData _) _ = liftEval $ programError ProgramError
         loop (TableData tab) [a] = return $ TableData $ M.insert a val tab

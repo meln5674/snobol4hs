@@ -7,8 +7,8 @@ import Text.Read hiding (lift, String, step, get)
 import Data.Map (Map)
 import qualified Data.Map as M
 
-import Data.Vector (Vector)
-import qualified Data.Vector as V
+import Data.Array (Array)
+import qualified Data.Array as A
 
 import Control.Monad
 import Control.Monad.Trans
@@ -105,6 +105,7 @@ evalExpr (BinaryExpr a op b) = do
 evalExpr NullExpr = return $ StringData ""
 evalExpr _ = liftEval $ programError ProgramError
 
+
 execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data) 
 execLookup Input = (Just . StringData) <$> lift input 
 execLookup Output = (Just . StringData) <$> lift lastOutput 
@@ -116,7 +117,7 @@ execLookup (LookupAggregate id args) = do
     case base of
         Nothing -> return Nothing
         Just val -> do
-            let loop (ArrayData vec) ((IntegerData i):as) = case vec V.!? i of
+            let loop (ArrayData arr) ((IntegerData i):as) = case arr `arrayGet` i of
                     Nothing -> Nothing
                     Just d -> loop d as
                 loop (ArrayData _) _ = Nothing
