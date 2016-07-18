@@ -140,9 +140,9 @@ table :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 table (a:_) = do
     i <- toInteger a
     if i >= 0
-        then return $ Just $ TableData $ M.empty
+        then return $ Just $ TableData M.empty
         else liftEval $ programError NegativeNumberInIllegalContext
-table _ = return $ Just $ TableData $ M.empty
+table _ = return $ Just $ TableData M.empty
 
 -- | The dimension of an array
 data Dimension
@@ -202,10 +202,9 @@ array :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 array [dimStr,item] = do
     str <- toString dimStr
     dims <- runParserT dimensions () "" str
-    case dims of
-        Left err -> return Nothing
-        Right dims -> do
-             return $ Just $ mkArray dims item
+    return $ case dims of
+        Left err -> Nothing
+        Right dims -> Just $ mkArray dims item
 array [dimStr] = array [dimStr, StringData ""]
 array [] = liftEval $ programError NullStringInIllegalContext
 array _ = liftEval $ programError IncorrectNumberOfArguments

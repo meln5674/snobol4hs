@@ -86,5 +86,5 @@ instance InterpreterShell ConsoleShell where
     lastPunch = getLastPunch
 
 instance InterpreterShellRun ConsoleShell IO where
-    start = ConsoleShell $ put $ emptyState
+    start = ConsoleShell $ put emptyState
     shell = flip evalStateT emptyState . runConsoleShell

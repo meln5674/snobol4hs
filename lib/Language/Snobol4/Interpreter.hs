@@ -99,24 +99,24 @@ eval :: InterpreterShell m
      => Expr
      -> PausedInterpreter m
      -> m (PausedInterpreter m, Maybe Data)
-eval _ (Terminated err) = return $ (Terminated err, Nothing)
+eval _ (Terminated err) = return (Terminated err, Nothing)
 eval expr (Paused st) = do
     result <- I.interpret st $ do
         result <- I.unliftEval $ I.evalExpr expr
         st' <- I.getProgramState
-        case result of
-            Left stop -> return $ (Paused st', Nothing)
-            Right val -> return $ (Paused st', Just val)
-    case result of
-        Left err -> return $ (Terminated err, Nothing)
-        Right x -> return x
+        return $ case result of
+            Left stop -> (Paused st', Nothing)
+            Right val -> (Paused st', Just val)
+    return $ case result of
+        Left err -> (Terminated err, Nothing)
+        Right x -> x
 
 -- | Execute a statement in a paused interpreter
 exec :: InterpreterShell m
      => Stmt
      -> PausedInterpreter m
      -> m (PausedInterpreter m, Maybe Data)
-exec _ (Terminated err) = return $ (Terminated err, Nothing)
+exec _ (Terminated err) = return (Terminated err, Nothing)
 exec stmt (Paused st) = do
     result <- I.interpret st $ do
         result <- I.exec stmt
@@ -124,7 +124,7 @@ exec stmt (Paused st) = do
         return (st, result)
     case result of
         Left err -> return (Terminated err, Nothing)
-        Right (st, (StmtResult x)) -> return (Paused st, x)
+        Right (st, StmtResult x) -> return (Paused st, x)
         Right (_, Return) -> return (Terminated ReturnFromZeroLevel, Nothing)
         Right (_, FReturn) -> return (Terminated ReturnFromZeroLevel, Nothing)
 

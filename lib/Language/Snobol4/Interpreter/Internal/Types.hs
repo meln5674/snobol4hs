@@ -98,7 +98,7 @@ newtype Interpreter m a
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadTrans Interpreter where
-    lift m = Interpreter $ lift $ lift $ m
+    lift = Interpreter . lift . lift
 
 -- | Transformer stack for when the interpreter is evaluating a statement
 newtype Evaluator m a 
@@ -110,7 +110,7 @@ newtype Evaluator m a
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadTrans Evaluator where
-    lift m = Evaluator $ lift $ lift $ lift $ m
+    lift = Evaluator . lift . lift . lift
 
 -- | A paused interpreter
 data PausedInterpreter m
@@ -148,7 +148,7 @@ liftEval = Evaluator . ExceptT . lift . runExceptT . runInterpreter
 -- | Lift an evaluation stack result back into the non-evaluation stack
 unliftEval :: InterpreterShell m => Evaluator m a -> Interpreter m (Either EvalStop a)
 unliftEval (Evaluator m) = do
-    x <- Interpreter $ lift $ runExceptT $ runExceptT $ m
+    x <- Interpreter $ lift $ runExceptT $ runExceptT m
     case x of
         Left stop -> return $ Left stop
         Right (Left err) -> programError err
@@ -163,7 +163,7 @@ failEvaluation :: InterpreterShell m => Evaluator m a
 failEvaluation = Evaluator
                $ lift 
                $ throwE 
-               $ EvalFailed
+                 EvalFailed
 
 -- | Mark the current evaluation as successful and prohibit additional evaluation
 finishEvaluation :: InterpreterShell m => Maybe Data -> Evaluator m a
@@ -177,7 +177,7 @@ getProgramState :: InterpreterShell m => Interpreter m (ProgramState m)
 getProgramState = getsProgramState id
 
 -- | Set the state of the interpreter
-putProgramState :: InterpreterShell m => (ProgramState m) -> Interpreter m ()
+putProgramState :: InterpreterShell m => ProgramState m -> Interpreter m ()
 putProgramState = modifyProgramState . const
 
 -- | Apply an accessor function to the state of the interpreter
@@ -253,10 +253,10 @@ modifyCallStack f = modifyProgramState $
     \st -> st { callStack = f $ callStack st }
 
 -- | Apply a function to the head of the call stack
-modifyCallStackHead f = modifyCallStack $ \(n:ns) -> (f n):ns
+modifyCallStackHead f = modifyCallStack $ \(n:ns) -> f n:ns
 
 -- | Push a node onto the call stack
-pushCallStack n = modifyCallStack $ (n:)
+pushCallStack n = modifyCallStack (n:)
 
 -- | Pop a node off of the call stack and set the program counter accordingly
 popCallStack :: InterpreterShell m => Interpreter m CallStackNode
@@ -335,7 +335,7 @@ pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
 pushFuncNode f = do
     pc <- getProgramCounter
     pushCallStack
-        $ Node 
+        Node 
         { callName = funcName f
         , locals = M.fromList $ map (\x -> (x,StringData "")) 
                               $ funcName f : localNames f ++ formalArgs f
@@ -393,7 +393,7 @@ toString :: InterpreterShell m => Data -> Evaluator m String
 toString (StringData s) = return s
 toString (IntegerData i) = return $ show i
 toString (RealData r) = return $ show r
-toString (PatternData (LiteralPattern s)) = return $ s
+toString (PatternData (LiteralPattern s)) = return s
 toString (PatternData (ConcatPattern a b)) = do
     a' <- toString $ PatternData a
     b' <- toString $ PatternData b
@@ -404,9 +404,7 @@ toString _ = liftEval $ programError IllegalDataType
 -- Throws a ProgramError if this is not valid
 toPattern :: InterpreterShell m => Data -> Evaluator m Pattern
 toPattern (PatternData p) = return p
-toPattern x = do
-    s <- toString x
-    return $ LiteralPattern $ s
+toPattern x = LiteralPattern <$> toString x
 
 -- | Convert data to an integer
 -- Fails the evaluation if this can be turned into a string, but not into an 
@@ -507,20 +505,18 @@ assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
 assign (LookupId s) val = liftEval $ varWrite s val
 assign (LookupAggregate id args) val = do
     let loop (ArrayData arr) [IntegerData i] = return $ ArrayData $ arr A.// [(i,val)]
-        loop (ArrayData arr) ((IntegerData i):as) = do
-            case arr `arrayGet` i of
-                Just d -> do
-                    d' <- loop d as
-                    return $ ArrayData $ arr A.// [(i,d')]
-                Nothing -> liftEval $ programError ErroneousArrayOrTableReference
+        loop (ArrayData arr) (IntegerData i:as) = case arr `arrayGet` i of
+            Just d -> do
+                d' <- loop d as
+                return $ ArrayData $ arr A.// [(i,d')]
+            Nothing -> liftEval $ programError ErroneousArrayOrTableReference
         loop (ArrayData _) _ = liftEval $ programError ErroneousArrayOrTableReference
         loop (TableData tab) [a] = return $ TableData $ M.insert a val tab
-        loop (TableData tab) (a:as) = do
-            case M.lookup a tab of
-                Just d -> do
-                    d' <- loop d as
-                    return $ TableData $ M.insert a d' tab
-                Nothing -> liftEval $ programError ErroneousArrayOrTableReference
+        loop (TableData tab) (a:as) = case M.lookup a tab of
+            Just d -> do
+                d' <- loop d as
+                return $ TableData $ M.insert a d' tab
+            Nothing -> liftEval $ programError ErroneousArrayOrTableReference
         loop (TableData _) _ = liftEval $ programError ErroneousArrayOrTableReference
         loop _ _ = liftEval $ programError ErroneousArrayOrTableReference
     base <- liftEval $ varLookup id

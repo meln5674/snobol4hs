@@ -27,6 +27,7 @@ module Language.Snobol4.Interpreter.Scanner.Internal where
 
 import Data.List
 
+import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Maybe
@@ -73,7 +74,7 @@ catchScan try catch = do
             $ runMaybeT 
             $ flip runStateT st
             $ runScanner 
-            $ try
+              try
     case result of
         Just (x,st') -> do
             Scanner $ put st'
@@ -112,7 +113,7 @@ addAssignment l d = Scanner $ modify $ \st -> st{ assignments = (l,d):assignment
 
 -- | Immediately assign a value
 immediateAssignment :: InterpreterShell m => Lookup -> Data -> Scanner m ()
-immediateAssignment l d = Scanner $ lift $ lift $ assign l $ d
+immediateAssignment l = Scanner . lift . lift . assign l
 
 -- | Attempt to consume a string from input, failing if the start of the input
 -- does not match thet provided string
@@ -149,13 +150,13 @@ consumeAll = do
 
 -- | Given a pattern, find all alternatives at the current position
 getAlternatives :: InterpreterShell m => Pattern -> Scanner m [Scanner m String]
-getAlternatives (AssignmentPattern p l) = getAlternatives p >>= return . map after
+getAlternatives (AssignmentPattern p l) = map after `liftM` getAlternatives p
   where
     after m = do
         result <- m
         addAssignment l (StringData result)
         return result
-getAlternatives (ImmediateAssignmentPattern p l) = getAlternatives p >>= return . map after
+getAlternatives (ImmediateAssignmentPattern p l) = map after `liftM` getAlternatives p
   where
     after m = do
         result <- m
@@ -165,15 +166,15 @@ getAlternatives (LiteralPattern s) = return $ (:[]) $ consume s
 getAlternatives (AlternativePattern p1 p2) = (++) <$> getAlternatives p1 <*> getAlternatives p2
 getAlternatives (ConcatPattern p1 p2) = do
     as1 <- getAlternatives p1
-    x <- return $ flip mapM as1 $ \a1 -> do
-        a1' <- a1
-        as2 <- getAlternatives p2
-        return $ flip map as2 $ \a2 -> do
-            a2' <- a2
-            return $ a1' ++ a2'
+    let x = forM as1 $ \a1 -> do
+            a1' <- a1
+            as2 <- getAlternatives p2
+            return $ flip map as2 $ \a2 -> do
+                a2' <- a2
+                return $ a1' ++ a2'
     concat <$> x
 getAlternatives (LengthPattern l) = return $ (:[]) $ consumeN l
-getAlternatives EverythingPattern = return $ (:[]) $ consumeAll
+getAlternatives EverythingPattern = return $ (:[]) consumeAll
 getAlternatives (UnevaluatedExprPattern expr) = do 
     pat <- Scanner $ lift $ lift $ do
         result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
@@ -182,7 +183,7 @@ getAlternatives (UnevaluatedExprPattern expr) = do
             Nothing -> return Nothing
     case pat of
         Just pat -> getAlternatives pat
-        Nothing -> return $ (:[]) $ throwScan
+        Nothing -> return $ (:[]) throwScan
 getAlternatives (HeadPattern l) = return $ (:[]) $ do
     pos <- getCursorPos
     immediateAssignment l $ IntegerData pos
@@ -227,7 +228,7 @@ getAlternatives (RPosPattern pos) = return $ (:[]) $ do
     if pos' == pos
         then return ""
         else throwScan
-getAlternatives FailPattern = return $ (:[]) $ throwScan
+getAlternatives FailPattern = return $ (:[]) throwScan
 getAlternatives FencePattern = undefined
 getAlternatives AbortPattern = undefined
 getAlternatives ArbPattern = do
@@ -332,8 +333,7 @@ startState s = ScannerState
 evaluateAlternatives :: InterpreterShell m  
                      => [Scanner m a]
                      -> Scanner m a
-evaluateAlternatives [] = throwScan
-evaluateAlternatives (a:as) = catchScan a $ evaluateAlternatives as
+evaluateAlternatives = foldr catchScan throwScan
 
 -- | Run the scanner
 matchPat :: InterpreterShell m => Pattern -> Scanner m String

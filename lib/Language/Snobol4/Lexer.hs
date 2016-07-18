@@ -75,7 +75,7 @@ semicolon = ';' `cifthen` SemiColon
 colon = ':' `cifthen` Colon
 
 -- | Parse an end of line
-eol = ((void P.endOfLine)) `ifthen` EOL
+eol = void P.endOfLine `ifthen` EOL
 
 -- | Parse a single digit
 digit = P.digit
@@ -145,7 +145,7 @@ dliteral = do
 -- | Parse an operator
 operator = do
     opChar <- P.oneOf ['~','?','$','.','!','%','*','/','#','+','-','@','|','&']
-    return $ Operator $ opChar : []
+    return $ Operator [opChar]
 
 -- | Parse an exponentiate operator
 exponentiate = "**" `sifthen` Exponentiate
@@ -161,7 +161,7 @@ comment_line = do
         else do
             head <- P.char '*'
             tail <- P.manyTill P.anyChar (P.try (void eol) <|> P.eof)
-            return $ LineComment $ tail
+            return $ LineComment tail
 
 -- | Modifie a parser so that, if it succeeds, it wraps the result in a Located 
 -- value with the position the parser started at
@@ -201,18 +201,21 @@ tokens = P.many (locate anyToken)
 -- stream. First parameter sets if the lexing should assume that the input is
 -- from the start of a line or not.
 lex :: Bool -> String -> Either ParseError [Located Token SourcePos]
-lex x = wrapError (map wrapPos) . P.runParser (fixPosition >> tokens) () ""
+lex x = wrapError (map wrapPos) . P.runParser parser () ""
   where
-    fixPosition = if x
-        then return ()
-        else (flip P.incSourceColumn 1 <$> P.getPosition) >>= P.setPosition
-        
+    parser = do
+        unless x $ do
+            pos <- flip P.incSourceColumn 1 <$> P.getPosition
+            P.setPosition pos
+        tokens
 
 -- | Produce a list of tokens tagged with their source locations from an input 
 -- stream, inside of a monad transformer
 lexT :: Monad m => Bool -> String -> m (Either ParseError [Located Token SourcePos])
-lexT x = liftM (wrapError (map wrapPos)) . P.runParserT (fixPosition >> tokens) () ""
+lexT x = liftM (wrapError (map wrapPos)) . P.runParserT parser () ""
   where
-    fixPosition = if x 
-        then return ()
-        else (flip P.incSourceColumn 1 <$> P.getPosition) >>= P.setPosition
+    parser = do
+        unless x $ do
+            pos <- flip P.incSourceColumn 1 <$> P.getPosition
+            P.setPosition pos
+        tokens

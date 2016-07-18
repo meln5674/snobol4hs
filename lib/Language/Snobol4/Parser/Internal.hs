@@ -12,6 +12,7 @@ Portability     : Unknown
 {-# LANGUAGE FlexibleContexts #-}
 module Language.Snobol4.Parser.Internal where
 
+import Data.Maybe
 
 import Control.Monad
 
@@ -219,8 +220,8 @@ literalE = do
     return $ LitExpr $ case t of
         IntLiteral s -> Int (read s)
         RealLiteral s -> Real (read s)
-        SLiteral s -> String $ init $ tail $ s
-        DLiteral s -> String $ init $ tail $ s
+        SLiteral s -> String $ init $ tail s
+        DLiteral s -> String $ init $ tail s
 
 -- | Parse an element, which optionally begins with a unary operator, then is 
 -- either an identifier, literal, function call, reference, or an expression in
@@ -240,7 +241,7 @@ element = do
 operation = do
     a <- element
     op <- binary
-    b <- (P.try expression <|> element)
+    b <- P.try expression <|> element
     case op of
         Just op -> return $ BinaryExpr a op b
         Nothing -> case b of
@@ -254,11 +255,9 @@ operation = do
 expression = do
     P.putState False
     P.optional blanks
-    x <- P.optionMaybe (P.try operation <|> element)
+    x <- P.optionMaybe $ P.try operation <|> element
     P.optional (blanks >> P.putState True)
-    return $ case x of
-        Just x -> x
-        Nothing -> NullExpr
+    return $ fromMaybe NullExpr x
 
 -- | Parse an argument list, which is a list of expressions separated by commas
 arg_list = P.sepBy1 expression comma
@@ -432,13 +431,13 @@ dimension = void $ signed_integer >> P.optional (colon >> signed_integer)
 array_prototype = void $ P.sepBy1 comma dimension
 
 -- | ???
-string_integer = void $ signed_integer
+string_integer = void signed_integer
 
 -- | ???
 string_real = void $ P.optional ( P.optional (plus <|> minus) >> real)
 
 -- | ???
-string_expression = void $ expression
+string_expression = void expression
 
 -- | ???
 string_code = void $ P.sepBy1 semicolon statement
