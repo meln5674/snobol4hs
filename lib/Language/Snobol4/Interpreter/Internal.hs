@@ -95,8 +95,8 @@ execSub (PrefixExpr Dollar expr) = do
     s <- toString expr'
     return $ LookupId s
 execSub (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
-execSub _ = liftEval $ programError IllegalDataType
-
+execSub (ParenExpr expr) = execSub expr
+execSub expr = LookupLiteral <$> evalExpr expr
 
 -- | Execute a pattern, and return the pattern structure for it
 execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
