@@ -530,14 +530,17 @@ data_prototype = void $ identifier >> inParens item_list
 
 -- | Parse a function prototype
 function_prototype :: Monad m => ParsecT TokStream u m FunctionPrototype
-function_prototype = FunctionPrototype <$> identifierStr <*> inParens item_list <*> item_list
+function_prototype = FunctionPrototype 
+    <$> (mkString <$> identifierStr)
+    <*> (map mkString <$> inParens item_list)
+    <*> (map mkString <$> item_list)
 
 -- | Parse an external prototype
 external_prototype :: Monad m => ParsecT TokStream u m ()
 external_prototype = void $ identifier >> inParens item_list >> item
 
 -- | Parse a signed integer in a prototype
-signed_integer :: Monad m => ParsecT TokStream u m Snobol4Integer
+signed_integer :: Monad m => ParsecT TokStream u m Int
 signed_integer = do
     sign <- P.optional plus
     (Located (IntLiteral i) _) <- integer
@@ -546,10 +549,10 @@ signed_integer = do
 -- | Parse a dimension in a prototype
 dimension :: Monad m => ParsecT TokStream u m Dimension
 dimension = do
-    minIx <- signed_integer
+    minIx <- mkInteger <$> signed_integer
     P.option (0,minIx) $ do
         _ <- colon
-        maxIx <- signed_integer
+        maxIx <- mkInteger <$> signed_integer
         return (minIx,maxIx)
 
 -- | Parse an array prototype

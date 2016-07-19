@@ -31,6 +31,7 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Shell
 
@@ -44,48 +45,8 @@ data EvalStop
     | EvalFailed
   deriving Show
 
--- | A lookup request
-data Lookup 
-    -- | Lookup a variable by name
-    = LookupId String
-    -- | Lookup an element in an array by index or a table by key
-    | LookupAggregate String [Data]
-    -- | The output varaible
-    | Output
-    -- | The input variable
-    | Input
-    -- | The output variable
-    | Punch
-    | LookupLiteral Data
-  deriving (Show, Eq, Ord)
 
-
--- | The data types allowed in a snobol4 program
-data Data
-    -- | A string
-    = StringData Snobol4String
-    -- | A pattern
-    | PatternData Pattern
-    -- | An integer
-    | IntegerData Snobol4Integer
-    -- | A real number
-    | RealData Snobol4Real
-    -- | An array
-    | ArrayData ArrayKey
-    -- | A table
-    | TableData TableKey
-    -- | Passing an expression by name
-    | Name Lookup
-  deriving (Eq, Ord)
-
-instance Show Data where
-    show (StringData s) = s
-    show (PatternData _) = "[PATTERN]"
-    show (IntegerData i) = show i
-    show (RealData f) = show f
-    show (ArrayData _) = "[ARRAY]"
-    show (TableData _) = "[TABLE]"
-    show (Name _) = "[NAME]"
+newtype Address = Address { getAddress :: Snobol4Integer } deriving (Eq, Ord, Bounded, Enum, Num)
 
 {-
 instance Read Data where
@@ -97,59 +58,7 @@ instance Read Data where
 -}
 
 -- | A pattern
-data Pattern
-    -- | A pattern which records the matched value in the provided lookup on 
-    -- success
-    = AssignmentPattern Pattern Lookup
-    -- | A pattern which records the matched value in the provided lookup 
-    -- immediately after matching
-    | ImmediateAssignmentPattern Pattern Lookup
-    -- | A pattern to match a literal string
-    | LiteralPattern String
-    -- | An alternative between two ore more patterns
-    | AlternativePattern Pattern Pattern
-    -- | A concatination of two or more patterns
-    | ConcatPattern Pattern Pattern
-    -- | A pattern which matches any string of N characters
-    | LengthPattern Int
-    -- | A pattern which matches anything
-    | EverythingPattern
-    -- | A pattern which contains an unevaluated expression
-    | UnevaluatedExprPattern Expr
-    -- | A pattern which assigns the cursor position to a variable and matches
-    -- the null string
-    | HeadPattern Lookup
-    -- | A pattern which matches the longest string containing only certain
-    -- characters
-    | SpanPattern [Char]
-    -- | A pattern which matches the longest string not containing certain
-    -- characters
-    | BreakPattern [Char]
-    -- | A pattern which matches one character of a list of characters
-    | AnyPattern [Char]
-    -- | A pattern which matches one character not in a list of characters
-    | NotAnyPattern [Char]
-    -- | A pattern which succeeds if the cursor is before the given column
-    -- measured from the start
-    | TabPattern Int
-    -- | A pattern which succeeds if the cursor is after the given column
-    -- measured from the end
-    | RTabPattern Int
-    -- | A pattern which succeeds if the cursor is at the given column measured
-    -- from the start
-    | PosPattern Int
-    -- | A pattern which succeeds if the cursor is at the given column measured
-    -- from the end
-    | RPosPattern Int
-    -- | A pattern which always fails
-    | FailPattern
-    -- | A pattern which succeeds the first time, but fails any time after
-    | FencePattern
-    -- | A pattern which aborts the scanner
-    | AbortPattern
-    | ArbPattern
-    | ArbNoPattern Pattern
-  deriving (Show, Eq, Ord)
+
 
 -- | A program error INCOMPLETE
 data ProgramError
@@ -192,11 +101,11 @@ data CallStackNode
     = Node
     { 
     -- | Local variables
-      locals :: Map String Data
+      locals :: Map Snobol4String Data
     -- | The index of the statement that called this function
-    , returnAddr :: Int
+    , returnAddr :: Address
     -- | The name of the function called
-    , callName :: String
+    , callName :: Snobol4String
     }
 
 -- | Information for calling a function
@@ -205,31 +114,21 @@ data Function m
     = UserFunction
     { 
     -- | Name of the function
-      funcName :: String
+      funcName :: Snobol4String
     -- | The names of the formal arguments of the function
-    , formalArgs :: [String]
+    , formalArgs :: [Snobol4String]
     -- | The names of the local variables of the function
-    , localNames :: [String]
+    , localNames :: [Snobol4String]
     -- | Index of the statement to start this function
-    , entryPoint :: Int
+    , entryPoint :: Address
     }
     | PrimitiveFunction
     {
     -- | Name of the function
-       funcName :: String
+       funcName :: Snobol4String
     -- | The primitive function to call
     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
     }
-
-type Snobol4Integer = Int
-type Snobol4String = String
-type Snobol4Real = Float
-
-newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum)
-newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
- 
-newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
-newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data }
 
 newArray :: Snobol4Integer -> Snobol4Integer -> Data -> Snobol4Array
 newArray minIx maxIx v
@@ -268,15 +167,15 @@ data ProgramState m
     = ProgramState
     { 
     -- | A map of names to variables bound
-      variables :: Map String Data 
+      variables :: Map Snobol4String Data 
     -- | The statements in the current program
     , statements :: Vector Stmt
     -- | A map of label names to the index of their statement
-    , labels :: Map String Int
+    , labels :: Map Snobol4String Address
     -- | The index of the current statement
-    , programCounter :: Int
+    , programCounter :: Address
     -- | The functions known to the interpreter
-    , functions :: Map String (Function m)
+    , functions :: Map Snobol4String (Function m)
     -- | The call stack
     , callStack :: [CallStackNode]
     , arrays :: Map ArrayKey Snobol4Array
@@ -322,7 +221,7 @@ data ScanResult
       NoScan
     -- | A match with the matched part, assignments to perform, and the start
     -- and end index of the entire match
-    | Scan Data [(Lookup,Data)] Int Int
+    | Scan Data [(Lookup,Data)] Snobol4Integer Snobol4Integer
   deriving Show
 
 -- | The result of executing a statement
@@ -387,7 +286,7 @@ modifyProgramState :: InterpreterShell m
 modifyProgramState = Interpreter . lift . modify
 
 -- | Get the variables known to the interpreter
-getVariables :: InterpreterShell m => Interpreter m (Map String Data)
+getVariables :: InterpreterShell m => Interpreter m (Map Snobol4String Data)
 getVariables = getsProgramState variables
 
 -- | Get the loaded program
@@ -395,15 +294,15 @@ getStatements :: InterpreterShell m => Interpreter m (Vector Stmt)
 getStatements = getsProgramState statements
 
 -- | Get the labels known to the interpreter
-getLabels :: InterpreterShell m => Interpreter m (Map String Int)
+getLabels :: InterpreterShell m => Interpreter m (Map Snobol4String Address)
 getLabels = getsProgramState labels
 
 -- | Get the program counter from the interpreter
-getProgramCounter :: InterpreterShell m => Interpreter m Int
+getProgramCounter :: InterpreterShell m => Interpreter m Address
 getProgramCounter = getsProgramState programCounter
 
 -- | Get the functions known to the interpreter
-getFunctions :: InterpreterShell m => Interpreter m (Map String (Function m))
+getFunctions :: InterpreterShell m => Interpreter m (Map Snobol4String (Function m))
 getFunctions = getsProgramState functions
 
 -- | Get the call stack
@@ -418,7 +317,7 @@ getTables = getsProgramState tables
 
 
 -- | Set the variables known to the interpreter
-putVariables :: InterpreterShell m => Map String Data -> Interpreter m ()
+putVariables :: InterpreterShell m => Map Snobol4String Data -> Interpreter m ()
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
 
 -- | Set the loaded program
@@ -426,11 +325,11 @@ putStatements :: InterpreterShell m => Vector Stmt -> Interpreter m ()
 putStatements stmts = modifyProgramState $ \st -> st { statements = stmts }
 
 -- | Set the labels known to the interpreter
-putLabels :: InterpreterShell m => Map String Int -> Interpreter m ()
+putLabels :: InterpreterShell m => Map Snobol4String Address -> Interpreter m ()
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
 
 -- | Set the program counter
-putProgramCounter :: InterpreterShell m => Int -> Interpreter m ()
+putProgramCounter :: InterpreterShell m => Address -> Interpreter m ()
 putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
 
 -- | Set the call stack
@@ -441,7 +340,7 @@ putArrays arrs = modifyProgramState $ \st -> st { arrays = arrs }
 putTables tbls = modifyProgramState $ \st -> st { tables = tbls }
 
 -- | Apply a function to the variables known to the interpreter
-modifyVariables :: InterpreterShell m => (Map String Data -> Map String Data) -> Interpreter m ()
+modifyVariables :: InterpreterShell m => (Map Snobol4String Data -> Map Snobol4String Data) -> Interpreter m ()
 modifyVariables f = modifyProgramState $
         \st -> st { variables = f $ variables st }
 
@@ -451,12 +350,14 @@ modifyStatements f = modifyProgramState $
     \st -> st { statements = f $ statements st }
 
 -- | Apply a function to the labels known to the interpreter
-modifyLabels :: InterpreterShell m => (Map String Int -> Map String Int) -> Interpreter m ()
+modifyLabels :: InterpreterShell m 
+             => (Map Snobol4String Address -> Map Snobol4String Address)
+             -> Interpreter m ()
 modifyLabels f = modifyProgramState $
     \st -> st { labels = f $ labels st }
 
 -- | Apply a function to the program counter
-modifyProgramCounter :: InterpreterShell m => (Int -> Int) -> Interpreter m ()
+modifyProgramCounter :: InterpreterShell m => (Address -> Address) -> Interpreter m ()
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }
 
@@ -488,18 +389,18 @@ popCallStack = do
 
 -- | Fetch the next statement to execute
 fetch :: InterpreterShell m => Interpreter m Stmt
-fetch = (V.!) <$> getStatements <*> getProgramCounter
+fetch = (V.!) <$> getStatements <*> (getInteger . getAddress <$> getProgramCounter)
 
 -- | Find the index of the statement with a label
-labelLookup :: InterpreterShell m => String -> Interpreter m (Maybe Int)
+labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Address)
 labelLookup lbl = M.lookup lbl <$> getLabels
 
 -- | Retreive the value of a global variable
-globalLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
+globalLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Data)
 globalLookup name = M.lookup name <$> getVariables
 
 -- | Retreive the value of a local variable
-localLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
+localLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Data)
 localLookup name = do
     stk <- getCallStack
     case stk of
@@ -510,7 +411,7 @@ localLookup name = do
 data VarType = LocalVar | GlobalVar
 
 -- | Retreive the value of a variable, first checking locals, then globals
-varLookup :: InterpreterShell m => String -> Interpreter m (Maybe (VarType,Data))
+varLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe (VarType,Data))
 varLookup name = do
     localResult <- localLookup name
     case localResult of
@@ -523,23 +424,23 @@ varLookup name = do
 
 -- | Retreive the value of a variable, first checking locals, then globals,
 -- then discard the flag stating which it is
-varLookup' :: InterpreterShell m => String -> Interpreter m (Maybe Data)
+varLookup' :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Data)
 varLookup' name = varLookup name >>= \case
     Nothing -> return Nothing
     Just (_,val) -> return $ Just val    
     
 
 -- | Write the value of a global variable
-globalWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
+globalWrite :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
 globalWrite name = modifyVariables . M.insert name
 
 -- | Write the value of a local variable
-localWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
+localWrite :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
 localWrite name = modifyVariables . M.insert name
 
 -- | Write the value of a variable, first checking if there are any locals with
 -- that name, then writing as a global if there isn't
-varWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
+varWrite :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
 varWrite name val = do
     result <- varLookup name
     case result of
@@ -548,7 +449,7 @@ varWrite name val = do
         Nothing -> globalWrite name val
 
 -- | Look up a function by name
-funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe (Function m))
+funcLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe (Function m))
 funcLookup name = M.lookup name <$> getFunctions
 
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
@@ -609,7 +510,7 @@ pushFuncNode f = do
     pushCallStack
         Node 
         { callName = funcName f
-        , locals = M.fromList $ map (\x -> (x,StringData "")) 
+        , locals = M.fromList $ map (\x -> (x,StringData  nullString))
                               $ funcName f : localNames f ++ formalArgs f
         , returnAddr = pc
         }
@@ -661,15 +562,15 @@ isPatternable x = isStringable x
 
 -- | Convert data to a string
 -- Throws a ProgramError if this is not valid
-toString :: InterpreterShell m => Data -> Evaluator m String
+toString :: InterpreterShell m => Data -> Evaluator m Snobol4String
 toString (StringData s) = return s
-toString (IntegerData i) = return $ show i
-toString (RealData r) = return $ show r
+toString (IntegerData i) = return $ snobol4Show i
+toString (RealData r) = return $ snobol4Show r
 toString (PatternData (LiteralPattern s)) = return s
 toString (PatternData (ConcatPattern a b)) = do
     a' <- toString $ PatternData a
     b' <- toString $ PatternData b
-    return $ a' ++ b'
+    return $ a' <> b'
 toString _ = liftEval $ programError IllegalDataType
 
 -- | Convert data to a pattern
@@ -682,11 +583,11 @@ toPattern x = LiteralPattern <$> toString x
 -- Fails the evaluation if this can be turned into a string, but not into an 
 -- integer
 -- Throws a ProgramError if this is not valid
-toInteger :: InterpreterShell m => Data -> Evaluator m Int
+toInteger :: InterpreterShell m => Data -> Evaluator m Snobol4Integer
 toInteger (IntegerData i) = return i
 toInteger x = do
     s <- toString x
-    case readMaybe s of
+    case snobol4Read s of
         Just i -> return i
         Nothing -> failEvaluation
 
@@ -694,11 +595,11 @@ toInteger x = do
 -- Fails the evaluation if this can be turned into a string, but not into an 
 -- real
 -- Throws a ProgramError if this is not valid
-toReal :: InterpreterShell m => Data -> Evaluator m Float
+toReal :: InterpreterShell m => Data -> Evaluator m Snobol4Real
 toReal (RealData r) = return r
 toReal x = do
     s <- toString x
-    case readMaybe s of
+    case snobol4Read s of
         Just r -> return r
         Nothing -> failEvaluation
     
@@ -797,15 +698,15 @@ assign (LookupAggregate name args) val = do
     liftEval $ case base of
         Just (_,baseVal) -> loop baseVal args
         Nothing -> programError ErroneousArrayOrTableReference
-assign Output val = toString val >>= lift . output
-assign Punch val = toString val >>= lift . punch
+assign Output val = toString val >>= lift . output . show
+assign Punch val = toString val >>= lift . punch . show
 assign _ _ = liftEval $ programError VariableNotPresentWhereRequired
 
 -- | Execute a lookup
 execLookup :: InterpreterShell m => Lookup -> Interpreter m (Maybe Data) 
-execLookup Input = (Just . StringData) <$> lift input 
-execLookup Output = (Just . StringData) <$> lift lastOutput 
-execLookup Punch = (Just . StringData) <$> lift lastPunch 
+execLookup Input = (Just . StringData . snobol4Show) <$> lift input 
+execLookup Output = (Just . StringData . snobol4Show) <$> lift lastOutput 
+execLookup Punch = (Just . StringData . snobol4Show) <$> lift lastPunch 
 execLookup (LookupLiteral x) = return $ Just x 
 execLookup (LookupId i) = varLookup' i
 execLookup (LookupAggregate name args) = do

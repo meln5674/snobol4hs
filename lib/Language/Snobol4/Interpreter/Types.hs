@@ -17,6 +17,20 @@ module Language.Snobol4.Interpreter.Types
     , Snobol4String
     , Snobol4Integer
     , Snobol4Real
+    , Snobol4Read (..)
+    , Snobol4Show (..)
+    , Snobol4IntegerClass (..)
+    , Snobol4RealClass (..)
+    , Snobol4StringClass (..)
+    , snobol4Head
+    , snobol4Length
+    , snobol4Take
+    , snobol4Drop
+    , snobol4Elem
+    , snobol4NotElem
+    , nullString
+    , (<>)
     ) where
 
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Internal.Types

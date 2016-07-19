@@ -42,13 +42,13 @@ data ScannerState
     = ScannerState
     { 
     -- | The input yet to scan
-      inputStr :: String
+      inputStr :: Snobol4String
     -- | The list of assignments to perform after the scan succeeds
     , assignments :: [(Lookup,Data)]
     -- | The index in the input where matching began
-    , startPos :: Int
+    , startPos :: Snobol4Integer
     -- | The number of characters scanned so far
-    , endPos :: Int
+    , endPos :: Snobol4Integer
     }
 
 -- | The scanner type
@@ -93,28 +93,28 @@ catchScan try catch = do
         Left Abort -> abort
 
 -- | Get the input yet to be scanned
-getInput :: Monad m => Scanner m String
+getInput :: Monad m => Scanner m Snobol4String
 getInput = Scanner $ gets inputStr
 
 -- | Peek at the next character to be scanned
-nextChar :: Monad m => Scanner m Char
-nextChar = Scanner $ gets $ head . inputStr
+nextChar :: Monad m => Scanner m Snobol4String
+nextChar = Scanner $ gets $ snobol4Head . inputStr
 
 -- | Set the input yet to be scanned
-setInput :: Monad m => String -> Scanner m ()
+setInput :: Monad m => Snobol4String -> Scanner m ()
 setInput s = Scanner $ modify $ \st -> st{inputStr = s}
 
 -- | Increment the number of characters scanned
-incEndPos :: Monad m => Int -> Scanner m ()
-incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + len}
+incEndPos :: Monad m => Snobol4Integer -> Scanner m ()
+incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + mkInteger len}
 
 -- | Get the position of the cursor
-getCursorPos :: Monad m => Scanner m Int
+getCursorPos :: Monad m => Scanner m Snobol4Integer
 getCursorPos = Scanner $ gets endPos
 
 -- | Get the distance of the cursor from the end of input
-getRCursorPos :: Monad m => Scanner m Int
-getRCursorPos = length <$> getInput
+getRCursorPos :: Monad m => Scanner m Snobol4Integer
+getRCursorPos = snobol4Length <$> getInput
 
 -- | Add an assignment to be performed after success
 addAssignment :: Monad m => Lookup -> Data -> Scanner m ()
@@ -126,48 +126,48 @@ immediateAssignment l = Scanner . lift . lift . assign l
 
 -- | Attempt to consume a string from input, failing if the start of the input
 -- does not match thet provided string
-consume :: Monad m => String -> Scanner m String
+consume :: Monad m => Snobol4String -> Scanner m Snobol4String
 consume s = do
     str <- getInput
-    let prefix = take (length s) str
+    let prefix = snobol4Take (snobol4Length s) str
     if prefix == s
         then do
-            setInput $ drop (length s) str
-            incEndPos (length s)
+            setInput $ snobol4Drop (snobol4Length s) str
+            incEndPos (snobol4Length s)
             return prefix
     else backtrack
 
 -- | Consume the first N characters, failing if that many characters are not present
-consumeN :: Monad m => Int -> Scanner m String
+consumeN :: Monad m => Snobol4Integer -> Scanner m Snobol4String
 consumeN len = do
     str <- getInput
-    let prefix = take len str
-    if len <= length str
+    let prefix = snobol4Take len str
+    if len <= snobol4Length str
         then do
-            setInput $ drop len str
+            setInput $ snobol4Drop len str
             incEndPos len
             return prefix
         else backtrack
 
 -- | Consume the rest of the string
-consumeAll :: Monad m => Scanner m String
+consumeAll :: Monad m => Scanner m Snobol4String
 consumeAll = do
     str <- getInput
-    setInput ""
-    incEndPos (length str)
+    setInput nullString
+    incEndPos (snobol4Length str)
     return str
 
-consumeAny :: Monad m => [Char] -> Scanner m String
+consumeAny :: Monad m => Snobol4String -> Scanner m Snobol4String
 consumeAny cs = do
     c <- nextChar
-    if c `elem` cs
+    if c `snobol4Elem` cs
         then consumeN 1
         else backtrack
 
-consumeNotAny :: Monad m => [Char] -> Scanner m String
+consumeNotAny :: Monad m => Snobol4String -> Scanner m Snobol4String
 consumeNotAny cs = do
     c <- nextChar
-    if c `notElem` cs
+    if c `snobol4NotElem` cs
         then consumeN 1
         else backtrack
 
@@ -344,7 +344,7 @@ matchPat EverythingPattern = consumeAll
 
 -}    
 -- | Create a start state from input
-startState :: String -> ScannerState
+startState :: Snobol4String -> ScannerState
 startState s = ScannerState
              { inputStr = s
              , assignments = []
@@ -371,7 +371,7 @@ matchPat p = do
 
 
 
-func f next = \s1 -> f >>= \s2 -> next (s1 ++ s2)
+func f next = \s1 -> f >>= \s2 -> next (s1 <> s2)
 
 bar f v = f v >> return v
 
@@ -379,15 +379,15 @@ bar f v = f v >> return v
 
 match :: InterpreterShell m 
       => Pattern 
-      -> (String -> Scanner m String) 
-      -> (String -> Scanner m String)
+      -> (Snobol4String -> Scanner m Snobol4String)
+      -> (Snobol4String -> Scanner m Snobol4String)
 match (AssignmentPattern p l) next = match p $ \s -> do
     addAssignment l $ StringData s
     next s
 match (ImmediateAssignmentPattern p l) next = match p $ \s -> do
     immediateAssignment l $ StringData s
     next s
-match (LiteralPattern lit) next = func (consume lit) next
+match (LiteralPattern lit) next = func (consume $ mkString lit) next
 match (AlternativePattern p1 p2) next = \s -> catchScan (match p1 next s) (match p2 next s)
 match (ConcatPattern p1 p2) next = match p1 $ match p2 next
 match (LengthPattern len) next = func (consumeN len) next
@@ -407,10 +407,10 @@ match (HeadPattern l) next = \s -> do
     next s
     
 match (SpanPattern cs) next = \s1 -> catchScan
-    (consumeAny cs >>= \s2 -> match (SpanPattern cs) next (s1 ++ s2))
+    (consumeAny cs >>= \s2 -> match (SpanPattern cs) next (s1 <> s2))
     (next s1)
 match (BreakPattern cs) next = \s1 -> catchScan
-    (consumeNotAny cs >>= \s2 -> match (BreakPattern cs) next (s1 ++ s2)) 
+    (consumeNotAny cs >>= \s2 -> match (BreakPattern cs) next (s1 <> s2)) 
     (next s1)
 match (AnyPattern cs) next = func (consumeAny cs) next
 match (NotAnyPattern cs) next = func (consumeNotAny cs) next
@@ -438,7 +438,7 @@ match FailPattern next = \s -> backtrack
 match FencePattern next = \s -> catchScan (next s) abort
 match AbortPattern next = \s -> abort
 match ArbPattern next = \s1 -> catchScan
-    (consumeN 1 >>= \s2 -> match ArbPattern next (s1 ++ s2))
+    (consumeN 1 >>= \s2 -> match ArbPattern next (s1 <> s2))
     (next s1)
 match (ArbNoPattern p) next = \s1 -> catchScan
     (match p (match (ArbNoPattern p) next) s1)

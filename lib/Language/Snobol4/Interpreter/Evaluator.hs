@@ -12,6 +12,7 @@ Either value, or by 'catchEval', which takes a function to call if the
 evaluation fails.
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.Evaluator 
     ( evalExpr
     , catchEval
@@ -31,8 +32,8 @@ import Language.Snobol4.Interpreter.Internal
 
 -- | Evaluate an arithmetic operation
 arithmetic :: InterpreterShell m 
-           => (Int -> Int -> Int) -- ^ Integer version 
-           -> (Float -> Float -> Float) -- ^ Real version
+           => (Snobol4Integer -> Snobol4Integer -> Snobol4Integer) -- ^ Integer version 
+           -> (Snobol4Real -> Snobol4Real -> Snobol4Real) -- ^ Real version
            -> Data -- ^ Left argument
            -> Data -- ^ Right argument
            -> Evaluator m Data
@@ -88,12 +89,12 @@ evalLookup expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
 evalLookup (IdExpr "INPUT") = return $ Input
 evalLookup (IdExpr "OUTPUT") = return $ Output
 evalLookup (IdExpr "PUNCH") = return $ Punch
-evalLookup (IdExpr s) = return $ LookupId s
+evalLookup (IdExpr s) = return $ LookupId $ mkString s
 evalLookup (PrefixExpr Dollar expr) = do
     expr' <- evalExpr expr
     s <- toString expr'
     return $ LookupId s
-evalLookup (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
+evalLookup (RefExpr s args) = LookupAggregate (mkString s) <$> mapM evalExpr args
 evalLookup (ParenExpr expr) = evalLookup expr
 evalLookup expr = LookupLiteral <$> evalExpr expr
 
@@ -102,10 +103,10 @@ evalExpr :: InterpreterShell m => Expr -> Evaluator m Data
 evalExpr (PrefixExpr Not expr) = checkSuccess 
     expr 
     failEvaluation 
-    (return $ StringData "")
+    (return $ StringData nullString)
 evalExpr (PrefixExpr Question expr) = checkSuccess 
     expr 
-    (return $ StringData "") 
+    (return $ StringData nullString)
     failEvaluation
 evalExpr (PrefixExpr Minus expr) = do
     data_ <- evalExpr expr
@@ -117,27 +118,27 @@ evalExpr (PrefixExpr Minus expr) = do
         (RealData r) -> return $ RealData $ -r
         _ -> liftEval $ programError IllegalDataType
 evalExpr (PrefixExpr Star expr) = return $ PatternData $ UnevaluatedExprPattern expr
-evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId name
-evalExpr (IdExpr "INPUT") = StringData <$> (lift $ input)
-evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ lastOutput)
-evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ lastPunch)
+evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId $ mkString name
+evalExpr (IdExpr "INPUT") = StringData <$> (lift $ mkString <$> input)
+evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ mkString <$> lastOutput)
+evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ mkString <$> lastPunch)
 evalExpr (IdExpr name) = do
-    lookupResult <- liftEval $ varLookup name
+    lookupResult <- liftEval $ varLookup $ mkString name
     case lookupResult of
         Just (_,val) -> return val
         Nothing -> failEvaluation
-evalExpr (LitExpr (Int i)) = return $ IntegerData i
-evalExpr (LitExpr (Real r)) = return $ RealData r
-evalExpr (LitExpr (String s)) = return $ StringData s
+evalExpr (LitExpr (Int i)) = return $ IntegerData $ mkInteger i
+evalExpr (LitExpr (Real r)) = return $ RealData $ mkReal r
+evalExpr (LitExpr (String s)) = return $ StringData $ mkString s
 evalExpr (CallExpr name args) = do
     args' <- mapM evalExpr args
-    callResult <- liftEval $ call name args'
+    callResult <- liftEval $ call (mkString name) args'
     case callResult of
         Just val -> return val
         Nothing -> failEvaluation
 evalExpr (RefExpr name args) = do
     args' <- mapM evalExpr args
-    lookupResult <- liftEval $ execLookup (LookupAggregate name args')
+    lookupResult <- liftEval $ execLookup $ LookupAggregate (mkString name) args'
     case lookupResult of
         Just val -> return val
         Nothing -> liftEval $ programError ErroneousArrayOrTableReference
@@ -146,7 +147,7 @@ evalExpr (BinaryExpr a op b) = do
     a' <- evalExpr a
     b' <- evalExpr b
     evalOp op a' b'
-evalExpr NullExpr = return $ StringData ""
+evalExpr NullExpr = return $ StringData nullString
 evalExpr _ = liftEval $ programError ErrorInSnobol4System
 
 -- | Take an evaluation and return it to the interpreter stack, with a handler 

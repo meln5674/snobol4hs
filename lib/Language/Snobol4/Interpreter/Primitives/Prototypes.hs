@@ -1,6 +1,6 @@
 module Language.Snobol4.Interpreter.Primitives.Prototypes where
 
-import Language.Snobol4.Interpreter.Types
+import Language.Snobol4.Interpreter.Data
 
 type Dimension = (Snobol4Integer,Snobol4Integer)
 

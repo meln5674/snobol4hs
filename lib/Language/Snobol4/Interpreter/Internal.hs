@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-|
 Module          : Language.Snobol4.Interpreter.Internal
 Description     : Interpreter internals
@@ -62,7 +63,7 @@ import Language.Snobol4.Interpreter.Scanner
 import Language.Snobol4.Interpreter.State
 
 -- | Call a function by name with arguments
-call :: InterpreterShell m => String -> [Data] -> Interpreter m (Maybe Data)
+call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
 call name evaldArgs = do
     lookupResult <- funcLookup name
     case lookupResult of
@@ -100,7 +101,7 @@ execRepl lookup pattern expr = do
         _ -> do
             val <- liftEval $ execLookup lookup
             str <- case val of
-                Nothing -> return $ ""
+                Nothing -> return ""
                 Just d -> toString d
             scanResult <- scanPattern str pattern
             case scanResult of
@@ -108,9 +109,9 @@ execRepl lookup pattern expr = do
                 Scan _ assignments startIndex endIndex -> do
                     mapM_ (uncurry assign) assignments
                     replStr <- toString repl
-                    let val' = take startIndex str 
-                               ++ replStr 
-                               ++ drop endIndex str
+                    let val' = snobol4Take startIndex str 
+                               <> replStr 
+                               <> snobol4Drop endIndex str
                     assign lookup $ StringData val'
                     finishEvaluation $ Nothing
 

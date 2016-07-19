@@ -11,6 +11,7 @@ user needing to define them, and offer values and operations that cannot be
 expressed in the source language.
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.Primitives where
 
 import Prelude hiding ( span, break, any, toInteger )
@@ -20,6 +21,7 @@ import Text.Read (readMaybe)
 import qualified Data.Map as M
 
 import qualified Data.Array as A
+import Data.String
 
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import Language.Snobol4.Interpreter.Types
@@ -29,9 +31,9 @@ import Language.Snobol4.Interpreter.Primitives.Prototypes
 import Language.Snobol4.Parser
 
 -- | The names and initial values of the primitive variables
-primitiveVars :: [(String, Data)]
+primitiveVars :: [(Snobol4String, Data)]
 primitiveVars =
-    [ ("NULL",  StringData "")
+    [ ("NULL",  StringData nullString)
     , ("REM",   PatternData $ RTabPattern 0)
     , ("FAIL",  PatternData FailPattern)
     , ("FENCE", PatternData FencePattern)
@@ -115,7 +117,7 @@ any [] = any [StringData ""]
 array :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 array [dimStr,item] = do
     str <- toString dimStr
-    parseResult <- parseT str
+    parseResult <- parseT $ unmkString str
     case parseResult of
         Left _ -> return Nothing
         Right (ArrayPrototype dims) -> Just <$> (liftEval $ arraysNew'' dims item)

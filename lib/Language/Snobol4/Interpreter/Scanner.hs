@@ -21,14 +21,14 @@ import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner.Internal
 
 scanPattern :: InterpreterShell m
-            => String 
+            => Snobol4String
             -> Pattern
             -> Evaluator m ScanResult
 scanPattern toScan pat = do
     result <- runExceptT 
             $ flip runStateT (startState toScan)
             $ runScanner 
-            $ match pat return ""
+            $ match pat return nullString
     case result of
         Right (matchResult, st) -> do
             let ScannerState

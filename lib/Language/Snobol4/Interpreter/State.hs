@@ -10,6 +10,7 @@ Functions relating to the state of the interpreter
 -}
 
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.State where
 
 import Language.Snobol4.Interpreter.Internal.Types
