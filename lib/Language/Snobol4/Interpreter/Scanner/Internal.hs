@@ -30,7 +30,7 @@ import Data.List
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Except
 
 import Language.Snobol4.Interpreter.Types
 import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
@@ -55,13 +55,21 @@ data ScannerState
 newtype Scanner m a
     = Scanner
     { runScanner
-        :: StateT ScannerState (MaybeT (Evaluator m)) a
+        :: StateT ScannerState (ExceptT FailType (Evaluator m)) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+data FailType = BackTrack | Abort
+
 -- | Cause the scanner to fail, jumping back to the most recent call to catchScan
-throwScan :: Monad m => Scanner m a
-throwScan = Scanner $ lift $ MaybeT $ return Nothing
+throwScan :: Monad m => FailType -> Scanner m a
+throwScan = Scanner . lift . throwE
+
+backtrack :: Monad m => Scanner m a
+backtrack = throwScan BackTrack
+
+abort :: Monad m => Scanner m a
+abort = throwScan Abort
 
 -- | Perform a scanner action, catching a failure and resetting the state and
 -- performing the seconc action instead
@@ -71,17 +79,18 @@ catchScan try catch = do
     result <- Scanner 
             $ lift
             $ lift
-            $ runMaybeT 
+            $ runExceptT 
             $ flip runStateT st
             $ runScanner 
               try
     case result of
-        Just (x,st') -> do
+        Right (x,st') -> do
             Scanner $ put st'
             return x
-        Nothing -> do
+        Left BackTrack -> do
             Scanner $ put st
             catch
+        Left Abort -> abort
 
 -- | Get the input yet to be scanned
 getInput :: Monad m => Scanner m String
@@ -126,7 +135,7 @@ consume s = do
             setInput $ drop (length s) str
             incEndPos (length s)
             return prefix
-    else throwScan
+    else backtrack
 
 -- | Consume the first N characters, failing if that many characters are not present
 consumeN :: Monad m => Int -> Scanner m String
@@ -138,7 +147,7 @@ consumeN len = do
             setInput $ drop len str
             incEndPos len
             return prefix
-        else throwScan
+        else backtrack
 
 -- | Consume the rest of the string
 consumeAll :: Monad m => Scanner m String
@@ -148,6 +157,21 @@ consumeAll = do
     incEndPos (length str)
     return str
 
+consumeAny :: Monad m => [Char] -> Scanner m String
+consumeAny cs = do
+    c <- nextChar
+    if c `elem` cs
+        then consumeN 1
+        else backtrack
+
+consumeNotAny :: Monad m => [Char] -> Scanner m String
+consumeNotAny cs = do
+    c <- nextChar
+    if c `notElem` cs
+        then consumeN 1
+        else backtrack
+
+{-
 -- | Given a pattern, find all alternatives at the current position
 getAlternatives :: InterpreterShell m => Pattern -> Scanner m [Scanner m String]
 getAlternatives (AssignmentPattern p l) = map after `liftM` getAlternatives p
@@ -198,16 +222,8 @@ getAlternatives (BreakPattern cs) = do
     let (longest,_) = span (`notElem` cs) str
         matches = reverse $ tails longest
     return $ map consume matches
-getAlternatives (AnyPattern cs) = return $ (:[]) $ do
-    c <- nextChar
-    if c `elem` cs
-        then consumeN 1
-        else throwScan
-getAlternatives (NotAnyPattern cs) = return $ (:[]) $ do
-    c <- nextChar
-    if c `notElem` cs
-        then consumeN 1
-        else throwScan
+getAlternatives (AnyPattern cs) = return $ (:[]) $ consumeAny cs
+getAlternatives (NotAnyPattern cs) = return $ (:[]) $ consumeNotAny cs
 getAlternatives (TabPattern pos) = return $ (:[]) $ do
     pos' <- getCursorPos
     if pos <= pos'
@@ -325,7 +341,8 @@ matchPat FencePattern = undefined
 matchPat AbortPattern = undefined  
 matchPat EverythingPattern = consumeAll
 -}    
-    
+
+-}    
 -- | Create a start state from input
 startState :: String -> ScannerState
 startState s = ScannerState
@@ -334,7 +351,7 @@ startState s = ScannerState
              , startPos = 0
              , endPos = 0
              }
-
+{-
 -- | Try each of a set of alternatives, backtracking if any fail and trying the
 -- next
 evaluateAlternatives :: InterpreterShell m  
@@ -349,3 +366,82 @@ matchPat p = do
     as <- getAlternatives p
     Scanner $ put st
     evaluateAlternatives as
+-}
+
+
+
+
+func f next = \s1 -> f >>= \s2 -> next (s1 ++ s2)
+
+bar f v = f v >> return v
+
+
+
+match :: InterpreterShell m 
+      => Pattern 
+      -> (String -> Scanner m String) 
+      -> (String -> Scanner m String)
+match (AssignmentPattern p l) next = match p $ \s -> do
+    addAssignment l $ StringData s
+    next s
+match (ImmediateAssignmentPattern p l) next = match p $ \s -> do
+    immediateAssignment l $ StringData s
+    next s
+match (LiteralPattern lit) next = func (consume lit) next
+match (AlternativePattern p1 p2) next = \s -> catchScan (match p1 next s) (match p2 next s)
+match (ConcatPattern p1 p2) next = match p1 $ match p2 next
+match (LengthPattern len) next = func (consumeN len) next
+match EverythingPattern next = func consumeAll next
+match (UnevaluatedExprPattern expr) next = \s -> do
+    patResult <- Scanner $ lift $ lift $ do
+        result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
+        case result of
+            Just val -> Just <$> toPattern val
+            Nothing -> return Nothing
+    case patResult of
+        Just pat -> match pat next s
+        Nothing -> backtrack
+match (HeadPattern l) next = \s -> do
+    pos <- getCursorPos
+    immediateAssignment l $ IntegerData pos
+    next s
+    
+match (SpanPattern cs) next = \s1 -> catchScan
+    (consumeAny cs >>= \s2 -> match (SpanPattern cs) next (s1 ++ s2))
+    (next s1)
+match (BreakPattern cs) next = \s1 -> catchScan
+    (consumeNotAny cs >>= \s2 -> match (BreakPattern cs) next (s1 ++ s2)) 
+    (next s1)
+match (AnyPattern cs) next = func (consumeAny cs) next
+match (NotAnyPattern cs) next = func (consumeNotAny cs) next
+match (TabPattern col) next = \s -> do
+    pos <- getCursorPos
+    if pos <= col
+        then next s
+        else backtrack
+match (RTabPattern col) next = \s -> do
+    pos <- getRCursorPos
+    if pos < col
+        then next s
+        else backtrack
+match (PosPattern col) next = \s -> do
+    pos <- getCursorPos
+    if pos == col
+        then next s
+        else backtrack
+match (RPosPattern col) next = \s -> do
+    pos <- getRCursorPos
+    if pos == col
+        then next s
+        else backtrack
+match FailPattern next = \s -> backtrack
+match FencePattern next = \s -> catchScan (next s) abort
+match AbortPattern next = \s -> abort
+match ArbPattern next = \s1 -> catchScan
+    (consumeN 1 >>= \s2 -> match ArbPattern next (s1 ++ s2))
+    (next s1)
+match (ArbNoPattern p) next = \s1 -> catchScan
+    (match p (match (ArbNoPattern p) next) s1)
+    (next s1)
+
+

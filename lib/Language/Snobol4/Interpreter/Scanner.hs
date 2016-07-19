@@ -13,14 +13,14 @@ Interface to the SNOBOL4 pattern scanner
 module Language.Snobol4.Interpreter.Scanner ( scanPattern ) where
 
 import Control.Monad.Trans.State
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Except
 
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner.Internal
 
-
+{-
 -- | Invoke the scanner on a string with a pattern
 scanPattern :: InterpreterShell m
             => String
@@ -36,3 +36,23 @@ scanPattern s pat = do
             let ScannerState{assignments=as,startPos=a,endPos=b} = st
             return $ Scan (StringData x) as a b
         Nothing -> return NoScan
+-}
+
+scanPattern :: InterpreterShell m
+            => String 
+            -> Pattern
+            -> Evaluator m ScanResult
+scanPattern toScan pat = do
+    result <- runExceptT 
+            $ flip runStateT (startState toScan)
+            $ runScanner 
+            $ match pat return ""
+    case result of
+        Right (matchResult, st) -> do
+            let ScannerState
+                 { assignments=toAssign
+                 , startPos=matchStart
+                 , endPos=matchEnd
+                 } = st
+            return $ Scan (StringData matchResult) toAssign matchStart matchEnd
+        Left _ -> return NoScan
