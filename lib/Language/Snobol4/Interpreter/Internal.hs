@@ -190,7 +190,7 @@ step = fetch >>= exec
 
 -- | Load a program into the interpreter
 load :: InterpreterShell m => Program -> Interpreter m ()
-load stmts = putStatements $ V.fromList stmts
+load (Program stmts) = putStatements $ V.fromList stmts
 
 -- | Run the interpreter continuously by fetching the next statement 
 -- until the program ends

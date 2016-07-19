@@ -142,4 +142,4 @@ data Stmt
   deriving Show
 
 -- | A list of statements
-type Program = [Stmt]
+newtype Program = Program { getProgram :: [Stmt] }

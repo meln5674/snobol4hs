@@ -65,7 +65,7 @@ loopMain st = do
     case inputResult of
         Nothing -> loopMain st
         Just inputLine -> do
-            result <- parseStatementT (inputLine ++ "\n")
+            result <- parseT (inputLine ++ "\n")
             case result of
                 Right stmt -> do
                     (st', execResult) <- exec stmt st
@@ -86,6 +86,6 @@ loopMain st = do
 -- | Entry Point    
 main :: IO ()
 main = shell $ do
-    st <- load []
+    st <- load $ Program []
     loopMain st
 

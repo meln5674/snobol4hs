@@ -14,6 +14,8 @@ module Language.Snobol4.Parser.Internal where
 
 import Data.Maybe
 
+import Text.Read (readMaybe)
+
 import Control.Monad
 
 import Text.Parsec ( (<|>), ParsecT )
@@ -22,9 +24,29 @@ import qualified Text.Parsec as P
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Lexer.Tokens
 
+import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Parser.Types
+import Language.Snobol4.Interpreter.Primitives.Prototypes
 
 type TokStream = [Located Token SourcePos]
+
+class Parsable a where
+    parser :: Monad m => ParsecT TokStream Bool m a
+
+instance Parsable Expr where
+    parser = fixedExpression
+
+instance Parsable Stmt where
+    parser = statement
+
+instance Parsable ArrayPrototype where
+    parser = array_prototype
+
+instance Parsable FunctionPrototype where
+    parser = function_prototype
+
+instance Parsable Program where
+    parser = program
 
 -- | Take a token located using a parsec source position and wrap it to use
 -- the internal source position
@@ -405,8 +427,21 @@ eos = void $ P.optional blanks >> ( semicolon <|> eol )
 -- | Parse a label and extract the text
 labelStr :: Monad m => ParsecT TokStream u m String
 labelStr = do
-    (Located (Label s) _) <- label
-    return s
+    result <- label
+    case result of
+        (Located (Label s) _) -> return s
+        t -> error 
+            $ "Internal Error: Something other than a label was parsed as a label: " 
+            ++ show t
+
+identifierStr :: Monad m => ParsecT TokStream u m String
+identifierStr = do
+    result <- identifier
+    case result of
+        (Located (Identifier s) _) -> return s
+        t -> error 
+            $ "Internal Error: Something other than an identifier was parsed as an identifier: " 
+            ++ show t
 
 -- | Parse an assignment statement
 assign_statement :: Monad m => ParsecT TokStream Bool m Stmt
@@ -482,36 +517,44 @@ continue_line :: Monad m => ParsecT TokStream Bool m ()
 continue_line = void $ (plus <|> minus) >> statement -- ???
 
 -- | Parse an item in a prototype
-item :: Monad m => ParsecT TokStream u m ()
-item = void $ P.optional identifier
+item :: Monad m => ParsecT TokStream u m String
+item = P.option "" identifierStr
 
 -- | Parse a list of items in a prototype
-item_list :: Monad m => ParsecT TokStream u m ()
-item_list = void $ P.sepBy1 comma item
+item_list :: Monad m => ParsecT TokStream u m [String]
+item_list = P.sepBy1 item comma
 
 -- | Parse a data prototype
 data_prototype :: Monad m => ParsecT TokStream u m ()
 data_prototype = void $ identifier >> inParens item_list
 
 -- | Parse a function prototype
-function_prototype :: Monad m => ParsecT TokStream u m ()
-function_prototype = void $ identifier >> inParens item_list >> item_list
+function_prototype :: Monad m => ParsecT TokStream u m FunctionPrototype
+function_prototype = FunctionPrototype <$> identifierStr <*> inParens item_list <*> item_list
 
 -- | Parse an external prototype
 external_prototype :: Monad m => ParsecT TokStream u m ()
 external_prototype = void $ identifier >> inParens item_list >> item
 
 -- | Parse a signed integer in a prototype
-signed_integer :: Monad m => ParsecT TokStream u m ()
-signed_integer = void $ P.optional ( P.optional (plus <|> minus) >> integer)
+signed_integer :: Monad m => ParsecT TokStream u m Snobol4Integer
+signed_integer = do
+    sign <- P.optional plus
+    (Located (IntLiteral i) _) <- integer
+    return $ read i
 
 -- | Parse a dimension in a prototype
-dimension :: Monad m => ParsecT TokStream u m ()
-dimension = void $ signed_integer >> P.optional (colon >> signed_integer)
+dimension :: Monad m => ParsecT TokStream u m Dimension
+dimension = do
+    minIx <- signed_integer
+    P.option (0,minIx) $ do
+        _ <- colon
+        maxIx <- signed_integer
+        return (minIx,maxIx)
 
 -- | Parse an array prototype
-array_prototype :: Monad m => ParsecT TokStream u m ()
-array_prototype = void $ P.sepBy1 comma dimension
+array_prototype :: Monad m => ParsecT TokStream u m ArrayPrototype
+array_prototype = ArrayPrototype <$> P.sepBy1 dimension comma
 
 -- | ???
 string_integer :: Monad m => ParsecT TokStream u m ()
@@ -531,9 +574,7 @@ string_code = void $ P.sepBy1 semicolon statement
 
 -- | Parse a program
 program :: Monad m => ParsecT TokStream Bool m Program
-program = P.many $ do
-    P.skipMany (comment_line >> eol)
-    statement
+program = Program <$> P.many (P.skipMany (comment_line >> eol) >> statement)
 
 -- Operator Associativity and Precedence
 
@@ -593,6 +634,7 @@ fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr
 fixAssoc x = x
 
 
+{-
 -- Parsing from token lists
 
 -- | Parse an expression from tokens
@@ -624,3 +666,23 @@ parseProgramFromToksT :: Monad m
                       => [Located Token SourcePos] 
                       -> m (Either ParseError Program)
 parseProgramFromToksT = liftM (wrapError id) . P.runParserT program False ""
+
+parseArrayPrototypeFromToks :: [Located Token SourcePos] -> Either ParseError ArrayPrototype
+parseArrayPrototypeFromToks = wrapError id . P.runParser array_prototype False ""
+
+parseArrayPrototypeFromToksT :: Monad m
+                             => [Located Token SourcePos] 
+                             -> m (Either ParseError ArrayPrototype)
+parseArrayPrototypeFromToksT = liftM (wrapError id) . P.runParser array_prototype False ""
+
+parseArrayPrototypeFromToks :: [Located Token SourcePos] -> Either ParseError ArrayPrototype
+parseArrayPrototypeFromToks = wrapError id . P.runParser function_prototype False ""
+
+parseFunctionPrototypeFromToksT :: Monad m
+                             => [Located Token SourcePos] 
+                             -> m (Either ParseError ArrayPrototype)
+parseFunctionPrototypeFromToksT = liftM (wrapError id) . P.runParser function_prototype False ""
+-}
+
+parseFromToksT :: (Parsable a, Monad m) => TokStream -> m (Either ParseError a)
+parseFromToksT = liftM (wrapError id) . P.runParserT parser False ""

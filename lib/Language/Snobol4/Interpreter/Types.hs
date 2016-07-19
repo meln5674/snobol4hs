@@ -14,6 +14,9 @@ module Language.Snobol4.Interpreter.Types
     , Data (..)
     , Pattern (..)
     , ProgramError (..)
+    , Snobol4String
+    , Snobol4Integer
+    , Snobol4Real
     ) where
 
 import Language.Snobol4.Interpreter.Internal.Types
