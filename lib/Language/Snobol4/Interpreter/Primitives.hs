@@ -13,19 +13,16 @@ expressed in the source language.
 
 module Language.Snobol4.Interpreter.Primitives where
 
-import Prelude hiding (len, span, break, any, notany, toInteger)
+import Prelude hiding ( span, break, any, toInteger )
 
 import Text.Read (readMaybe)
 
-import Data.Map (Map)
 import qualified Data.Map as M
 
-import Data.Array (Array)
 import qualified Data.Array as A
 
 import Text.Parsec ( (<|>), runParserT, ParsecT )
 import qualified Text.Parsec as P
-import qualified Text.Parsec.Char as P
 
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Types
@@ -158,8 +155,7 @@ bound = do
     sign <- P.option "" $ P.string "-"
     digits <- P.many P.digit
     let str = sign ++ digits
-        val = readMaybe str :: Maybe Int
-    case val of
+    case readMaybe str :: Maybe Int of
         Just val -> return val
         Nothing -> P.unexpected str
 
@@ -168,7 +164,7 @@ bound = do
 rangeDimension :: Monad m => ParsecT String u m Dimension
 rangeDimension = do
     l <- bound
-    P.char ':'
+    _ <- P.char ':'
     r <- bound
     return $ Range l r
 
@@ -176,8 +172,7 @@ rangeDimension = do
 countDimension :: Monad m => ParsecT String u m Dimension
 countDimension = do
     str <- P.many P.digit
-    let val = readMaybe str :: Maybe Int
-    case val of
+    case readMaybe str :: Maybe Int of
         Just val -> return $ Count val
         Nothing -> P.unexpected str
 
@@ -201,9 +196,9 @@ mkArray (Count c:ds) v = mkArray (Range 0 c:ds) v
 array :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 array [dimStr,item] = do
     str <- toString dimStr
-    dims <- runParserT dimensions () "" str
-    return $ case dims of
-        Left err -> Nothing
+    parseResult <- runParserT dimensions () "" str
+    return $ case parseResult of
+        Left _ -> Nothing
         Right dims -> Just $ mkArray dims item
 array [dimStr] = array [dimStr, StringData ""]
 array [] = liftEval $ programError NullStringInIllegalContext

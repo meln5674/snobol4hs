@@ -22,7 +22,6 @@ module Language.Snobol4.Interpreter
     ) where
 
 import Control.Monad
-import Control.Monad.Trans
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
@@ -30,7 +29,6 @@ import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Internal
     ( PausedInterpreter (..)
     , Interpreter
-    , emptyState
     , ExecResult(..)
     )
 import Language.Snobol4.Interpreter.Shell
@@ -75,8 +73,8 @@ run :: InterpreterShell m => Program -> m ProgramError
 run code = do
     result <- I.interpret emptyState $ I.load code >> I.run
     case result of
-        Right result -> return result
-
+        Right err -> return err
+        Left _ -> return ErrorInSnobol4System
 
 -- | Load a program into the interpreter and then pause it
 load :: InterpreterShell m => Program -> m (PausedInterpreter m)
@@ -87,9 +85,7 @@ load code = startInterpreter' $ I.load code
 step :: InterpreterShell m => PausedInterpreter m -> m (PausedInterpreter m)
 step (Terminated err) = return $ Terminated err
 step (Paused st) = do
-    result <- I.interpret st $ do
-        I.step
-        I.getProgramState
+    result <- I.interpret st $ I.step >> I.getProgramState
     case result of
         Left err -> return $ Terminated err
         Right st' -> return $ Paused st'
@@ -105,7 +101,7 @@ eval expr (Paused st) = do
         result <- I.unliftEval $ I.evalExpr expr
         st' <- I.getProgramState
         return $ case result of
-            Left stop -> (Paused st', Nothing)
+            Left _ -> (Paused st', Nothing)
             Right val -> (Paused st', Just val)
     return $ case result of
         Left err -> (Terminated err, Nothing)
@@ -120,11 +116,11 @@ exec _ (Terminated err) = return (Terminated err, Nothing)
 exec stmt (Paused st) = do
     result <- I.interpret st $ do
         result <- I.exec stmt
-        st <- I.getProgramState
-        return (st, result)
+        st' <- I.getProgramState
+        return (st', result)
     case result of
         Left err -> return (Terminated err, Nothing)
-        Right (st, StmtResult x) -> return (Paused st, x)
+        Right (st', StmtResult x) -> return (Paused st', x)
         Right (_, Return) -> return (Terminated ReturnFromZeroLevel, Nothing)
         Right (_, FReturn) -> return (Terminated ReturnFromZeroLevel, Nothing)
 

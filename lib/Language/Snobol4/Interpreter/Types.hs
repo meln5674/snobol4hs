@@ -11,10 +11,8 @@ Portability     : Unknown
 module Language.Snobol4.Interpreter.Types where
 
 import Data.Map (Map)
-import qualified Data.Map as M
 
 import Data.Array (Array)
-import qualified Data.Array as A
 
 import Language.Snobol4.Syntax.AST
 

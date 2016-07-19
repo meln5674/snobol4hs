@@ -8,11 +8,10 @@ import Control.Monad.Trans.State.Strict
 import System.Console.Haskeline
 
 import Language.Snobol4
-import Language.Snobol4.Parser
 import Language.Snobol4.Interpreter.Shell
-import Language.Snobol4.Interpreter.Shell.Console
 
-
+-- | A shell for the interpreter that uses Haskeline for INPUT, OUTPUT, and
+-- PUNCH
 newtype HaskelineShell a
     = HaskelineShell
     { runHaskelineShell
@@ -41,33 +40,39 @@ instance InterpreterShellRun HaskelineShell IO where
           . flip evalStateT ("","","") 
           . runHaskelineShell
 
-main :: IO ()
-main = shell $ do
-    st <- load []
-    loopMain st
-
+-- | Wrapper around outputStrLn
+outputStrLn' :: String -> HaskelineShell ()
 outputStrLn' = HaskelineShell . lift . outputStrLn
 
+-- | Wrapper around getInputLine
+getInputLine' :: String -> HaskelineShell (Maybe String)
+getInputLine' = HaskelineShell . lift . getInputLine
+
+-- | Get the string to print for data from the interpreter
+showData :: Data -> String
+showData (StringData s) = show s ++ " :: STRING"
+showData (IntegerData i) = show i ++ " :: INTEGER"
+showData (RealData r) = show r ++ " :: REAL"
+showData (PatternData _) = "[PATTERN]"
+showData (ArrayData _) = "[ARRAY]"
+showData (TableData _) = "[TABLE]"
+showData (Name _) = "[NAME]"
+showData (Unevaluated _) = "[UNEVAL]"
+
+-- | Main loop
 loopMain :: PausedInterpreter HaskelineShell -> HaskelineShell ()
 loopMain st = do
-    i <- HaskelineShell $ lift $ getInputLine ">>"
-    case i of
+    inputResult <- getInputLine' ">>"
+    case inputResult of
         Nothing -> loopMain st
-        Just i -> do
-            result <- parseStatementT (i ++ "\n")
+        Just inputLine -> do
+            result <- parseStatementT (inputLine ++ "\n")
             case result of
                 Right stmt -> do
-                    (st', val) <- exec stmt st
-                    case val of
-                        Just val -> case val of
-                            StringData s -> outputStrLn' $ show s ++ " :: STRING"
-                            IntegerData i -> outputStrLn' $ show i ++ " :: INTEGER"
-                            RealData r -> outputStrLn' $ show r ++ " :: REAL"
-                            PatternData _ -> outputStrLn' "[PATTERN]"
-                            ArrayData _ -> outputStrLn' "[ARRAY]"
-                            TableData _ -> outputStrLn' "[TABLE]"
-                            Name _ -> outputStrLn' "[NAME]"
-                            Unevaluated _ -> outputStrLn' "[UNEVAL]"
+                    (st', execResult) <- exec stmt st
+                    let toOutput = showData <$> execResult
+                    case toOutput of
+                        Just str -> outputStrLn' str
                         Nothing -> return ()
                     case isTerminated st' of
                         Just err -> do
@@ -79,4 +84,9 @@ loopMain st = do
                     loopMain st
     return ()
     
-    
+-- | Entry Point    
+main :: IO ()
+main = shell $ do
+    st <- load []
+    loopMain st
+

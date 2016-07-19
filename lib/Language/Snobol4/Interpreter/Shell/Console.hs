@@ -43,24 +43,31 @@ data ConsoleShellState
     }
 
 --  Get the last string inputted
+getLastInput :: ConsoleShell String
 getLastInput = ConsoleShell $ gets lastInput
 
 --  Get the last string outputted
+getLastOutput :: ConsoleShell String
 getLastOutput = ConsoleShell $ gets lastOutput
 
 --  Get the last string punched
+getLastPunch :: ConsoleShell String
 getLastPunch = ConsoleShell $ gets lastPunch
 
 -- | Set the last string inputted
+putLastInput :: String -> ConsoleShell ()
 putLastInput s = ConsoleShell $ modify $ \st -> st{ lastInput = s }
 
 -- | Set the last string outputted
+putLastOutput :: String -> ConsoleShell ()
 putLastOutput s = ConsoleShell $ modify $ \st -> st{ lastOutput = s }
 
 -- | Set the last string punched
+putLastPunch :: String -> ConsoleShell ()
 putLastPunch s = ConsoleShell $ modify $ \st -> st{ lastPunch = s }
 
 -- | Initial state of the shell
+emptyState :: ConsoleShellState
 emptyState = ConsoleShellState "" "" ""
 
 -- | A monad for running the interpreter using the console for IO

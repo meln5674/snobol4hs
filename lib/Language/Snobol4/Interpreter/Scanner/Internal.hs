@@ -176,12 +176,12 @@ getAlternatives (ConcatPattern p1 p2) = do
 getAlternatives (LengthPattern l) = return $ (:[]) $ consumeN l
 getAlternatives EverythingPattern = return $ (:[]) consumeAll
 getAlternatives (UnevaluatedExprPattern expr) = do 
-    pat <- Scanner $ lift $ lift $ do
+    patResult <- Scanner $ lift $ lift $ do
         result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
         case result of
-            Just result -> Just <$> toPattern result
+            Just val -> Just <$> toPattern val
             Nothing -> return Nothing
-    case pat of
+    case patResult of
         Just pat -> getAlternatives pat
         Nothing -> return $ (:[]) throwScan
 getAlternatives (HeadPattern l) = return $ (:[]) $ do
@@ -190,13 +190,13 @@ getAlternatives (HeadPattern l) = return $ (:[]) $ do
     return ""
 getAlternatives (SpanPattern cs) = do
     str <- getInput
-    let (longest,rest) = span (`elem` cs) str
-    let matches = reverse $ inits longest
+    let (longest,_) = span (`elem` cs) str
+        matches = reverse $ inits longest
     return $ map consume matches
 getAlternatives (BreakPattern cs) = do
     str <- getInput
-    let (longest,rest) = span (`notElem` cs) str
-    let matches = reverse $ tails longest
+    let (longest,_) = span (`notElem` cs) str
+        matches = reverse $ tails longest
     return $ map consume matches
 getAlternatives (AnyPattern cs) = return $ (:[]) $ do
     c <- nextChar
@@ -235,6 +235,13 @@ getAlternatives ArbPattern = do
     str <- getInput
     return $ map consume $ tails str
 --getAlternatives (ArbNoPattern p) = return $ flip map [0..] $ liftM concat . replicateM (getAlternatives
+getAlternatives (ArbNoPattern _) 
+    = Scanner 
+    $ lift 
+    $ lift 
+    $ liftEval 
+    $ programError 
+      ErrorInSnobol4System
 
 {-
 -- | Match a pattern

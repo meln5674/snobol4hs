@@ -27,7 +27,6 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Control.Monad.Trans
-import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
@@ -217,45 +216,57 @@ getCallStack = getsProgramState callStack
 
 
 -- | Set the variables known to the interpreter
+putVariables :: InterpreterShell m => Map String Data -> Interpreter m ()
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
 
 -- | Set the loaded program
+putStatements :: InterpreterShell m => Vector Stmt -> Interpreter m ()
 putStatements stmts = modifyProgramState $ \st -> st { statements = stmts }
 
 -- | Set the labels known to the interpreter
+putLabels :: InterpreterShell m => Map String Int -> Interpreter m ()
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
 
 -- | Set the program counter
+putProgramCounter :: InterpreterShell m => Int -> Interpreter m ()
 putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
 
 -- | Set the call stack
+putCallStack :: InterpreterShell m => [CallStackNode] -> Interpreter m ()
 putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
 
 
 -- | Apply a function to the variables known to the interpreter
+modifyVariables :: InterpreterShell m => (Map String Data -> Map String Data) -> Interpreter m ()
 modifyVariables f = modifyProgramState $
         \st -> st { variables = f $ variables st }
 
 -- | Apply a function to the loaded program
+modifyStatements :: InterpreterShell m => (Vector Stmt -> Vector Stmt) -> Interpreter m ()
 modifyStatements f = modifyProgramState $
     \st -> st { statements = f $ statements st }
 
 -- | Apply a function to the labels known to the interpreter
+modifyLabels :: InterpreterShell m => (Map String Int -> Map String Int) -> Interpreter m ()
 modifyLabels f = modifyProgramState $
     \st -> st { labels = f $ labels st }
 
 -- | Apply a function to the program counter
+modifyProgramCounter :: InterpreterShell m => (Int -> Int) -> Interpreter m ()
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }
 
 -- | Apply a function to the call stack
+modifyCallStack :: InterpreterShell m => ([CallStackNode] -> [CallStackNode]) -> Interpreter m ()
 modifyCallStack f = modifyProgramState $
     \st -> st { callStack = f $ callStack st }
 
 -- | Apply a function to the head of the call stack
+modifyCallStackHead :: InterpreterShell m => (CallStackNode -> CallStackNode) -> Interpreter m ()
 modifyCallStackHead f = modifyCallStack $ \(n:ns) -> f n:ns
 
 -- | Push a node onto the call stack
+pushCallStack :: InterpreterShell m => CallStackNode -> Interpreter m ()
 pushCallStack n = modifyCallStack (n:)
 
 -- | Pop a node off of the call stack and set the program counter accordingly
@@ -276,59 +287,60 @@ labelLookup lbl = M.lookup lbl <$> getLabels
 
 -- | Retreive the value of a global variable
 globalLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
-globalLookup id = M.lookup id <$> getVariables
+globalLookup name = M.lookup name <$> getVariables
 
 -- | Retreive the value of a local variable
 localLookup :: InterpreterShell m => String -> Interpreter m (Maybe Data)
-localLookup id = do
+localLookup name = do
     stk <- getCallStack
     case stk of
         [] -> return Nothing
-        (n:ns) -> return $ M.lookup id $ locals n
+        (n:_) -> return $ M.lookup name $ locals n
+
 -- | Flag for variables as local or global
 data VarType = LocalVar | GlobalVar
 
 -- | Retreive the value of a variable, first checking locals, then globals
 varLookup :: InterpreterShell m => String -> Interpreter m (Maybe (VarType,Data))
-varLookup id = do
-    localResult <- localLookup id
+varLookup name = do
+    localResult <- localLookup name
     case localResult of
-        Just localResult -> return $ Just (LocalVar, localResult)
+        Just localVal -> return $ Just (LocalVar, localVal)
         Nothing -> do
-            globalResult <- globalLookup id
+            globalResult <- globalLookup name
             case globalResult of
-                Just globalResult -> return $ Just (GlobalVar, globalResult)
+                Just globalVal -> return $ Just (GlobalVar, globalVal)
                 Nothing -> return Nothing
 
 -- | Retreive the value of a variable, first checking locals, then globals,
 -- then discard the flag stating which it is
 varLookup' :: InterpreterShell m => String -> Interpreter m (Maybe Data)
-varLookup' id = varLookup id >>= \case
+varLookup' name = varLookup name >>= \case
     Nothing -> return Nothing
     Just (_,val) -> return $ Just val    
     
 
 -- | Write the value of a global variable
 globalWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
-globalWrite id val = modifyVariables (M.insert id val)
+globalWrite name = modifyVariables . M.insert name
 
 -- | Write the value of a local variable
 localWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
-localWrite id val = modifyVariables (M.insert id val)
+localWrite name = modifyVariables . M.insert name
 
 -- | Write the value of a variable, first checking if there are any locals with
 -- that name, then writing as a global if there isn't
 varWrite :: InterpreterShell m => String -> Data -> Interpreter m ()
-varWrite id val = do
-    result <- varLookup id
+varWrite name val = do
+    result <- varLookup name
     case result of
-        Just (LocalVar,_) -> localWrite id val
-        Just (GlobalVar,_) -> globalWrite id val
-        Nothing -> globalWrite id val
+        Just (LocalVar,_) -> localWrite name val
+        Just (GlobalVar,_) -> globalWrite name val
+        Nothing -> globalWrite name val
 
 -- | Look up a function by name
 funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe (Function m))
-funcLookup id = M.lookup id <$> getFunctions
+funcLookup name = M.lookup name <$> getFunctions
 
 -- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
@@ -495,15 +507,16 @@ lowerArgs a b
 -- | Utility function, safe lookup for arrays
 arrayGet :: A.Ix i => Array i e -> i -> Maybe e
 arr `arrayGet` ix
-    | arr `inBounds` ix = Just $ arr A.! ix
+    | inBounds = Just $ arr A.! ix
     | otherwise = Nothing
   where
-    arr `inBounds` ix = let (min,max) = A.bounds arr in min <= ix && ix < max
-
+    inBounds = minB <= ix && ix < maxB
+    (minB,maxB) = A.bounds arr 
+    
 -- | Assign a value using a lookup
 assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
 assign (LookupId s) val = liftEval $ varWrite s val
-assign (LookupAggregate id args) val = do
+assign (LookupAggregate name args) val = do
     let loop (ArrayData arr) [IntegerData i] = return $ ArrayData $ arr A.// [(i,val)]
         loop (ArrayData arr) (IntegerData i:as) = case arr `arrayGet` i of
             Just d -> do
@@ -519,11 +532,11 @@ assign (LookupAggregate id args) val = do
             Nothing -> liftEval $ programError ErroneousArrayOrTableReference
         loop (TableData _) _ = liftEval $ programError ErroneousArrayOrTableReference
         loop _ _ = liftEval $ programError ErroneousArrayOrTableReference
-    base <- liftEval $ varLookup id
+    base <- liftEval $ varLookup name
     case base of
-        Just (_,base) -> do
-            base' <- loop base args
-            liftEval $ varWrite id base'
+        Just (_,baseVal) -> do
+            base' <- loop baseVal args
+            liftEval $ varWrite name base'
         Nothing -> liftEval $ programError ErroneousArrayOrTableReference
 assign Output val = toString val >>= lift . output
 assign Punch val = toString val >>= lift . punch

@@ -16,10 +16,8 @@ import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Primitives
 import Language.Snobol4.Interpreter.Shell
 
-import Data.Map (Map)
 import qualified Data.Map as M
 
-import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 

@@ -12,28 +12,22 @@ Either value, or by 'catchEval', which takes a function to call if the
 evaluation fails.
 -}
 
-module Language.Snobol4.Interpreter.Evaluator where
+module Language.Snobol4.Interpreter.Evaluator 
+    ( evalExpr
+    , catchEval
+    , execLookup
+    ) where
 
 import Prelude hiding (toInteger)
 
-import Text.Read hiding (lift, String, step, get)
-
-import Data.Map (Map)
 import qualified Data.Map as M
 
-import Data.Array (Array)
-import qualified Data.Array as A
-
-import Control.Monad
 import Control.Monad.Trans
-import Control.Monad.Trans.Except
-import Control.Monad.Trans.State
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal
-import Language.Snobol4.Interpreter.Internal.Types
 
 -- | Evaluate an arithmetic operation
 arithmetic :: InterpreterShell m 
@@ -74,6 +68,7 @@ evalOp Bang = arithmetic (^) (**)
 evalOp DoubleStar = evalOp Bang
 evalOp Pipe = pattern AlternativePattern 
 evalOp Blank = pattern ConcatPattern
+evalOp _ = \_ _ -> liftEval $ programError ErrorInSnobol4System
 
 -- | Evaluate an expression, then choose one of two actions/values to use
 checkSuccess :: InterpreterShell m 
@@ -111,24 +106,24 @@ evalExpr (IdExpr "INPUT") = StringData <$> (lift $ input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ lastOutput)
 evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ lastPunch)
 evalExpr (IdExpr name) = do
-    d <- liftEval $ varLookup name
-    case d of
-        Just (_,d) -> return d
+    lookupResult <- liftEval $ varLookup name
+    case lookupResult of
+        Just (_,val) -> return val
         Nothing -> failEvaluation
 evalExpr (LitExpr (Int i)) = return $ IntegerData i
 evalExpr (LitExpr (Real r)) = return $ RealData r
 evalExpr (LitExpr (String s)) = return $ StringData s
-evalExpr (CallExpr id args) = do
+evalExpr (CallExpr name args) = do
     args' <- mapM evalExpr args
-    result <- liftEval $ call id args'
-    case result of
-        Just result -> return result
+    callResult <- liftEval $ call name args'
+    case callResult of
+        Just val -> return val
         Nothing -> failEvaluation
-evalExpr (RefExpr id args) = do
+evalExpr (RefExpr name args) = do
     args' <- mapM evalExpr args
-    x <- execLookup (LookupAggregate id args')
-    case x of
-        Just x -> return x
+    lookupResult <- execLookup (LookupAggregate name args')
+    case lookupResult of
+        Just val -> return val
         Nothing -> liftEval $ programError ErroneousArrayOrTableReference
 evalExpr (ParenExpr expr) = evalExpr expr
 evalExpr (BinaryExpr a op b) = do
@@ -145,8 +140,8 @@ execLookup Output = (Just . StringData) <$> lift lastOutput
 execLookup Punch = (Just . StringData) <$> lift lastPunch 
 execLookup (LookupLiteral x) = return $ Just x 
 execLookup (LookupId i) = liftEval $ varLookup' i
-execLookup (LookupAggregate id args) = do
-    base <- liftEval $ varLookup' id
+execLookup (LookupAggregate name args) = do
+    base <- liftEval $ varLookup' name
     case base of
         Nothing -> return Nothing
         Just val -> do
@@ -158,7 +153,7 @@ execLookup (LookupAggregate id args) = do
                     Nothing -> Nothing
                     Just d -> loop d as
                 loop x [] = Just x
-                loop x _ = Nothing
+                loop _ _ = Nothing
             return $ loop val args
 
 -- | Take an evaluation and return it to the interpreter stack, with a handler 

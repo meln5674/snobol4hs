@@ -44,14 +44,8 @@ module Language.Snobol4.Interpreter.Internal
     , module Language.Snobol4.Interpreter.State
     ) where
 
-import Prelude hiding (toInteger)
+import Prelude hiding ( toInteger, lookup )
 
-import Text.Read hiding (lift, String, step, get)
-
-import Data.Map (Map)
-import qualified Data.Map as M
-
-import Data.Vector (Vector)
 import qualified Data.Vector as V
 
 import Control.Monad
@@ -69,20 +63,20 @@ import Language.Snobol4.Interpreter.State
 
 -- | Call a function by name with arguments
 call :: InterpreterShell m => String -> [Data] -> Interpreter m (Maybe Data)
-call funcName evaldArgs = do
-    func <- funcLookup funcName
-    case func of
+call name evaldArgs = do
+    lookupResult <- funcLookup name
+    case lookupResult of
         Nothing -> programError UndefinedFunctionOrOperation
-        Just func@UserFunction{} -> do
+        Just func@UserFunction{formalArgs=argNames} -> do
             pushFuncNode func
-            mapM (uncurry varWrite) $ zip (formalArgs func) evaldArgs
+            mapM_ (uncurry varWrite) $ zip argNames evaldArgs
             putProgramCounter $ entryPoint func
             let loop = do
                     result <- step
                     case result of
                         Return -> do
-                            popCallStack
-                            varLookup' $ funcName
+                            _ <- popCallStack
+                            varLookup' $ name
                         FReturn -> return Nothing
                         StmtResult _ -> loop
             loop
@@ -114,7 +108,7 @@ execRepl lookup pattern expr = do
     repl <- evalExpr expr
     case pattern of
         EverythingPattern -> assign lookup repl
-        pattern -> do
+        _ -> do
             val <- execLookup lookup
             str <- case val of
                 Nothing -> return $ ""
@@ -122,7 +116,7 @@ execRepl lookup pattern expr = do
             scanResult <- scanPattern str pattern
             case scanResult of
                 NoScan -> failEvaluation
-                Scan match assignments startIndex endIndex -> do
+                Scan _ assignments startIndex endIndex -> do
                     mapM_ (uncurry assign) assignments
                     replStr <- toString repl
                     let val' = take startIndex str 
@@ -136,10 +130,10 @@ goto :: InterpreterShell m => Expr -> Evaluator m ()
 goto expr = do
     result <- evalExpr expr
     label <- toString result
-    pc <- liftEval $ labelLookup label
-    case pc of
-        Nothing -> liftEval $ programError UndefinedOrErroneousGoto
-        Just pc -> liftEval $ putProgramCounter pc
+    lookupResult <- liftEval $ labelLookup label
+    liftEval $ case lookupResult of
+        Nothing -> programError UndefinedOrErroneousGoto
+        Just pc -> putProgramCounter pc
 
 -- | Execute a goto
 execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m ()
@@ -174,12 +168,12 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
     case replResult of
         Just _ -> finishEvaluation Nothing
         Nothing -> do
-            val <- execLookup lookup
-            str <- case val of
+            lookupResult <- execLookup lookup
+            str <- case lookupResult of
                 Nothing -> return ""
-                Just d -> case pattern of
-                    EverythingPattern -> finishEvaluation $ Just d
-                    pattern -> toString d
+                Just val -> case pattern of
+                    EverythingPattern -> finishEvaluation $ Just val
+                    _ -> toString val
             scanResult <- scanPattern str pattern
             case scanResult of
                 NoScan -> failEvaluation
