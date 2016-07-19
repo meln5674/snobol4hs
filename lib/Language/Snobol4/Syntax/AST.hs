@@ -104,8 +104,6 @@ data Expr
     -- | An expression with a unary prefix operator
       PrefixExpr Operator Expr
     -- | An expression marked to be evaluated later
-    | UnevaluatedExpr Expr
-    -- | An identifier
     | IdExpr String
     -- | A literal
     | LitExpr Literal

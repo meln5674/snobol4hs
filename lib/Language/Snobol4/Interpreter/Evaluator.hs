@@ -15,7 +15,7 @@ evaluation fails.
 module Language.Snobol4.Interpreter.Evaluator 
     ( evalExpr
     , catchEval
-    , execLookup
+    , evalLookup
     ) where
 
 import Prelude hiding (toInteger)
@@ -82,7 +82,22 @@ checkSuccess expr success failure = do
         Right _ -> success
         Left _ -> failure
 
--- | Evaluate an expression
+-- | Evaluate an expression as if it were an L-Value
+evalLookup :: InterpreterShell m => Expr -> Evaluator m Lookup
+evalLookup expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
+evalLookup (IdExpr "INPUT") = return $ Input
+evalLookup (IdExpr "OUTPUT") = return $ Output
+evalLookup (IdExpr "PUNCH") = return $ Punch
+evalLookup (IdExpr s) = return $ LookupId s
+evalLookup (PrefixExpr Dollar expr) = do
+    expr' <- evalExpr expr
+    s <- toString expr'
+    return $ LookupId s
+evalLookup (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
+evalLookup (ParenExpr expr) = evalLookup expr
+evalLookup expr = LookupLiteral <$> evalExpr expr
+
+-- | Evaluate an expression as if it were an R-value
 evalExpr :: InterpreterShell m => Expr -> Evaluator m Data
 evalExpr (PrefixExpr Not expr) = checkSuccess 
     expr 
@@ -101,7 +116,8 @@ evalExpr (PrefixExpr Minus expr) = do
         (IntegerData i) -> return $ IntegerData $ -i
         (RealData r) -> return $ RealData $ -r
         _ -> liftEval $ programError IllegalDataType
-evalExpr (UnevaluatedExpr expr) = return $ PatternData $ UnevaluatedExprPattern expr
+evalExpr (PrefixExpr Star expr) = return $ PatternData $ UnevaluatedExprPattern expr
+evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId name
 evalExpr (IdExpr "INPUT") = StringData <$> (lift $ input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ lastOutput)
 evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ lastPunch)
@@ -121,7 +137,7 @@ evalExpr (CallExpr name args) = do
         Nothing -> failEvaluation
 evalExpr (RefExpr name args) = do
     args' <- mapM evalExpr args
-    lookupResult <- execLookup (LookupAggregate name args')
+    lookupResult <- liftEval $ execLookup (LookupAggregate name args')
     case lookupResult of
         Just val -> return val
         Nothing -> liftEval $ programError ErroneousArrayOrTableReference
@@ -132,29 +148,6 @@ evalExpr (BinaryExpr a op b) = do
     evalOp op a' b'
 evalExpr NullExpr = return $ StringData ""
 evalExpr _ = liftEval $ programError ErrorInSnobol4System
-
--- | Execute a lookup
-execLookup :: InterpreterShell m => Lookup -> Evaluator m (Maybe Data) 
-execLookup Input = (Just . StringData) <$> lift input 
-execLookup Output = (Just . StringData) <$> lift lastOutput 
-execLookup Punch = (Just . StringData) <$> lift lastPunch 
-execLookup (LookupLiteral x) = return $ Just x 
-execLookup (LookupId i) = liftEval $ varLookup' i
-execLookup (LookupAggregate name args) = do
-    base <- liftEval $ varLookup' name
-    case base of
-        Nothing -> return Nothing
-        Just val -> do
-            let loop (ArrayData arr) ((IntegerData i):as) = case arr `arrayGet` i of
-                    Nothing -> Nothing
-                    Just d -> loop d as
-                loop (ArrayData _) _ = Nothing
-                loop (TableData tab) (a:as) = case M.lookup a tab of
-                    Nothing -> Nothing
-                    Just d -> loop d as
-                loop x [] = Just x
-                loop _ _ = Nothing
-            return $ loop val args
 
 -- | Take an evaluation and return it to the interpreter stack, with a handler 
 -- for a failed evaluation

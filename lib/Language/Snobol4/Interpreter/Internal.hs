@@ -85,18 +85,7 @@ call name evaldArgs = do
 
 -- | Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
-execSub expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
-execSub (IdExpr "INPUT") = return $ Input
-execSub (IdExpr "OUTPUT") = return $ Output
-execSub (IdExpr "PUNCH") = return $ Punch
-execSub (IdExpr s) = return $ LookupId s
-execSub (PrefixExpr Dollar expr) = do
-    expr' <- evalExpr expr
-    s <- toString expr'
-    return $ LookupId s
-execSub (RefExpr s args) = LookupAggregate s <$> mapM evalExpr args
-execSub (ParenExpr expr) = execSub expr
-execSub expr = LookupLiteral <$> evalExpr expr
+execSub = evalLookup
 
 -- | Execute a pattern, and return the pattern structure for it
 execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
@@ -109,7 +98,7 @@ execRepl lookup pattern expr = do
     case pattern of
         EverythingPattern -> assign lookup repl
         _ -> do
-            val <- execLookup lookup
+            val <- liftEval $ execLookup lookup
             str <- case val of
                 Nothing -> return $ ""
                 Just d -> toString d
@@ -168,7 +157,7 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
     case replResult of
         Just _ -> finishEvaluation Nothing
         Nothing -> do
-            lookupResult <- execLookup lookup
+            lookupResult <- liftEval $ execLookup lookup
             str <- case lookupResult of
                 Nothing -> return ""
                 Just val -> case pattern of

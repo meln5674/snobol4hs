@@ -57,7 +57,6 @@ showData (PatternData _) = "[PATTERN]"
 showData (ArrayData _) = "[ARRAY]"
 showData (TableData _) = "[TABLE]"
 showData (Name _) = "[NAME]"
-showData (Unevaluated _) = "[UNEVAL]"
 
 -- | Main loop
 loopMain :: PausedInterpreter HaskelineShell -> HaskelineShell ()

@@ -569,7 +569,6 @@ assoc _ = AssocLeft
 -- will respect the precedence of the operators
 fixPrec :: Expr -> Expr
 fixPrec (PrefixExpr op expr) = PrefixExpr op $ fixPrec expr
-fixPrec (UnevaluatedExpr expr) = UnevaluatedExpr $ fixPrec expr
 fixPrec (CallExpr i args) = CallExpr i $ map fixPrec args
 fixPrec (RefExpr i args) = RefExpr i $ map fixPrec args
 fixPrec (ParenExpr expr) = ParenExpr $ fixPrec expr
@@ -588,7 +587,6 @@ fixAssoc (BinaryExpr exprA op (BinaryExpr exprA' op' exprB))
         && assoc op' == AssocLeft
         = fixAssoc $ BinaryExpr (BinaryExpr exprA op exprA') op' exprB
 fixAssoc (PrefixExpr op expr) = PrefixExpr op $ fixAssoc expr
-fixAssoc (UnevaluatedExpr expr) = UnevaluatedExpr $ fixAssoc expr
 fixAssoc (CallExpr i args) = CallExpr i $ map fixAssoc args
 fixAssoc (RefExpr i args) = RefExpr i $ map fixAssoc args
 fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr

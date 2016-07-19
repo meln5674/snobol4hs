@@ -26,13 +26,166 @@ import qualified Data.Array as A
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
+import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
 import Language.Snobol4.Syntax.AST
-import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
+
+
+
+-- | The reason evaluation stopped
+data EvalStop
+    -- | The evaluation succeeded and there is nothing else to evaluate
+    = EvalSuccess (Maybe Data)
+    -- | The evaluation failed
+    | EvalFailed
+  deriving Show
+
+-- | A lookup request
+data Lookup 
+    -- | Lookup a variable by name
+    = LookupId String
+    -- | Lookup an element in an array by index or a table by key
+    | LookupAggregate String [Data]
+    -- | The output varaible
+    | Output
+    -- | The input variable
+    | Input
+    -- | The output variable
+    | Punch
+    | LookupLiteral Data
+  deriving (Show, Eq, Ord)
+
+
+-- | The data types allowed in a snobol4 program
+data Data
+    -- | A string
+    = StringData Snobol4String
+    -- | A pattern
+    | PatternData Pattern
+    -- | An integer
+    | IntegerData Snobol4Integer
+    -- | A real number
+    | RealData Snobol4Real
+    -- | An array
+    | ArrayData ArrayKey
+    -- | A table
+    | TableData TableKey
+    -- | Passing an expression by name
+    | Name Lookup
+  deriving (Eq, Ord)
+
+instance Show Data where
+    show (StringData s) = s
+    show (PatternData _) = "[PATTERN]"
+    show (IntegerData i) = show i
+    show (RealData f) = show f
+    show (ArrayData _) = "[ARRAY]"
+    show (TableData _) = "[TABLE]"
+    show (Name _) = "[NAME]"
+
+{-
+instance Read Data where
+    read s = case readMaybe s :: Maybe Snobol4Integer of
+        Nothing -> case readMaybe s :: Maybe Snobol4Real of
+            Nothing -> StringData $ read s
+            Just r -> RealData r
+        Just i -> IntegerData i
+-}
+
+-- | A pattern
+data Pattern
+    -- | A pattern which records the matched value in the provided lookup on 
+    -- success
+    = AssignmentPattern Pattern Lookup
+    -- | A pattern which records the matched value in the provided lookup 
+    -- immediately after matching
+    | ImmediateAssignmentPattern Pattern Lookup
+    -- | A pattern to match a literal string
+    | LiteralPattern String
+    -- | An alternative between two ore more patterns
+    | AlternativePattern Pattern Pattern
+    -- | A concatination of two or more patterns
+    | ConcatPattern Pattern Pattern
+    -- | A pattern which matches any string of N characters
+    | LengthPattern Int
+    -- | A pattern which matches anything
+    | EverythingPattern
+    -- | A pattern which contains an unevaluated expression
+    | UnevaluatedExprPattern Expr
+    -- | A pattern which assigns the cursor position to a variable and matches
+    -- the null string
+    | HeadPattern Lookup
+    -- | A pattern which matches the longest string containing only certain
+    -- characters
+    | SpanPattern [Char]
+    -- | A pattern which matches the longest string not containing certain
+    -- characters
+    | BreakPattern [Char]
+    -- | A pattern which matches one character of a list of characters
+    | AnyPattern [Char]
+    -- | A pattern which matches one character not in a list of characters
+    | NotAnyPattern [Char]
+    -- | A pattern which succeeds if the cursor is before the given column
+    -- measured from the start
+    | TabPattern Int
+    -- | A pattern which succeeds if the cursor is after the given column
+    -- measured from the end
+    | RTabPattern Int
+    -- | A pattern which succeeds if the cursor is at the given column measured
+    -- from the start
+    | PosPattern Int
+    -- | A pattern which succeeds if the cursor is at the given column measured
+    -- from the end
+    | RPosPattern Int
+    -- | A pattern which always fails
+    | FailPattern
+    -- | A pattern which succeeds the first time, but fails any time after
+    | FencePattern
+    -- | A pattern which aborts the scanner
+    | AbortPattern
+    | ArbPattern
+    | ArbNoPattern Pattern
+  deriving (Show, Eq, Ord)
+
+-- | A program error INCOMPLETE
+data ProgramError
+    = 
+    -- | The program ended by reaching the END statement
+      NormalTermination
+    | IllegalDataType
+    | ErrorInArithmeticOperation
+    | ErroneousArrayOrTableReference
+    | NullStringInIllegalContext
+    | UndefinedFunctionOrOperation
+    | ErroneousPrototype
+    | UnknownKeyword
+    | VariableNotPresentWhereRequired
+    | EntryPointOfFunctionNotLabel
+    | IllegalArgumentToPrimitiveFunction
+    | ReadingError
+    | IllegalIOUnit
+    | LimitOnDefinedDataTypesExceeded
+    | NegativeNumberInIllegalContext
+    | StringOverflow
+    | OverflowDuringPatternMatching
+    | ErrorInSnobol4System
+    | ReturnFromZeroLevel
+    | FailureDuringGotoEvaluation
+    | InsufficientStorageToContinue
+    | StackOverflow
+    | LimitOnStatementExecutionExceeded
+    | ObjectExceedsSizeLimit
+    | UndefinedOrErroneousGoto
+    | IncorrectNumberOfArguments
+    | LimitOnCompilationErrorsExceeded
+    | ErroneousEndStatement
+    | ExecutionOfStatementWithACompilationError
+  deriving Show
+
 
 -- | A node of the call stack
 data CallStackNode
@@ -68,6 +221,47 @@ data Function m
     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
     }
 
+type Snobol4Integer = Int
+type Snobol4String = String
+type Snobol4Real = Float
+
+newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum)
+newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
+ 
+newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
+newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data }
+
+newArray :: Snobol4Integer -> Snobol4Integer -> Data -> Snobol4Array
+newArray minIx maxIx v
+    = Snobol4Array 
+    $ A.array (minIx,maxIx) 
+    $ map (\x -> (x,v)) [minIx..maxIx]
+
+newArray' :: [(Snobol4Integer,Data)] -> Snobol4Array
+newArray' xs = Snobol4Array $ A.array (minIx,maxIx) xs
+  where
+    minIx = fst $ head xs
+    maxIx = fst $ last xs
+
+
+readArray :: Snobol4Integer -> Snobol4Array -> Maybe Data
+readArray ix (Snobol4Array arr)
+    | minIx <= ix && ix <= maxIx = Just $ arr A.! ix
+    | otherwise = Nothing
+  where
+    (minIx,maxIx) = A.bounds arr
+
+writeArray :: Snobol4Integer -> Data -> Snobol4Array -> Snobol4Array
+writeArray ix v (Snobol4Array arr) = Snobol4Array $ arr A.// [(ix,v)]
+
+emptyTable :: Snobol4Table
+emptyTable = Snobol4Table M.empty
+
+readTable :: Data -> Snobol4Table -> Maybe Data
+readTable k (Snobol4Table tbl) = M.lookup k tbl
+
+writeTable :: Data -> Data -> Snobol4Table -> Snobol4Table
+writeTable k v (Snobol4Table tbl) = Snobol4Table $ M.insert k v tbl
  
 -- | State of the interpreter
 data ProgramState m
@@ -85,6 +279,8 @@ data ProgramState m
     , functions :: Map String (Function m)
     -- | The call stack
     , callStack :: [CallStackNode]
+    , arrays :: Map ArrayKey Snobol4Array
+    , tables :: Map TableKey Snobol4Table
     }
 
 
@@ -214,6 +410,12 @@ getFunctions = getsProgramState functions
 getCallStack :: InterpreterShell m => Interpreter m [CallStackNode]
 getCallStack = getsProgramState callStack
 
+getArrays :: InterpreterShell m => Interpreter m (Map ArrayKey Snobol4Array)
+getArrays = getsProgramState arrays
+
+getTables :: InterpreterShell m => Interpreter m (Map TableKey Snobol4Table)
+getTables = getsProgramState tables
+
 
 -- | Set the variables known to the interpreter
 putVariables :: InterpreterShell m => Map String Data -> Interpreter m ()
@@ -235,6 +437,8 @@ putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
 putCallStack :: InterpreterShell m => [CallStackNode] -> Interpreter m ()
 putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
 
+putArrays arrs = modifyProgramState $ \st -> st { arrays = arrs }
+putTables tbls = modifyProgramState $ \st -> st { tables = tbls }
 
 -- | Apply a function to the variables known to the interpreter
 modifyVariables :: InterpreterShell m => (Map String Data -> Map String Data) -> Interpreter m ()
@@ -260,6 +464,11 @@ modifyProgramCounter f = modifyProgramState $
 modifyCallStack :: InterpreterShell m => ([CallStackNode] -> [CallStackNode]) -> Interpreter m ()
 modifyCallStack f = modifyProgramState $
     \st -> st { callStack = f $ callStack st }
+
+modifyArrays f = modifyProgramState $
+    \st -> st { arrays = f $ arrays st }
+modifyTables f = modifyProgramState $
+    \st -> st { tables = f $ tables st }
 
 -- | Apply a function to the head of the call stack
 modifyCallStackHead :: InterpreterShell m => (CallStackNode -> CallStackNode) -> Interpreter m ()
@@ -341,6 +550,57 @@ varWrite name val = do
 -- | Look up a function by name
 funcLookup :: InterpreterShell m => String -> Interpreter m (Maybe (Function m))
 funcLookup name = M.lookup name <$> getFunctions
+
+arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
+arraysNew minIx maxIx v = do
+    newKey <- (succ . fst . M.findMax) `liftM` getArrays
+    modifyArrays $ M.insert newKey $ newArray minIx maxIx v
+    return newKey
+
+arraysNew'' :: InterpreterShell m 
+           => [(Snobol4Integer,Snobol4Integer)]
+           -> Data
+           -> Interpreter m Data
+arraysNew'' [] val = return val
+arraysNew'' ((minIx,maxIx):ds) val = do
+    newKey <- (succ . fst . M.findMax) `liftM` getArrays
+    xs <- forM [minIx..maxIx] $ \ix -> do
+        v <- arraysNew'' ds val
+        return (ix,v)
+    modifyArrays $ M.insert newKey $ newArray' xs
+    return $ ArrayData newKey
+
+arraysLookup :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe Snobol4Array)
+arraysLookup k = M.lookup k <$> getArrays
+
+arraysUpdate :: InterpreterShell m => (Snobol4Array -> Snobol4Array) -> ArrayKey -> Interpreter m ()
+arraysUpdate f k = modifyArrays $ M.adjust f k
+
+arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> Interpreter m (Maybe Data)
+arraysRead ix k = arraysLookup k >>= \x -> return $ x >>= readArray ix
+
+arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> Interpreter m ()
+arraysWrite ix v = arraysUpdate $ writeArray ix v
+
+tablesNew :: InterpreterShell m => Interpreter m TableKey
+tablesNew = do
+    newKey <- (succ . fst . M.findMax) `liftM` getTables
+    modifyTables $ M.insert newKey $ emptyTable
+    return newKey
+
+tablesLookup :: InterpreterShell m => TableKey -> Interpreter m (Maybe Snobol4Table)
+tablesLookup k = M.lookup k <$> getTables
+
+tablesUpdate :: InterpreterShell m => (Snobol4Table -> Snobol4Table) -> TableKey -> Interpreter m ()
+tablesUpdate f k = modifyTables $ M.adjust f k
+
+tablesRead :: InterpreterShell m => Data -> TableKey -> Interpreter m (Maybe Data)
+tablesRead k1 k2 = tablesLookup k2 >>= \x -> return $ x >>= readTable k1
+
+tablesWrite :: InterpreterShell m => Data -> Data -> TableKey -> Interpreter m ()
+tablesWrite k v = tablesUpdate $ writeTable k v
+
+
 
 -- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
@@ -513,31 +773,57 @@ arr `arrayGet` ix
     inBounds = minB <= ix && ix < maxB
     (minB,maxB) = A.bounds arr 
     
+
 -- | Assign a value using a lookup
 assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
 assign (LookupId s) val = liftEval $ varWrite s val
 assign (LookupAggregate name args) val = do
-    let loop (ArrayData arr) [IntegerData i] = return $ ArrayData $ arr A.// [(i,val)]
-        loop (ArrayData arr) (IntegerData i:as) = case arr `arrayGet` i of
-            Just d -> do
-                d' <- loop d as
-                return $ ArrayData $ arr A.// [(i,d')]
-            Nothing -> liftEval $ programError ErroneousArrayOrTableReference
-        loop (ArrayData _) _ = liftEval $ programError ErroneousArrayOrTableReference
-        loop (TableData tab) [a] = return $ TableData $ M.insert a val tab
-        loop (TableData tab) (a:as) = case M.lookup a tab of
-            Just d -> do
-                d' <- loop d as
-                return $ TableData $ M.insert a d' tab
-            Nothing -> liftEval $ programError ErroneousArrayOrTableReference
-        loop (TableData _) _ = liftEval $ programError ErroneousArrayOrTableReference
-        loop _ _ = liftEval $ programError ErroneousArrayOrTableReference
+    let loop (ArrayData k) [IntegerData ix] = arraysWrite ix val k
+        loop (ArrayData k) (IntegerData ix:as) = do
+            readResult <- arraysRead ix k
+            case readResult of
+                Just d -> loop d as
+                Nothing -> programError ErroneousArrayOrTableReference
+        loop (ArrayData _) _ = programError ErroneousArrayOrTableReference
+        loop (TableData k) [a] = tablesWrite a val k
+        loop (TableData k) (a:as) = do
+            readResult <- tablesRead a k
+            case readResult of
+                Just d -> loop d as
+                Nothing -> programError ErroneousArrayOrTableReference
+        loop (TableData _) _ = programError ErroneousArrayOrTableReference
+        loop _ _ = programError ErroneousArrayOrTableReference
     base <- liftEval $ varLookup name
-    case base of
-        Just (_,baseVal) -> do
-            base' <- loop baseVal args
-            liftEval $ varWrite name base'
-        Nothing -> liftEval $ programError ErroneousArrayOrTableReference
+    liftEval $ case base of
+        Just (_,baseVal) -> loop baseVal args
+        Nothing -> programError ErroneousArrayOrTableReference
 assign Output val = toString val >>= lift . output
 assign Punch val = toString val >>= lift . punch
 assign _ _ = liftEval $ programError VariableNotPresentWhereRequired
+
+-- | Execute a lookup
+execLookup :: InterpreterShell m => Lookup -> Interpreter m (Maybe Data) 
+execLookup Input = (Just . StringData) <$> lift input 
+execLookup Output = (Just . StringData) <$> lift lastOutput 
+execLookup Punch = (Just . StringData) <$> lift lastPunch 
+execLookup (LookupLiteral x) = return $ Just x 
+execLookup (LookupId i) = varLookup' i
+execLookup (LookupAggregate name args) = do
+    base <- varLookup' name
+    case base of
+        Nothing -> return Nothing
+        Just val -> do
+            let loop (ArrayData k) ((IntegerData i):as) = do
+                    readResult <- arraysRead i k
+                    case readResult of
+                        Nothing -> return Nothing
+                        Just d -> loop d as
+                loop (ArrayData _) _ = return Nothing
+                loop (TableData k) (a:as) = do
+                    readResult <- tablesRead a k
+                    case readResult of
+                        Nothing -> return Nothing
+                        Just d -> loop d as
+                loop x [] = return $ Just x
+                loop _ _ = return Nothing
+            loop val args

@@ -137,69 +137,65 @@ table :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 table (a:_) = do
     i <- toInteger a
     if i >= 0
-        then return $ Just $ TableData M.empty
+        then Just . TableData <$> liftEval tablesNew
         else liftEval $ programError NegativeNumberInIllegalContext
-table _ = return $ Just $ TableData M.empty
-
--- | The dimension of an array
-data Dimension
-    = Range Int Int
-    | Count Int
-
--- | A list of dimensions
-type Dimensions = [Dimension]
+table _ = Just . TableData <$> liftEval tablesNew
 
 -- | Parser which matches a positive or negative number
-bound :: Monad m => ParsecT String u m Int
+bound :: Monad m => ParsecT String u m Snobol4Integer
 bound = do
     sign <- P.option "" $ P.string "-"
     digits <- P.many P.digit
     let str = sign ++ digits
-    case readMaybe str :: Maybe Int of
+    case readMaybe str :: Maybe Snobol4Integer of
         Just val -> return val
         Nothing -> P.unexpected str
 
 -- | Parser which matches two positive or negative numbers with a colon
 -- separating them
-rangeDimension :: Monad m => ParsecT String u m Dimension
+rangeDimension :: Monad m => ParsecT String u m (Snobol4Integer,Snobol4Integer)
 rangeDimension = do
     l <- bound
     _ <- P.char ':'
     r <- bound
-    return $ Range l r
+    return $ (l, r)
 
 -- | Parser which matches a positive number
-countDimension :: Monad m => ParsecT String u m Dimension
+countDimension :: Monad m => ParsecT String u m (Snobol4Integer,Snobol4Integer)
 countDimension = do
     str <- P.many P.digit
     case readMaybe str :: Maybe Int of
-        Just val -> return $ Count val
+        Just val -> return (0, val)
         Nothing -> P.unexpected str
 
 -- | Parser which matches either a range dimension or a count dimension
-dimension :: Monad m => ParsecT String u m Dimension
+dimension :: Monad m => ParsecT String u m (Snobol4Integer,Snobol4Integer)
 dimension = P.try rangeDimension <|> countDimension
 
 -- | Parser which matches a list of dimensions separated by commas
-dimensions :: Monad m => ParsecT String u m Dimensions
+dimensions :: Monad m => ParsecT String u m [(Snobol4Integer,Snobol4Integer)]
 dimensions = P.sepBy1 dimension (P.char ',')
 
+{-
 -- | Construct an array with the provided dimensions and initial value
-mkArray :: Dimensions -> Data -> Data
+mkArray :: Dimensions -> Data -> Interpreter m Data
 mkArray [] v = v
-mkArray (Range l r:ds) v = ArrayData $ A.array (l,r) $ map (\x -> (x,v')) [l..r]
-  where
-    v' = mkArray ds v
+mkArray (Range l r:ds) v = do
+    arraysNew l r 
+    subArrays <- mapM (\ix -> (ix,mkArray ds v)) [l .. r]
+    map 
+    
 mkArray (Count c:ds) v = mkArray (Range 0 c:ds) v
+-}
 
 -- | The array function, creates an array with the provided dimensions and initial value
 array :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 array [dimStr,item] = do
     str <- toString dimStr
     parseResult <- runParserT dimensions () "" str
-    return $ case parseResult of
-        Left _ -> Nothing
-        Right dims -> Just $ mkArray dims item
+    case parseResult of
+        Left _ -> return Nothing
+        Right dims -> Just <$> (liftEval $ arraysNew'' dims item)
 array [dimStr] = array [dimStr, StringData ""]
 array [] = liftEval $ programError NullStringInIllegalContext
 array _ = liftEval $ programError IncorrectNumberOfArguments

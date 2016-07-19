@@ -31,3 +31,5 @@ emptyState = ProgramState
     0 
     (M.fromList $ zip (map funcName (primitiveFunctions :: [Function m])) primitiveFunctions)
     []
+    M.empty
+    M.empty

@@ -20,24 +20,6 @@ import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner.Internal
 
-{-
--- | Invoke the scanner on a string with a pattern
-scanPattern :: InterpreterShell m
-            => String
-            -> Pattern
-            -> Evaluator m ScanResult
-scanPattern s pat = do
-    result <- runMaybeT 
-            $ flip runStateT (startState s) 
-            $ runScanner 
-            $ matchPat pat
-    case result of
-        Just (x, st) -> do
-            let ScannerState{assignments=as,startPos=a,endPos=b} = st
-            return $ Scan (StringData x) as a b
-        Nothing -> return NoScan
--}
-
 scanPattern :: InterpreterShell m
             => String 
             -> Pattern
