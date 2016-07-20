@@ -14,8 +14,6 @@ module Language.Snobol4.Parser.Internal where
 
 import Data.Maybe
 
-import Text.Read (readMaybe)
-
 import Control.Monad
 
 import Text.Parsec ( (<|>), ParsecT )
@@ -545,7 +543,7 @@ external_prototype = void $ identifier >> inParens item_list >> item
 -- | Parse a signed integer in a prototype
 signed_integer :: Monad m => ParsecT TokStream u m Int
 signed_integer = do
-    sign <- P.optional plus
+    _ <- P.optional plus
     (Located (IntLiteral i) _) <- integer
     return $ read i
 

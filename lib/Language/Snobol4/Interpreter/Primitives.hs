@@ -16,13 +16,6 @@ module Language.Snobol4.Interpreter.Primitives where
 
 import Prelude hiding ( span, break, any, toInteger )
 
-import Text.Read (readMaybe)
-
-import qualified Data.Map as M
-
-import qualified Data.Array as A
-import Data.String
-
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Internal.Types
@@ -115,12 +108,12 @@ any [] = any [StringData ""]
 
 -- | The array function, creates an array with the provided dimensions and initial value
 array :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-array [dimStr,item] = do
+array [dimStr,val] = do
     str <- toString dimStr
     parseResult <- parseT $ unmkString str
     case parseResult of
         Left _ -> return Nothing
-        Right (ArrayPrototype dims) -> Just <$> (liftEval $ arraysNew'' dims item)
+        Right (ArrayPrototype dims) -> Just <$> (liftEval $ arraysNew'' dims val)
 array [dimStr] = array [dimStr, StringData ""]
 array [] = liftEval $ programError NullStringInIllegalContext
 array _ = liftEval $ programError IncorrectNumberOfArguments

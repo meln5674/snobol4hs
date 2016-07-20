@@ -15,8 +15,6 @@ module Language.Snobol4.Interpreter.Internal.Types where
 
 import Prelude hiding (toInteger)
 
-import Text.Read hiding (lift, String, step, get)
-
 import Data.Map (Map)
 import qualified Data.Map as M
 

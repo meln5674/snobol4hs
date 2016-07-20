@@ -21,8 +21,6 @@ module Language.Snobol4.Interpreter.Evaluator
 
 import Prelude hiding (toInteger)
 
-import qualified Data.Map as M
-
 import Control.Monad.Trans
 
 import Language.Snobol4.Syntax.AST

@@ -25,9 +25,6 @@ tried.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Scanner.Internal where
 
-import Data.List
-
-import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
@@ -264,9 +261,9 @@ match (RPosPattern col) next = \s -> do
     if pos == col
         then next s
         else backtrack
-match FailPattern next = \s -> backtrack
+match FailPattern _ = const backtrack
 match FencePattern next = \s -> catchScan (next s) abort
-match AbortPattern next = \s -> abort
+match AbortPattern _ = const abort
 match ArbPattern next = \s1 -> catchScan
     (consumeN 1 >>= \s2 -> match ArbPattern next (s1 <> s2))
     (next s1)
