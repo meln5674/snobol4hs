@@ -23,6 +23,7 @@ import Prelude hiding (toInteger)
 
 import Control.Monad.Trans
 
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
@@ -44,14 +45,14 @@ arithmetic f_int f_real a b = do
 
 -- | Evaluate a pattern operation
 pattern :: InterpreterShell m 
-        => (Pattern -> Pattern -> Pattern) 
+        => (Pattern -> Pattern -> Pattern)
         -> Data 
         -> Data 
         -> Evaluator m Data
 pattern f a b = do
     a' <- toPattern a
     b' <- toPattern b
-    return $ PatternData $ f a' b'
+    return $ TempPatternData $ f a' b'
 
 -- | Evaluate a binary operation on data
 evalOp :: InterpreterShell m 
@@ -65,7 +66,7 @@ evalOp Star = arithmetic (*) (*)
 evalOp Slash = arithmetic div (/)
 evalOp Bang = arithmetic (^) (**)
 evalOp DoubleStar = evalOp Bang
-evalOp Pipe = pattern AlternativePattern 
+evalOp Pipe = pattern AlternativePattern
 evalOp Blank = pattern ConcatPattern
 evalOp _ = \_ _ -> liftEval $ programError ErrorInSnobol4System
 
@@ -115,7 +116,7 @@ evalExpr (PrefixExpr Minus expr) = do
         (IntegerData i) -> return $ IntegerData $ -i
         (RealData r) -> return $ RealData $ -r
         _ -> liftEval $ programError IllegalDataType
-evalExpr (PrefixExpr Star expr) = return $ PatternData $ UnevaluatedExprPattern expr
+evalExpr (PrefixExpr Star expr) = return $ TempPatternData $ UnevaluatedExprPattern expr
 evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId $ mkString name
 evalExpr (IdExpr "INPUT") = StringData <$> (lift $ mkString <$> input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ mkString <$> lastOutput)

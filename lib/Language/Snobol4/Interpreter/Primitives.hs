@@ -18,6 +18,7 @@ import Prelude hiding ( span, break, any, toInteger )
 
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import Language.Snobol4.Interpreter.Types
+import Language.Snobol4.Interpreter.Internal
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Primitives.Prototypes
 
@@ -27,12 +28,15 @@ import Language.Snobol4.Parser
 primitiveVars :: [(Snobol4String, Data)]
 primitiveVars =
     [ ("NULL",  StringData nullString)
-    , ("REM",   PatternData $ RTabPattern 0)
-    , ("FAIL",  PatternData FailPattern)
-    , ("FENCE", PatternData FencePattern)
-    , ("ABORT", PatternData AbortPattern)
-    , ("ARB", PatternData ArbPattern)
+    , ("REM",   TempPatternData $ RTabPattern 0)
+    , ("FAIL",  TempPatternData FailPattern)
+    , ("FENCE", TempPatternData FencePattern)
+    , ("ABORT", TempPatternData AbortPattern)
+    , ("ARB", TempPatternData ArbPattern)
+    , ("BAL", TempPatternData BalPattern)
+    , ("SUCCEED", TempPatternData SucceedPattern)
     ]
+
 
 -- | The names and actions of the primitive functions
 primitiveFunctions :: InterpreterShell m => [Function m]
@@ -93,18 +97,39 @@ primitiveFunctions =
     , PrimitiveFunction "VALUE"     value
     ]
 
-
+-- | Generalization for lt, le, eq, ne, ge, and gt
+numericalPredicate :: (Num a, InterpreterShell m) 
+                  => (a -> a -> Bool)
+                  -> [Data] 
+                  -> Evaluator m (Maybe Data)
+numericalPreciate pred [a,b] = do
+    (a',b') <- raiseArgs a b
+    (a'',b'') <- case a' of
+        StringData a -> (,) <$> (IntegerData <$> toInteger a') <*> (IntegerData <$> toInteger b')
+        _ -> return (a',b')
+    return $ if a'' < b''
+        then Just $ StringData ""
+        else Nothing
+numericalPredicate pred [a] = numericalPredicate pred [a,IntegerData 0]
+numericalPredicate _ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The any function, returns a pattern which matches any one of the provided
 -- characters
 any :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 any (a:_) = do
     cs <- toString a
-    case cs of
-        "" -> liftEval $ programError NullStringInIllegalContext
-        _ -> return $ Just $ PatternData $ AnyPattern cs
+    liftEval $ case cs of
+        "" -> programError NullStringInIllegalContext
+        _ -> return $ Just $ TempPatternData $ AnyPattern cs
 any [] = any [StringData ""]
 
+
+-- | The apply function, calls a function by name with arguments
+apply :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
+apply (nameArg:args) = do
+    name <- toString nameArg
+    liftEval $ call name args
+apply _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The array function, creates an array with the provided dimensions and initial value
 array :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -118,16 +143,12 @@ array [dimStr] = array [dimStr, StringData ""]
 array [] = liftEval $ programError NullStringInIllegalContext
 array _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
-apply :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-apply = const $ liftEval $ programError ErrorInSnobol4System
-
 -- | The arbno function, returns a pattern which matches an arbitrary number of
 -- repetitions of the provided pattern
 arbno :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 arbno (a:_) = do
     p <- toPattern a
-    return $ Just $ PatternData $ ArbNoPattern p
+    return $ Just $ TempPatternData $ ArbNoPattern p
 arbno [] = arbno [StringData ""]
 
 -- | TODO
@@ -143,9 +164,9 @@ backspace = const $ liftEval $ programError ErrorInSnobol4System
 break :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 break (a:_) = do
     s <- toString a
-    case s of
-        "" -> liftEval $ programError NullStringInIllegalContext
-        _ -> return $ Just $ PatternData $ BreakPattern s
+    liftEval $ case s of
+        "" -> programError NullStringInIllegalContext
+        _ ->  return $ Just $ TempPatternData $ BreakPattern s
 break [] = break [StringData ""]
 
 -- | TODO
@@ -204,9 +225,9 @@ dupl = const $ liftEval $ programError ErrorInSnobol4System
 endfile :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 endfile = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | Equality predicate
 eq :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-eq = const $ liftEval $ programError ErrorInSnobol4System
+eq = numericalPredicate (==)
 
 -- | TODO
 eval :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -216,13 +237,13 @@ eval = const $ liftEval $ programError ErrorInSnobol4System
 field :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 field = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | Greater than or equal predicate
 ge :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-ge = const $ liftEval $ programError ErrorInSnobol4System
+ge = numericalPredicate (>=)
 
--- | TODO
+-- | Greater than predicate
 gt :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-gt = const $ liftEval $ programError ErrorInSnobol4System
+gt = numericalPredicate (>)
 
 -- | TODO
 ident :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -232,26 +253,32 @@ ident = const $ liftEval $ programError ErrorInSnobol4System
 input :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 input = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | Integer predicate
 integer :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-integer = const $ liftEval $ programError ErrorInSnobol4System
+integer [a] = do
+    result <- toInteger a
+    return $ Just $ StringData ""
+integer [] = return $ Just $ StringData ""
 
 -- | TODO
 item :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-item = const $ liftEval $ programError ErrorInSnobol4System
+item (name:keys) = do
+    name' <- toString name
+    liftEval $ execLookup $ LookupAggregate name' keys
+item _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | Less than or equal predicate
 le :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-le = const $ liftEval $ programError ErrorInSnobol4System
+le = numericalPredicate (<=)
 
 -- | The length function, returns a pattern with matches the provided number
 -- of characters
 len :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 len (a:_) = do
     i <- toInteger a
-    if i >= 0
-        then return $ Just $ PatternData $ LengthPattern i
-        else liftEval $ programError NegativeNumberInIllegalContext
+    liftEval $ if i >= 0
+        then return $ Just $ TempPatternData $ LengthPattern i
+        else programError NegativeNumberInIllegalContext
 len [] = len [StringData ""]
 
 -- | TODO
@@ -262,22 +289,22 @@ lgt = const $ liftEval $ programError ErrorInSnobol4System
 local :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 local = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | Less than predicate
 lt :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-lt = const $ liftEval $ programError ErrorInSnobol4System
+lt = numericalPredicate (<)
 
--- | TODO
+-- | Inequality predicate
 ne :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-ne = const $ liftEval $ programError ErrorInSnobol4System
+ne = numericalPredicate (/=)
 
 -- | The notany function, returns a pattern which matches one character not
 -- provided
 notany :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 notany (a:_) = do
     cs <- toString a
-    case cs of
-        "" -> liftEval $ programError NullStringInIllegalContext
-        _ -> return $ Just $ PatternData $ AnyPattern cs
+    liftEval $ case cs of
+        "" -> programError NullStringInIllegalContext
+        _ -> return $ Just $ TempPatternData $ NotAnyPattern cs
 notany [] = notany [StringData ""]
 
 -- | TODO
@@ -290,7 +317,10 @@ output = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO 
 pos :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-pos = const $ liftEval $ programError ErrorInSnobol4System
+pos [a] = do
+    result <- toInteger a
+    return $ Just $ TempPatternData $ PosPattern result
+pos _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
 prototype :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -310,30 +340,34 @@ rewind = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO 
 rpos :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-rpos = const $ liftEval $ programError ErrorInSnobol4System
+rpos [a] = do
+    result <- toInteger a
+    return $ Just $ TempPatternData $ RPosPattern result
+rpos _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The rtab function, returns a pattern which matches the null string if the
 -- cursor is after the provided column, measured from the right
 rtab :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 rtab (a:_) = do
     i <- toInteger a
-    if i >= 0
-        then return $ Just $ PatternData $ RTabPattern i
-        else liftEval $ programError NegativeNumberInIllegalContext
+    liftEval $ if i >= 0
+        then return $ Just $ TempPatternData $ RTabPattern i
+        else programError NegativeNumberInIllegalContext
 rtab [] = rtab [StringData ""]
 
 -- | TODO 
 size :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-size = const $ liftEval $ programError ErrorInSnobol4System
+size [arg] = Just . IntegerData . snobol4Length <$> toString arg
+size _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The span function, returns a pattern which matches the longest string
 -- containing only the provided characters
 span :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 span (a:_) = do
     s <- toString a
-    case s of
-        "" -> liftEval $ programError NullStringInIllegalContext
-        _ -> return $ Just $ PatternData $ SpanPattern s
+    liftEval $ case s of
+        "" -> programError NullStringInIllegalContext
+        _ -> return $ Just $ TempPatternData $ SpanPattern s
 span [] = span [StringData ""]
 
 -- | TODO 
@@ -345,9 +379,9 @@ stoptr = const $ liftEval $ programError ErrorInSnobol4System
 tab :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 tab (a:_) = do
     i <- toInteger a
-    if i >= 0
-        then return $ Just $ PatternData $ TabPattern i
-        else liftEval $ programError NegativeNumberInIllegalContext
+    liftEval $ if i >= 0
+        then return $ Just $ TempPatternData $ TabPattern i
+        else programError NegativeNumberInIllegalContext
 tab [] = tab [StringData ""]
 
 -- | The table function, returns an empty table

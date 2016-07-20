@@ -81,8 +81,10 @@ data Lookup
 data Data
     -- | A string
     = StringData Snobol4String
+    -- | A pattern reference
+    | PatternData PatternKey
     -- | A pattern
-    | PatternData Pattern
+    | TempPatternData Pattern
     -- | An integer
     | IntegerData Snobol4Integer
     -- | A real number
@@ -159,6 +161,10 @@ data Pattern
     | ArbPattern
     -- | A pattern which matches any number of repetitions of another pattern
     | ArbNoPattern Pattern
+    -- | A pattern wihch maches any nonnull string with balanced parenthesis
+    | BalPattern
+    -- | A pattern which matches the null string and prevents backtracking
+    | SucceedPattern
   deriving (Show, Eq, Ord)
 
 -- | Type of identifiers
@@ -169,6 +175,9 @@ newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum)
 
 -- | Key for passing tables by reference
 newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
+ 
+-- | Key for passing patterns by reference
+newtype PatternKey = PatternKey Int deriving (Eq,Ord,Enum)
  
 -- | Underlying type for arrays
 newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }

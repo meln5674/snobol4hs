@@ -90,6 +90,26 @@ data ProgramError
     | ExecutionOfStatementWithACompilationError
   deriving Show
 
+newtype RefCounted t = RefCounted (t, Int)
+
+newRef :: t -> RefCounted t
+newRef x = RefCounted (x,0)
+
+incRefCount :: RefCounted t -> RefCounted t
+incRefCount (RefCounted (x,i)) = RefCounted (x,i+1)
+
+decRefCount :: RefCounted t -> Maybe (RefCounted t)
+decRefCount (RefCounted (x,0)) = Nothing
+decRefCount (RefCounted (x,i)) = Just $ RefCounted (x,i-1)
+
+getRefItem :: RefCounted t -> t
+getRefItem (RefCounted (x,_)) = x
+
+getRefCount :: RefCounted t -> Int
+getRefCount (RefCounted (_,i)) = i
+
+instance Functor RefCounted where
+    fmap f (RefCounted (x,i)) = RefCounted (f x,i)
 
 -- | A node of the call stack
 data CallStackNode
@@ -162,25 +182,37 @@ readTable k (Snobol4Table tbl) = M.lookup k tbl
 -- | Set the value of a table
 writeTable :: Data -> Data -> Snobol4Table -> Snobol4Table
 writeTable k v (Snobol4Table tbl) = Snobol4Table $ M.insert k v tbl
+
+type Variables = Map Snobol4String Data
+type Statements = Vector Stmt
+type Labels = Map Snobol4String Address
+type Functions m = Map Snobol4String (Function m)
+type Arrays = Map ArrayKey (RefCounted Snobol4Array)
+type Tables = Map TableKey (RefCounted Snobol4Table)
+type Patterns = Map PatternKey (RefCounted Pattern)
  
 -- | State of the interpreter
 data ProgramState m
     = ProgramState
     { 
     -- | A map of names to variables bound
-      variables :: Map Snobol4String Data 
+      variables :: Variables
     -- | The statements in the current program
-    , statements :: Vector Stmt
+    , statements :: Statements
     -- | A map of label names to the index of their statement
-    , labels :: Map Snobol4String Address
+    , labels :: Labels
     -- | The index of the current statement
     , programCounter :: Address
     -- | The functions known to the interpreter
-    , functions :: Map Snobol4String (Function m)
+    , functions :: Functions m
     -- | The call stack
     , callStack :: [CallStackNode]
-    , arrays :: Map ArrayKey Snobol4Array
-    , tables :: Map TableKey Snobol4Table
+    -- | The arrays known to the interpreter
+    , arrays :: Arrays
+    -- | The tables known to the interpreter
+    , tables :: Tables
+    -- | The patterns known to the interpreter
+    , patterns :: Patterns
     }
 
 
@@ -287,15 +319,15 @@ modifyProgramState :: InterpreterShell m
 modifyProgramState = Interpreter . lift . modify
 
 -- | Get the variables known to the interpreter
-getVariables :: InterpreterShell m => Interpreter m (Map Snobol4String Data)
+getVariables :: InterpreterShell m => Interpreter m Variables
 getVariables = getsProgramState variables
 
 -- | Get the loaded program
-getStatements :: InterpreterShell m => Interpreter m (Vector Stmt)
+getStatements :: InterpreterShell m => Interpreter m Statements
 getStatements = getsProgramState statements
 
 -- | Get the labels known to the interpreter
-getLabels :: InterpreterShell m => Interpreter m (Map Snobol4String Address)
+getLabels :: InterpreterShell m => Interpreter m Labels
 getLabels = getsProgramState labels
 
 -- | Get the program counter from the interpreter
@@ -303,7 +335,7 @@ getProgramCounter :: InterpreterShell m => Interpreter m Address
 getProgramCounter = getsProgramState programCounter
 
 -- | Get the functions known to the interpreter
-getFunctions :: InterpreterShell m => Interpreter m (Map Snobol4String (Function m))
+getFunctions :: InterpreterShell m => Interpreter m (Functions m)
 getFunctions = getsProgramState functions
 
 -- | Get the call stack
@@ -311,59 +343,64 @@ getCallStack :: InterpreterShell m => Interpreter m [CallStackNode]
 getCallStack = getsProgramState callStack
 
 -- | Get the arrays known to the interpreter
-getArrays :: InterpreterShell m => Interpreter m (Map ArrayKey Snobol4Array)
+getArrays :: InterpreterShell m => Interpreter m Arrays
 getArrays = getsProgramState arrays
 
 -- | Get the tables known to the interpreter
-getTables :: InterpreterShell m => Interpreter m (Map TableKey Snobol4Table)
+getTables :: InterpreterShell m => Interpreter m Tables
 getTables = getsProgramState tables
 
-
+getPatterns :: InterpreterShell m => Interpreter m Patterns
+getPatterns = getsProgramState patterns
 
 
 -- | Set the variables known to the interpreter
-putVariables :: InterpreterShell m => Map Snobol4String Data -> Interpreter m ()
+putVariables :: InterpreterShell m => Variables -> Interpreter m ()
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
 
 -- | Set the loaded program
-putStatements :: InterpreterShell m => Vector Stmt -> Interpreter m ()
+putStatements :: InterpreterShell m => Statements -> Interpreter m ()
 putStatements stmts = modifyProgramState $ \st -> st { statements = stmts }
 
 -- | Set the labels known to the interpreter
-putLabels :: InterpreterShell m => Map Snobol4String Address -> Interpreter m ()
+putLabels :: InterpreterShell m => Labels -> Interpreter m ()
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
 
 -- | Set the program counter
 putProgramCounter :: InterpreterShell m => Address -> Interpreter m ()
 putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
 
+putFunctions :: InterpreterShell m => Functions m -> Interpreter m ()
+putFunctions funcs = modifyProgramState $ \st -> st { functions = funcs }
+
 -- | Set the call stack
 putCallStack :: InterpreterShell m => [CallStackNode] -> Interpreter m ()
 putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
 
 -- | Set the arrays known to the interpreter
-putArrays :: InterpreterShell m => Map ArrayKey Snobol4Array -> Interpreter m ()
+putArrays :: InterpreterShell m => Arrays -> Interpreter m ()
 putArrays arrs = modifyProgramState $ \st -> st { arrays = arrs }
 
 -- | Set the tables known to the interpreter
-putTables :: InterpreterShell m => Map TableKey Snobol4Table -> Interpreter m ()
+putTables :: InterpreterShell m => Tables -> Interpreter m ()
 putTables tbls = modifyProgramState $ \st -> st { tables = tbls }
 
-
+putPatterns :: InterpreterShell m => Patterns -> Interpreter m ()
+putPatterns pats = modifyProgramState $ \st -> st { patterns = pats }
 
 -- | Apply a function to the variables known to the interpreter
-modifyVariables :: InterpreterShell m => (Map Snobol4String Data -> Map Snobol4String Data) -> Interpreter m ()
+modifyVariables :: InterpreterShell m => (Variables -> Variables) -> Interpreter m ()
 modifyVariables f = modifyProgramState $
         \st -> st { variables = f $ variables st }
 
 -- | Apply a function to the loaded program
-modifyStatements :: InterpreterShell m => (Vector Stmt -> Vector Stmt) -> Interpreter m ()
+modifyStatements :: InterpreterShell m => (Statements -> Statements) -> Interpreter m ()
 modifyStatements f = modifyProgramState $
     \st -> st { statements = f $ statements st }
 
 -- | Apply a function to the labels known to the interpreter
 modifyLabels :: InterpreterShell m 
-             => (Map Snobol4String Address -> Map Snobol4String Address)
+             => (Labels -> Labels)
              -> Interpreter m ()
 modifyLabels f = modifyProgramState $
     \st -> st { labels = f $ labels st }
@@ -380,17 +417,23 @@ modifyCallStack f = modifyProgramState $
 
 -- | Apply a function to the arrays known to the interpreter
 modifyArrays :: InterpreterShell m 
-             => (Map ArrayKey Snobol4Array -> Map ArrayKey Snobol4Array)
+             => (Arrays -> Arrays)
              -> Interpreter m ()
 modifyArrays f = modifyProgramState $
     \st -> st { arrays = f $ arrays st }
 
 -- | Apply a function to the tables known to the interpreter
 modifyTables :: InterpreterShell m
-             => (Map TableKey Snobol4Table -> Map TableKey Snobol4Table)
+             => (Tables -> Tables)
              -> Interpreter m ()
 modifyTables f = modifyProgramState $
     \st -> st { tables = f $ tables st }
+
+modifyPatterns :: InterpreterShell m
+               => (Patterns -> Patterns)
+               -> Interpreter m ()
+modifyPatterns f = modifyProgramState $
+    \st -> st { patterns = f $ patterns st }
 
 -- | Apply a function to the head of the call stack
 modifyCallStackHead :: InterpreterShell m => (CallStackNode -> CallStackNode) -> Interpreter m ()
@@ -412,7 +455,9 @@ popCallStack = do
 fetch :: InterpreterShell m => Interpreter m Stmt
 fetch = (V.!) <$> getStatements <*> (getInteger . getAddress <$> getProgramCounter)
 
-
+-- | Delete a variable
+clearVar :: InterpreterShell m => Snobol4String -> Interpreter m ()
+clearVar = modifyVariables . M.delete 
 
 -- | Find the index of the statement with a label
 labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Address)
@@ -461,15 +506,30 @@ globalWrite name = modifyVariables . M.insert name
 localWrite :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
 localWrite name = modifyVariables . M.insert name
 
+incRef :: InterpreterShell m => Data -> Interpreter m ()
+incRef (PatternData k) = patternsIncRef k
+incRef (ArrayData k) = arraysIncRef k
+incRef (TableData k) = tablesIncRef k
+
+decRef :: InterpreterShell m => Data -> Interpreter m ()
+decRef (PatternData k) = patternsDecRef k
+decRef (ArrayData k) = arraysDecRef k
+decRef (TableData k) = tablesDecRef k
+decRef _ = return ()
+
 -- | Write the value of a variable, first checking if there are any locals with
 -- that name, then writing as a global if there isn't
 varWrite :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
 varWrite name val = do
+    val' <- case val of
+        (TempPatternData p) -> PatternData <$> patternsNew p
+        x -> return x
     result <- varLookup name
     case result of
-        Just (LocalVar,_) -> localWrite name val
-        Just (GlobalVar,_) -> globalWrite name val
-        Nothing -> globalWrite name val
+        Just (LocalVar,old) -> decRef old >> localWrite name val'
+        Just (GlobalVar,old) -> decRef old >> globalWrite name val'
+        Nothing -> globalWrite name val'
+    incRef val'
 
 -- | Look up a function by name
 funcLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe (Function m))
@@ -479,7 +539,7 @@ funcLookup name = M.lookup name <$> getFunctions
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
 arraysNew minIx maxIx v = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
-    modifyArrays $ M.insert newKey $ newArray minIx maxIx v
+    modifyArrays $ M.insert newKey $ newRef $ newArray minIx maxIx v
     return newKey
 
 -- | Allocate a new array with the provided dimensions and initial value
@@ -493,16 +553,16 @@ arraysNew'' ((minIx,maxIx):ds) val = do
     xs <- forM [minIx..maxIx] $ \ix -> do
         v <- arraysNew'' ds val
         return (ix,v)
-    modifyArrays $ M.insert newKey $ newArray' xs
+    modifyArrays $ M.insert newKey $ newRef $ newArray' xs
     return $ ArrayData newKey
 
 -- | Lookup an array
 arraysLookup :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe Snobol4Array)
-arraysLookup k = M.lookup k <$> getArrays
+arraysLookup k = fmap getRefItem <$> M.lookup k <$> getArrays
 
 -- | Apply a function to an array
 arraysUpdate :: InterpreterShell m => (Snobol4Array -> Snobol4Array) -> ArrayKey -> Interpreter m ()
-arraysUpdate f k = modifyArrays $ M.adjust f k
+arraysUpdate f k = modifyArrays $ M.adjust (fmap f) k
 
 -- | Get the value of an array with the given index
 arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> Interpreter m (Maybe Data)
@@ -512,20 +572,26 @@ arraysRead ix k = arraysLookup k >>= \x -> return $ x >>= readArray ix
 arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> Interpreter m ()
 arraysWrite ix v = arraysUpdate $ writeArray ix v
 
+arraysIncRef :: InterpreterShell m => ArrayKey -> Interpreter m ()
+arraysIncRef k = modifyArrays $ M.adjust incRefCount k
+
+arraysDecRef :: InterpreterShell m => ArrayKey -> Interpreter m ()
+arraysDecRef k = modifyArrays $ M.update decRefCount k
+
 -- | Allocate a new table
 tablesNew :: InterpreterShell m => Interpreter m TableKey
 tablesNew = do
     newKey <- (succ . fst . M.findMax) `liftM` getTables
-    modifyTables $ M.insert newKey emptyTable
+    modifyTables $ M.insert newKey $ newRef emptyTable
     return newKey
 
 -- | Lookup a table
 tablesLookup :: InterpreterShell m => TableKey -> Interpreter m (Maybe Snobol4Table)
-tablesLookup k = M.lookup k <$> getTables
+tablesLookup k = fmap getRefItem <$> M.lookup k <$> getTables
 
 -- | Apply a function to a table
 tablesUpdate :: InterpreterShell m => (Snobol4Table -> Snobol4Table) -> TableKey -> Interpreter m ()
-tablesUpdate f k = modifyTables $ M.adjust f k
+tablesUpdate f k = modifyTables $ M.adjust (fmap f) k
 
 -- | Get the value of a table with the given key
 tablesRead :: InterpreterShell m => Data -> TableKey -> Interpreter m (Maybe Data)
@@ -535,7 +601,30 @@ tablesRead k1 k2 = tablesLookup k2 >>= \x -> return $ x >>= readTable k1
 tablesWrite :: InterpreterShell m => Data -> Data -> TableKey -> Interpreter m ()
 tablesWrite k v = tablesUpdate $ writeTable k v
 
+tablesIncRef :: InterpreterShell m => TableKey -> Interpreter m ()
+tablesIncRef k = modifyTables $ M.adjust incRefCount k
 
+tablesDecRef :: InterpreterShell m => TableKey -> Interpreter m ()
+tablesDecRef k = modifyTables $ M.update decRefCount k
+
+
+patternsNew :: InterpreterShell m => Pattern -> Interpreter m PatternKey
+patternsNew pat = do
+    newKey <- (succ . fst . M.findMax) `liftM` getPatterns
+    modifyPatterns $ M.insert newKey $ newRef pat
+    return newKey
+
+patternsLookup :: InterpreterShell m => PatternKey -> Interpreter m (Maybe Pattern)
+patternsLookup k = fmap getRefItem <$> M.lookup k <$> getPatterns
+
+patternsUpdate :: InterpreterShell m => (Pattern -> Pattern) -> PatternKey -> Interpreter m ()
+patternsUpdate f k = modifyPatterns $ M.adjust (fmap f) k
+
+patternsIncRef :: InterpreterShell m => PatternKey -> Interpreter m ()
+patternsIncRef k = modifyPatterns $ M.adjust incRefCount k
+
+patternsDecRef :: InterpreterShell m => PatternKey -> Interpreter m ()
+patternsDecRef k = modifyPatterns $ M.update decRefCount k
 
 -- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
@@ -551,14 +640,20 @@ pushFuncNode f = do
 
 
 -- | Check if a value can be turned into a string
-isStringable :: Data -> Bool
-isStringable (StringData _) = True
-isStringable (IntegerData _) = True
-isStringable (RealData _) = True
-isStringable (PatternData (LiteralPattern _)) = True
-isStringable (PatternData (ConcatPattern a b)) 
-    = isStringable (PatternData a) && isStringable (PatternData b)
-isStringable _ = False
+isStringable :: InterpreterShell m => Data -> Interpreter m Bool
+isStringable (StringData _) = return True
+isStringable (IntegerData _) = return True
+isStringable (RealData _) = return True
+isStringable (PatternData k) = do
+    result <- patternsLookup k
+    case result of
+        Nothing -> programError ErrorInSnobol4System
+        Just pat -> do
+            let pred (LiteralPattern _) = True
+                pred (ConcatPattern a b) = pred a && pred b
+                pred _ = False
+            return $ pred pat
+isStringable _ = return False
 
 -- | Check if data is a string
 isString :: Data -> Bool
@@ -581,18 +676,29 @@ toString :: InterpreterShell m => Data -> Evaluator m Snobol4String
 toString (StringData s) = return s
 toString (IntegerData i) = return $ mkString i
 toString (RealData r) = return $ mkString r
-toString (PatternData (LiteralPattern s)) = return s
-toString (PatternData (ConcatPattern a b)) = do
-    a' <- toString $ PatternData a
-    b' <- toString $ PatternData b
-    return $ a' <> b'
+toString (PatternData k) = liftEval $ do
+    result <- patternsLookup k
+    case result of
+        Nothing -> programError ErrorInSnobol4System
+        Just pat -> do
+            let conv (LiteralPattern s) = return $ s
+                conv (ConcatPattern a b) = (<>) <$> conv a <*> conv b
+                conv _ = programError IllegalDataType
+            conv pat
 toString _ = liftEval $ programError IllegalDataType
 
 -- | Convert data to a pattern
 -- Throws a ProgramError if this is not valid
 toPattern :: InterpreterShell m => Data -> Evaluator m Pattern
-toPattern (PatternData p) = return p
+toPattern (PatternData k) = liftEval $ do
+    result <- patternsLookup k
+    case result of
+        Nothing -> programError ErrorInSnobol4System
+        Just pat -> return pat
+toPattern (TempPatternData p) = return p
 toPattern x = LiteralPattern <$> toString x
+
+
 
 -- | Convert data to an integer
 -- Fails the evaluation if this can be turned into a string, but not into an 
@@ -602,9 +708,11 @@ toInteger :: InterpreterShell m => Data -> Evaluator m Snobol4Integer
 toInteger (IntegerData i) = return i
 toInteger x = do
     s <- toString x
-    case snobol4Read s of
-        Just i -> return i
-        Nothing -> failEvaluation
+    if s == nullString
+        then return 0
+        else case snobol4Read s of
+            Just i -> return i
+            Nothing -> failEvaluation
 
 -- | Convert data to a real
 -- Fails the evaluation if this can be turned into a string, but not into an 
@@ -743,3 +851,16 @@ execLookup (LookupAggregate name args) = do
                 loop x [] = return $ Just x
                 loop _ _ = return Nothing
             loop val args
+
+wipeVariables :: InterpreterShell m => Interpreter m ()
+wipeVariables = putVariables $ M.empty
+
+{-
+allocPattern :: InterpreterShell m => Pattern -> Interpreter m PatternKey
+allocPattern = patternsNew
+-}
+
+{-
+freePattern :: InterpreterShell m => PatternKey -> Interpreter m ()
+freePattern k = do
+-}

@@ -42,7 +42,6 @@ module Language.Snobol4.Interpreter.Internal
     , module Language.Snobol4.Interpreter.Internal.Types
     , module Language.Snobol4.Interpreter.Scanner
     , module Language.Snobol4.Interpreter.Evaluator
-    , module Language.Snobol4.Interpreter.State
     ) where
 
 import Prelude hiding ( toInteger, lookup )
@@ -54,13 +53,16 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
+import Language.Snobol4.Interpreter.Data
+import {-# SOURCE #-} Language.Snobol4.Interpreter.State
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Types
 import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner
-import Language.Snobol4.Interpreter.State
+--import Language.Snobol4.Interpreter.State
+
 
 -- | Call a function by name with arguments
 call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
@@ -209,4 +211,5 @@ interpret :: InterpreterShell m
           -> m (Either ProgramError a)
 interpret st m = flip evalStateT st
         $ runExceptT 
-        $ runInterpreter m
+        $ runInterpreter
+        $ addPrimitives >> m

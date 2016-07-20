@@ -14,7 +14,7 @@ provides functions for running the interpreter inside of another monad.
 Once an interpreter action is ready to be executed, the 'shell' method of
 'InterpreterShellRun' can be used to do so.
 
-See `Language.Snobol4.Interpreter.Console` for an example.
+See "Language.Snobol4.Interpreter.Shell.Console" for an example.
 -}
 
 {-# LANGUAGE MultiParamTypeClasses #-}
