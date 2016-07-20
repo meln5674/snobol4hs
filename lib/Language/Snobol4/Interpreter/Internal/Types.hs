@@ -564,8 +564,8 @@ isPatternable x = isStringable x
 -- Throws a ProgramError if this is not valid
 toString :: InterpreterShell m => Data -> Evaluator m Snobol4String
 toString (StringData s) = return s
-toString (IntegerData i) = return $ snobol4Show i
-toString (RealData r) = return $ snobol4Show r
+toString (IntegerData i) = return $ mkString i
+toString (RealData r) = return $ mkString r
 toString (PatternData (LiteralPattern s)) = return s
 toString (PatternData (ConcatPattern a b)) = do
     a' <- toString $ PatternData a
@@ -704,9 +704,9 @@ assign _ _ = liftEval $ programError VariableNotPresentWhereRequired
 
 -- | Execute a lookup
 execLookup :: InterpreterShell m => Lookup -> Interpreter m (Maybe Data) 
-execLookup Input = (Just . StringData . snobol4Show) <$> lift input 
-execLookup Output = (Just . StringData . snobol4Show) <$> lift lastOutput 
-execLookup Punch = (Just . StringData . snobol4Show) <$> lift lastPunch 
+execLookup Input = (Just . StringData . mkString) <$> lift input 
+execLookup Output = (Just . StringData . mkString) <$> lift lastOutput 
+execLookup Punch = (Just . StringData . mkString) <$> lift lastPunch 
 execLookup (LookupLiteral x) = return $ Just x 
 execLookup (LookupId i) = varLookup' i
 execLookup (LookupAggregate name args) = do

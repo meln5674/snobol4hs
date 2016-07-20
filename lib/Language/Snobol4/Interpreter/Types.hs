@@ -18,7 +18,6 @@ module Language.Snobol4.Interpreter.Types
     , Snobol4Integer
     , Snobol4Real
     , Snobol4Read (..)
-    , Snobol4Show (..)
     , Snobol4IntegerClass (..)
     , Snobol4RealClass (..)
     , Snobol4StringClass (..)

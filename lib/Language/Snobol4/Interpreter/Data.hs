@@ -18,10 +18,15 @@ import Control.Monad
 
 import Language.Snobol4.Syntax.AST
 
+-- | String data type
 newtype Snobol4String = Snobol4String { getString :: String }
     deriving (Read, Eq, Ord, Monoid, IsString)
+
+-- | Integer data type
 newtype Snobol4Integer = Snobol4Integer { getInteger :: Int }
     deriving (Read, Eq, Ord, Bounded, Enum, Num, Integral, Real, Ix)
+
+-- | Real data type
 newtype Snobol4Real = Snobol4Real { getReal :: Float }
     deriving (Read, Eq, Ord, Num, Enum, RealFrac, Real, Fractional, Floating, RealFloat)
 
@@ -34,27 +39,8 @@ instance Show Snobol4Integer where
 instance Show Snobol4Real where
     show = show . getReal
 
-
-class Snobol4Show s where
-    snobol4Show :: s -> Snobol4String
-
 class Snobol4Read s where
     snobol4Read :: Snobol4String -> Maybe s
-
---instance Show Snobol4String where
---    show (Snobol4String s) = s
-
-instance Snobol4Show Snobol4String where
-    snobol4Show = id
-
-instance Snobol4Show String where
-    snobol4Show = Snobol4String
-
-instance Snobol4Show Snobol4Integer where
-    snobol4Show = Snobol4String . show
-
-instance Snobol4Show Snobol4Real where
-    snobol4Show = Snobol4String . show
 
 instance Snobol4Read Snobol4Integer where
     snobol4Read (Snobol4String s) = liftM Snobol4Integer $ readMaybe s
@@ -191,6 +177,9 @@ instance Snobol4StringClass Snobol4String where
 instance Snobol4StringClass String where
     mkString = Snobol4String
     unmkString = getString
+instance Snobol4StringClass Snobol4Integer where
+    mkString = Snobol4String . show . getInteger
+    unmkString = Snobol4Integer . read . getString
 
 instance Snobol4IntegerClass Snobol4Integer where
     mkInteger = id
@@ -205,6 +194,10 @@ instance Snobol4RealClass Snobol4Real where
 instance Snobol4RealClass Float where
     mkReal = Snobol4Real
     unmkReal = getReal
+instance Snobol4StringClass Snobol4Real where
+    mkString = Snobol4String . show . getReal
+    unmkString = Snobol4Real . read . getString
+
 
 snobol4Head :: Snobol4String -> Snobol4String
 snobol4Head (Snobol4String s) = Snobol4String $ [head s]
@@ -223,3 +216,6 @@ snobol4Elem (Snobol4String [c]) (Snobol4String s) = c `elem` s
 
 snobol4NotElem :: Snobol4String -> Snobol4String -> Bool
 snobol4NotElem (Snobol4String [c]) (Snobol4String s) = c `notElem` s
+
+snobol4Show :: Snobol4StringClass a => a -> String
+snobol4Show = getString . mkString
