@@ -516,7 +516,7 @@ arraysWrite ix v = arraysUpdate $ writeArray ix v
 tablesNew :: InterpreterShell m => Interpreter m TableKey
 tablesNew = do
     newKey <- (succ . fst . M.findMax) `liftM` getTables
-    modifyTables $ M.insert newKey $ emptyTable
+    modifyTables $ M.insert newKey emptyTable
     return newKey
 
 -- | Lookup a table
@@ -729,7 +729,7 @@ execLookup (LookupAggregate name args) = do
     case base of
         Nothing -> return Nothing
         Just val -> do
-            let loop (ArrayData k) ((IntegerData i):as) = do
+            let loop (ArrayData k) (IntegerData i:as) = do
                     readResult <- arraysRead i k
                     case readResult of
                         Nothing -> return Nothing

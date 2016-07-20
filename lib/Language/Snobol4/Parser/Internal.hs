@@ -257,7 +257,7 @@ binary = do
             "-" -> return $ Just Minus
             "|" -> return $ Just Pipe
             _ -> P.unexpected $ show op
-        Nothing -> return $ Nothing
+        Nothing -> return Nothing
         _ -> error 
             $ "Internal error: Something other than an operator was lexed as an operator: " 
             ++ show y

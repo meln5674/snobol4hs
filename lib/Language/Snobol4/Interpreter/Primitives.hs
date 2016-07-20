@@ -113,7 +113,7 @@ array [dimStr,val] = do
     parseResult <- parseT $ unmkString str
     case parseResult of
         Left _ -> return Nothing
-        Right (ArrayPrototype dims) -> Just <$> (liftEval $ arraysNew'' dims val)
+        Right (ArrayPrototype dims) -> Just <$> liftEval (arraysNew'' dims val)
 array [dimStr] = array [dimStr, StringData ""]
 array [] = liftEval $ programError NullStringInIllegalContext
 array _ = liftEval $ programError IncorrectNumberOfArguments

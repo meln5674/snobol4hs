@@ -241,12 +241,12 @@ snobol4Drop (Snobol4Integer i) (Snobol4String s) = Snobol4String $ drop i s
 -- | Generalization of elem
 snobol4Elem :: Snobol4String -> Snobol4String -> Bool
 snobol4Elem (Snobol4String [c]) (Snobol4String s) = c `elem` s
-snobol4Elem _ _ = error $ "Internal error: Invalid call to snobol4Elem"
+snobol4Elem _ _ = error "Internal error: Invalid call to snobol4Elem"
 
 -- | Generalization of notElem
 snobol4NotElem :: Snobol4String -> Snobol4String -> Bool
 snobol4NotElem (Snobol4String [c]) (Snobol4String s) = c `notElem` s
-snobol4NotElem _ _ = error $ "Internal error: Invalid call to snobol4NotElem"
+snobol4NotElem _ _ = error "Internal error: Invalid call to snobol4NotElem"
 
 -- | Generalization of show
 snobol4Show :: Snobol4StringClass a => a -> String
