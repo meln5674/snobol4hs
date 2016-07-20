@@ -44,6 +44,5 @@ addPrimitives = do
         funcs = primitiveFunctions
         funcMap :: M.Map Snobol4String (Function m)
         funcMap = M.fromList $ zip (map funcName funcs) funcs 
-        varMap  = M.fromList primitiveVars
-    putVariables varMap
+    mapM_ (uncurry varWrite) primitiveVars
     putFunctions funcMap
