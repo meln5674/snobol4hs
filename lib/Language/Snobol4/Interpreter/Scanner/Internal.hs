@@ -59,15 +59,23 @@ newtype Scanner m a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
-data FailType = BackTrack | Abort
+-- | The type of failure in the scanner
+data FailType
+    -- | The specific path failed, backtrack to the last checkpoint
+    = BackTrack 
+    -- | The entire scan failed
+    | Abort
 
 -- | Cause the scanner to fail, jumping back to the most recent call to catchScan
 throwScan :: Monad m => FailType -> Scanner m a
 throwScan = Scanner . lift . throwE
 
+-- | Cause the scanner to fail, jumping back to the most recent call to
+-- catchScan, and continue with the next path
 backtrack :: Monad m => Scanner m a
 backtrack = throwScan BackTrack
 
+-- | Cause the scanner to fail completely
 abort :: Monad m => Scanner m a
 abort = throwScan Abort
 
@@ -157,6 +165,7 @@ consumeAll = do
     incEndPos (snobol4Length str)
     return str
 
+-- | Consume any of the characters in the given string, otherwise fail
 consumeAny :: Monad m => Snobol4String -> Scanner m Snobol4String
 consumeAny cs = do
     c <- nextChar
@@ -164,6 +173,7 @@ consumeAny cs = do
         then consumeN 1
         else backtrack
 
+-- | Consume any of the characters not in the given string, otherwise fail
 consumeNotAny :: Monad m => Snobol4String -> Scanner m Snobol4String
 consumeNotAny cs = do
     c <- nextChar
@@ -171,178 +181,6 @@ consumeNotAny cs = do
         then consumeN 1
         else backtrack
 
-{-
--- | Given a pattern, find all alternatives at the current position
-getAlternatives :: InterpreterShell m => Pattern -> Scanner m [Scanner m String]
-getAlternatives (AssignmentPattern p l) = map after `liftM` getAlternatives p
-  where
-    after m = do
-        result <- m
-        addAssignment l (StringData result)
-        return result
-getAlternatives (ImmediateAssignmentPattern p l) = map after `liftM` getAlternatives p
-  where
-    after m = do
-        result <- m
-        immediateAssignment l $ StringData result
-        return result
-getAlternatives (LiteralPattern s) = return $ (:[]) $ consume s
-getAlternatives (AlternativePattern p1 p2) = (++) <$> getAlternatives p1 <*> getAlternatives p2
-getAlternatives (ConcatPattern p1 p2) = do
-    as1 <- getAlternatives p1
-    let x = forM as1 $ \a1 -> do
-            a1' <- a1
-            as2 <- getAlternatives p2
-            return $ flip map as2 $ \a2 -> do
-                a2' <- a2
-                return $ a1' ++ a2'
-    concat <$> x
-getAlternatives (LengthPattern l) = return $ (:[]) $ consumeN l
-getAlternatives EverythingPattern = return $ (:[]) consumeAll
-getAlternatives (UnevaluatedExprPattern expr) = do 
-    patResult <- Scanner $ lift $ lift $ do
-        result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
-        case result of
-            Just val -> Just <$> toPattern val
-            Nothing -> return Nothing
-    case patResult of
-        Just pat -> getAlternatives pat
-        Nothing -> return $ (:[]) throwScan
-getAlternatives (HeadPattern l) = return $ (:[]) $ do
-    pos <- getCursorPos
-    immediateAssignment l $ IntegerData pos
-    return ""
-getAlternatives (SpanPattern cs) = do
-    str <- getInput
-    let (longest,_) = span (`elem` cs) str
-        matches = reverse $ inits longest
-    return $ map consume matches
-getAlternatives (BreakPattern cs) = do
-    str <- getInput
-    let (longest,_) = span (`notElem` cs) str
-        matches = reverse $ tails longest
-    return $ map consume matches
-getAlternatives (AnyPattern cs) = return $ (:[]) $ consumeAny cs
-getAlternatives (NotAnyPattern cs) = return $ (:[]) $ consumeNotAny cs
-getAlternatives (TabPattern pos) = return $ (:[]) $ do
-    pos' <- getCursorPos
-    if pos <= pos'
-        then return ""
-        else throwScan
-getAlternatives (RTabPattern pos) = return $ (:[]) $ do
-    pos' <- getRCursorPos
-    if pos' <= pos
-        then return ""
-        else throwScan
-getAlternatives (PosPattern pos) = return $ (:[]) $ do
-    pos' <- getCursorPos
-    if pos' == pos
-        then return ""
-        else throwScan
-getAlternatives (RPosPattern pos) = return $ (:[]) $ do
-    pos' <- getRCursorPos
-    if pos' == pos
-        then return ""
-        else throwScan
-getAlternatives FailPattern = return $ (:[]) throwScan
-getAlternatives FencePattern = undefined
-getAlternatives AbortPattern = undefined
-getAlternatives ArbPattern = do
-    str <- getInput
-    return $ map consume $ tails str
---getAlternatives (ArbNoPattern p) = return $ flip map [0..] $ liftM concat . replicateM (getAlternatives
-getAlternatives (ArbNoPattern _) 
-    = Scanner 
-    $ lift 
-    $ lift 
-    $ liftEval 
-    $ programError 
-      ErrorInSnobol4System
-
-{-
--- | Match a pattern
-matchPat :: InterpreterShell m => Pattern -> Scanner m String
-matchPat (AssignmentPattern p l) = do
-    result <- matchPat p
-    addAssignment l (StringData result)
-    return result
-matchPat (ImmediateAssignmentPattern p l) = do
-    result <- matchPat p
-    immediateAssignment l $ StringData result
-    return result
-matchPat (LiteralPattern s) = consume s
-matchPat (AlternativePattern p1 p2) = catchScan (matchPat p1) (matchPat p2)
-matchPat (ConcatPattern (AlternativePattern p1 p2) p3) = do
-    let try1 = do
-            r1 <- matchPat p1
-            r2 <- matchPat p3
-            return $ r1 ++ r2
-        try2 = do
-            r1 <- matchPat p2
-            r2 <- matchPat p3
-            return $ r1 ++ r2
-    catchScan try1 try2
-matchPat (ConcatPattern p1 p2) = do
-    r1 <- matchPat p1
-    r2 <- matchPat p2
-    return $ r1 ++ r2
-matchPat (LengthPattern len) = consumeN len
-matchPat (UnevaluatedExprPattern expr) = do 
-    pat <- Scanner $ lift $ lift $ do
-        result <- liftEval $ catchEval (Just <$> evalExpr expr) $ \_ -> return Nothing
-        case result of
-            Just result -> Just <$> toPattern result
-            Nothing -> return Nothing
-    case pat of
-        Just pat -> matchPat pat
-        Nothing -> throwScan
-matchPat (HeadPattern l) = do
-    pos <- getCursorPos
-    immediateAssignment l $ IntegerData pos
-    return ""
-matchPat (SpanPattern chars) = do
-    let loop buf = do
-            c <- nextChar
-            if c `elem` chars
-                then catchScan (consumeN 1 >> (loop $ buf ++ [c])) (
-matchPat (BreakPattern chars) = undefined
-matchPat (AnyPattern chars) = do
-    c <- nextChar
-    if c `elem` chars
-        then consumeN 1
-        else throwScan
-matchPat (NotAnyPattern chars) = do
-    c <- nextChar
-    if c `notelem` chars
-        then consumeN 1
-        else throwScan
-matchPat (TabPattern pos) = do
-    pos' <- getCursorPos
-    if pos <= pos'
-        then return ""
-        else throwScan
-matchPat (RTabPAttern pos) = do
-    pos' <- getCursorPos
-    if pos' <= pos
-        then return ""
-        else throwScan 
-matchPat (PosPattern pos) = do
-    pos' <- getCursorPos
-    if pos == pos'
-        then return ""
-        else throwScan
-matchPat (RPosPattern pos) = do
-    pos' <- getRCursorPos
-    if pos == pos'
-        then return ""
-        else throwScan
-matchPat FailPattern = throwScan
-matchPat FencePattern = undefined
-matchPat AbortPattern = undefined  
-matchPat EverythingPattern = consumeAll
--}    
-
--}    
 -- | Create a start state from input
 startState :: Snobol4String -> ScannerState
 startState s = ScannerState
@@ -351,32 +189,24 @@ startState s = ScannerState
              , startPos = 0
              , endPos = 0
              }
-{-
--- | Try each of a set of alternatives, backtracking if any fail and trying the
--- next
-evaluateAlternatives :: InterpreterShell m  
-                     => [Scanner m a]
-                     -> Scanner m a
-evaluateAlternatives = foldr catchScan throwScan
 
--- | Run the scanner
-matchPat :: InterpreterShell m => Pattern -> Scanner m String
-matchPat p = do
-    st <- Scanner get
-    as <- getAlternatives p
-    Scanner $ put st
-    evaluateAlternatives as
--}
-
-
-
-
+-- | ???
+func :: Monad m 
+     => Scanner m Snobol4String 
+     -> (Snobol4String -> Scanner m a) 
+     -> (Snobol4String -> Scanner m a)
 func f next = \s1 -> f >>= \s2 -> next (s1 <> s2)
 
+-- | ???
+bar :: Monad m => (a -> Scanner m b) -> a -> Scanner m a
 bar f v = f v >> return v
 
-
-
+-- | Main scanner function
+-- `match p next` attempts to match the pattern `p`, and if successful, calls
+-- `next` with the string scanned so far.
+-- The restult of this function is a function which itself takes the string
+-- scanned so far.
+-- The top level call of this function should be called with the empty string.
 match :: InterpreterShell m 
       => Pattern 
       -> (Snobol4String -> Scanner m Snobol4String)

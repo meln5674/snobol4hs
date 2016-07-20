@@ -45,33 +45,30 @@ data EvalStop
     | EvalFailed
   deriving Show
 
+-- | Address of a statement
+newtype Address = Address { getAddress :: Snobol4Integer }
+  deriving (Eq, Ord, Bounded, Enum, Num)
 
-newtype Address = Address { getAddress :: Snobol4Integer } deriving (Eq, Ord, Bounded, Enum, Num)
-
-{-
-instance Read Data where
-    read s = case readMaybe s :: Maybe Snobol4Integer of
-        Nothing -> case readMaybe s :: Maybe Snobol4Real of
-            Nothing -> StringData $ read s
-            Just r -> RealData r
-        Just i -> IntegerData i
--}
-
--- | A pattern
-
-
--- | A program error INCOMPLETE
+-- | A program error
 data ProgramError
     = 
     -- | The program ended by reaching the END statement
       NormalTermination
+    -- | e.g. X = X + 'A'
     | IllegalDataType
+    -- | Division by zero, numeric overflow, etc
     | ErrorInArithmeticOperation
+    -- | Reference with a bad key or index
     | ErroneousArrayOrTableReference
+    -- | Null string found where it is not allowed
     | NullStringInIllegalContext
+    -- | Called a function which has not be defined
     | UndefinedFunctionOrOperation
+    -- | Can't parse a prototype
     | ErroneousPrototype
+    -- | Used a bad keyword
     | UnknownKeyword
+    -- | e.g. Assignment to a literal
     | VariableNotPresentWhereRequired
     | EntryPointOfFunctionNotLabel
     | IllegalArgumentToPrimitiveFunction
@@ -130,19 +127,21 @@ data Function m
     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
     }
 
+-- | Create a new array with upper and lower bounds with an initial value
 newArray :: Snobol4Integer -> Snobol4Integer -> Data -> Snobol4Array
 newArray minIx maxIx v
     = Snobol4Array 
     $ A.array (minIx,maxIx) 
     $ map (\x -> (x,v)) [minIx..maxIx]
 
+-- | Create a new array from a list of pairs of indices and values
 newArray' :: [(Snobol4Integer,Data)] -> Snobol4Array
 newArray' xs = Snobol4Array $ A.array (minIx,maxIx) xs
   where
     minIx = fst $ head xs
     maxIx = fst $ last xs
 
-
+-- | Get the value of an array at an index
 readArray :: Snobol4Integer -> Snobol4Array -> Maybe Data
 readArray ix (Snobol4Array arr)
     | minIx <= ix && ix <= maxIx = Just $ arr A.! ix
@@ -150,15 +149,19 @@ readArray ix (Snobol4Array arr)
   where
     (minIx,maxIx) = A.bounds arr
 
+-- | Se the value of an array at an index
 writeArray :: Snobol4Integer -> Data -> Snobol4Array -> Snobol4Array
 writeArray ix v (Snobol4Array arr) = Snobol4Array $ arr A.// [(ix,v)]
 
+-- | An empty table
 emptyTable :: Snobol4Table
 emptyTable = Snobol4Table M.empty
 
+-- | Get the value of a table
 readTable :: Data -> Snobol4Table -> Maybe Data
 readTable k (Snobol4Table tbl) = M.lookup k tbl
 
+-- | Set the value of a table
 writeTable :: Data -> Data -> Snobol4Table -> Snobol4Table
 writeTable k v (Snobol4Table tbl) = Snobol4Table $ M.insert k v tbl
  
@@ -309,11 +312,15 @@ getFunctions = getsProgramState functions
 getCallStack :: InterpreterShell m => Interpreter m [CallStackNode]
 getCallStack = getsProgramState callStack
 
+-- | Get the arrays known to the interpreter
 getArrays :: InterpreterShell m => Interpreter m (Map ArrayKey Snobol4Array)
 getArrays = getsProgramState arrays
 
+-- | Get the tables known to the interpreter
 getTables :: InterpreterShell m => Interpreter m (Map TableKey Snobol4Table)
 getTables = getsProgramState tables
+
+
 
 
 -- | Set the variables known to the interpreter
@@ -336,8 +343,15 @@ putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
 putCallStack :: InterpreterShell m => [CallStackNode] -> Interpreter m ()
 putCallStack stk = modifyProgramState $ \st -> st { callStack = stk }
 
+-- | Set the arrays known to the interpreter
+putArrays :: InterpreterShell m => Map ArrayKey Snobol4Array -> Interpreter m ()
 putArrays arrs = modifyProgramState $ \st -> st { arrays = arrs }
+
+-- | Set the tables known to the interpreter
+putTables :: InterpreterShell m => Map TableKey Snobol4Table -> Interpreter m ()
 putTables tbls = modifyProgramState $ \st -> st { tables = tbls }
+
+
 
 -- | Apply a function to the variables known to the interpreter
 modifyVariables :: InterpreterShell m => (Map Snobol4String Data -> Map Snobol4String Data) -> Interpreter m ()
@@ -366,8 +380,17 @@ modifyCallStack :: InterpreterShell m => ([CallStackNode] -> [CallStackNode]) ->
 modifyCallStack f = modifyProgramState $
     \st -> st { callStack = f $ callStack st }
 
+-- | Apply a function to the arrays known to the interpreter
+modifyArrays :: InterpreterShell m 
+             => (Map ArrayKey Snobol4Array -> Map ArrayKey Snobol4Array)
+             -> Interpreter m ()
 modifyArrays f = modifyProgramState $
     \st -> st { arrays = f $ arrays st }
+
+-- | Apply a function to the tables known to the interpreter
+modifyTables :: InterpreterShell m
+             => (Map TableKey Snobol4Table -> Map TableKey Snobol4Table)
+             -> Interpreter m ()
 modifyTables f = modifyProgramState $
     \st -> st { tables = f $ tables st }
 
@@ -390,6 +413,8 @@ popCallStack = do
 -- | Fetch the next statement to execute
 fetch :: InterpreterShell m => Interpreter m Stmt
 fetch = (V.!) <$> getStatements <*> (getInteger . getAddress <$> getProgramCounter)
+
+
 
 -- | Find the index of the statement with a label
 labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Address)
@@ -452,12 +477,14 @@ varWrite name val = do
 funcLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe (Function m))
 funcLookup name = M.lookup name <$> getFunctions
 
+-- | Allocate a new array with an upper and lower bound each set to an intital value
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
 arraysNew minIx maxIx v = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
     modifyArrays $ M.insert newKey $ newArray minIx maxIx v
     return newKey
 
+-- | Allocate a new array with the provided dimensions and initial value
 arraysNew'' :: InterpreterShell m 
            => [(Snobol4Integer,Snobol4Integer)]
            -> Data
@@ -471,33 +498,42 @@ arraysNew'' ((minIx,maxIx):ds) val = do
     modifyArrays $ M.insert newKey $ newArray' xs
     return $ ArrayData newKey
 
+-- | Lookup an array
 arraysLookup :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe Snobol4Array)
 arraysLookup k = M.lookup k <$> getArrays
 
+-- | Apply a function to an array
 arraysUpdate :: InterpreterShell m => (Snobol4Array -> Snobol4Array) -> ArrayKey -> Interpreter m ()
 arraysUpdate f k = modifyArrays $ M.adjust f k
 
+-- | Get the value of an array with the given index
 arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> Interpreter m (Maybe Data)
 arraysRead ix k = arraysLookup k >>= \x -> return $ x >>= readArray ix
 
+-- | Set the value of an array with the given index
 arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> Interpreter m ()
 arraysWrite ix v = arraysUpdate $ writeArray ix v
 
+-- | Allocate a new table
 tablesNew :: InterpreterShell m => Interpreter m TableKey
 tablesNew = do
     newKey <- (succ . fst . M.findMax) `liftM` getTables
     modifyTables $ M.insert newKey $ emptyTable
     return newKey
 
+-- | Lookup a table
 tablesLookup :: InterpreterShell m => TableKey -> Interpreter m (Maybe Snobol4Table)
 tablesLookup k = M.lookup k <$> getTables
 
+-- | Apply a function to a table
 tablesUpdate :: InterpreterShell m => (Snobol4Table -> Snobol4Table) -> TableKey -> Interpreter m ()
 tablesUpdate f k = modifyTables $ M.adjust f k
 
+-- | Get the value of a table with the given key
 tablesRead :: InterpreterShell m => Data -> TableKey -> Interpreter m (Maybe Data)
 tablesRead k1 k2 = tablesLookup k2 >>= \x -> return $ x >>= readTable k1
 
+-- | Set the value of a table with the given key
 tablesWrite :: InterpreterShell m => Data -> Data -> TableKey -> Interpreter m ()
 tablesWrite k v = tablesUpdate $ writeTable k v
 
@@ -540,25 +576,6 @@ isInteger _ = False
 isReal :: Data -> Bool
 isReal (RealData _) = True
 isReal _ = False
-
-{-
-isIntegerable :: Data -> Bool
-isIntegerable (StringData _) = True
-isIntegerable (IntegerData _) = True
-isIntegerable (RealData _) = True
-isIntegerable _ = False
-
-
-isRealable :: Data -> Bool
-isRealable (StringData _) = True
-isRealable (IntegerData _) = True
-isRealable (RealData _) = True
-isRealable _ = False
-
-isPatternable :: Data -> Bool
-isPatternable (PatternData _) = True
-isPatternable x = isStringable x
--}
 
 -- | Convert data to a string
 -- Throws a ProgramError if this is not valid

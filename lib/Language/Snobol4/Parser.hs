@@ -37,44 +37,13 @@ import Language.Snobol4.Parser.Internal
 
 import qualified Language.Snobol4.Lexer as L
 
-
+-- | Parse a value in a transformer
 parseT :: (Parsable a, Monad m) => String -> m (Either ParseError a)
 parseT = runExceptT . (ExceptT . L.lexT False >=> ExceptT . parseFromToksT)
 
+-- | Parse a value
 parse :: Parsable a => String -> Either ParseError a
 parse = runIdentity . parseT 
-
-{-
--- | Parse an expression
-parseExpression :: String -> Either ParseError Expr
-parseExpression = L.lex False >=> parseExpressionFromToks
-
--- | Parse an expression in a transformer
-parseExpressionT :: Monad m => String -> m (Either ParseError Expr)
-parseExpressionT 
-    = runExceptT 
-    . (ExceptT . L.lexT False >=> ExceptT . parseExpressionFromToksT)
-
--- | Parse a statement
-parseStatement :: String -> Either ParseError Stmt
-parseStatement = L.lex True >=> parseStatementFromToks
-
--- | Parse a statement in a transformer
-parseStatementT :: Monad m => String -> m (Either ParseError Stmt)
-parseStatementT
-    = runExceptT 
-    . (ExceptT . L.lexT True >=> ExceptT . parseStatementFromToksT)
-
--- | Parse a program
-parseProgram :: String -> Either ParseError Program
-parseProgram = L.lex True >=> parseProgramFromToks
-
--- | Parse a program in a transformer
-parseProgramT :: Monad m => String -> m (Either ParseError Program)
-parseProgramT
-    = runExceptT 
-    . (ExceptT . L.lexT True >=> ExceptT . parseProgramFromToksT)
--}
 
 -- | Parse a source file
 parseFile :: MonadIO m => FilePath -> m (Either L.ParseError Program)

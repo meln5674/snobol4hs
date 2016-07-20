@@ -1,3 +1,14 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Data
+Description     : Data types for SNOBOL4 programs
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -39,6 +50,7 @@ instance Show Snobol4Integer where
 instance Show Snobol4Real where
     show = show . getReal
 
+-- | Class of types which can be read from a string
 class Snobol4Read s where
     snobol4Read :: Snobol4String -> Maybe s
 
@@ -92,6 +104,7 @@ instance Show Data where
     show (TableData _) = "[TABLE]"
     show (Name _) = "[NAME]"
 
+-- | Patterns for matching against strings
 data Pattern
     -- | A pattern which records the matched value in the provided lookup on 
     -- success
@@ -148,25 +161,36 @@ data Pattern
     | ArbNoPattern Pattern
   deriving (Show, Eq, Ord)
 
+-- | Type of identifiers
 newtype Snobol4Identifier = Snobol4Identifier Snobol4String
 
+-- | Key for passing arrays by reference
 newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum)
+
+-- | Key for passing tables by reference
 newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
  
+-- | Underlying type for arrays
 newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
+
+-- | Underlying type for tables
 newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data }
 
+-- | The null string
 nullString :: Snobol4String
 nullString = Snobol4String ""
 
+-- | Class of types which can be made to and from integers
 class Snobol4IntegerClass i where
     mkInteger :: i -> Snobol4Integer
     unmkInteger :: Snobol4Integer -> i
 
+-- | Class of types which can be made to and from strings
 class Snobol4StringClass i where
     mkString :: i -> Snobol4String
     unmkString :: Snobol4String -> i
 
+-- | Class of types which can be made to and from real
 class Snobol4RealClass i where
     mkReal :: i -> Snobol4Real
     unmkReal :: Snobol4Real -> i
@@ -198,24 +222,30 @@ instance Snobol4StringClass Snobol4Real where
     mkString = Snobol4String . show . getReal
     unmkString = Snobol4Real . read . getString
 
-
+-- | Generalization of head
 snobol4Head :: Snobol4String -> Snobol4String
 snobol4Head (Snobol4String s) = Snobol4String $ [head s]
 
+-- | Generalization of length
 snobol4Length :: Snobol4String -> Snobol4Integer
 snobol4Length (Snobol4String s) = Snobol4Integer $ length s
 
+-- | Generalization of take
 snobol4Take :: Snobol4Integer -> Snobol4String -> Snobol4String
 snobol4Take (Snobol4Integer i) (Snobol4String s) = Snobol4String $ take i s
 
+-- | Generalization of drop
 snobol4Drop :: Snobol4Integer -> Snobol4String -> Snobol4String
 snobol4Drop (Snobol4Integer i) (Snobol4String s) = Snobol4String $ drop i s
 
+-- | Generalization of elem
 snobol4Elem :: Snobol4String -> Snobol4String -> Bool
 snobol4Elem (Snobol4String [c]) (Snobol4String s) = c `elem` s
 
+-- | Generalization of notElem
 snobol4NotElem :: Snobol4String -> Snobol4String -> Bool
 snobol4NotElem (Snobol4String [c]) (Snobol4String s) = c `notElem` s
 
+-- | Generalization of show
 snobol4Show :: Snobol4StringClass a => a -> String
 snobol4Show = getString . mkString

@@ -28,8 +28,10 @@ import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Parser.Types
 import Language.Snobol4.Interpreter.Primitives.Prototypes
 
+-- | Stream of tokens
 type TokStream = [Located Token SourcePos]
 
+-- | Class of types which can be parsed from source
 class Parsable a where
     parser :: Monad m => ParsecT TokStream Bool m a
 
@@ -434,6 +436,7 @@ labelStr = do
             $ "Internal Error: Something other than a label was parsed as a label: " 
             ++ show t
 
+-- | Parse an identifier and return the string
 identifierStr :: Monad m => ParsecT TokStream u m String
 identifierStr = do
     result <- identifier
@@ -637,55 +640,6 @@ fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr
 fixAssoc x = x
 
 
-{-
--- Parsing from token lists
-
--- | Parse an expression from tokens
-parseExpressionFromToks :: [Located Token SourcePos] -> Either ParseError Expr
-parseExpressionFromToks = wrapError id . P.runParser fixedExpression False ""
-
--- | Parse an expression from tokens in a transformer
-parseExpressionFromToksT :: Monad m 
-                         => [Located Token SourcePos] 
-                         -> m (Either ParseError Expr)
-parseExpressionFromToksT = liftM (wrapError id) . P.runParserT fixedExpression False ""
-
--- | Parse a statement from tokens
-parseStatementFromToks :: [Located Token SourcePos] -> Either ParseError Stmt
-parseStatementFromToks = wrapError id .  P.runParser statement False ""
-
--- | Parse a statement from tokens in a transformer
-parseStatementFromToksT :: Monad m
-                        => [Located Token SourcePos] 
-                        -> m (Either ParseError Stmt)
-parseStatementFromToksT = liftM (wrapError id) . P.runParserT statement False ""
-
--- | Parse a program from tokens
-parseProgramFromToks :: [Located Token SourcePos] -> Either ParseError Program
-parseProgramFromToks = wrapError id . P.runParser program False ""
-
--- | Parse a program from tokens in a transformer
-parseProgramFromToksT :: Monad m
-                      => [Located Token SourcePos] 
-                      -> m (Either ParseError Program)
-parseProgramFromToksT = liftM (wrapError id) . P.runParserT program False ""
-
-parseArrayPrototypeFromToks :: [Located Token SourcePos] -> Either ParseError ArrayPrototype
-parseArrayPrototypeFromToks = wrapError id . P.runParser array_prototype False ""
-
-parseArrayPrototypeFromToksT :: Monad m
-                             => [Located Token SourcePos] 
-                             -> m (Either ParseError ArrayPrototype)
-parseArrayPrototypeFromToksT = liftM (wrapError id) . P.runParser array_prototype False ""
-
-parseArrayPrototypeFromToks :: [Located Token SourcePos] -> Either ParseError ArrayPrototype
-parseArrayPrototypeFromToks = wrapError id . P.runParser function_prototype False ""
-
-parseFunctionPrototypeFromToksT :: Monad m
-                             => [Located Token SourcePos] 
-                             -> m (Either ParseError ArrayPrototype)
-parseFunctionPrototypeFromToksT = liftM (wrapError id) . P.runParser function_prototype False ""
--}
-
+-- | Parse something from a stream of tokens
 parseFromToksT :: (Parsable a, Monad m) => TokStream -> m (Either ParseError a)
 parseFromToksT = liftM (wrapError id) . P.runParserT parser False ""

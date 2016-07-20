@@ -20,6 +20,7 @@ import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Scanner.Internal
 
+-- | Match a string against a pattern
 scanPattern :: InterpreterShell m
             => Snobol4String
             -> Pattern
