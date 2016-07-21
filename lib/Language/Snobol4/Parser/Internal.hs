@@ -298,7 +298,7 @@ element = do
          <|> P.try reference 
          <|> identifierE 
          <|> literalE 
-         <|> inParens expression
+         <|> (ParenExpr <$> inParens expression)
     return $ case prefix of
         Just x -> PrefixExpr x rest
         Nothing -> rest

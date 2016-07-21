@@ -27,6 +27,8 @@ module Language.Snobol4.Interpreter.Types
     , snobol4Drop
     , snobol4Elem
     , snobol4NotElem
+    , snobol4Replace
+    , snobol4Trim
     , nullString
     , (<>)
     ) where

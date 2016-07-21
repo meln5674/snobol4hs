@@ -410,6 +410,10 @@ modifyProgramCounter :: InterpreterShell m => (Address -> Address) -> Interprete
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }
 
+modifyFunctions :: InterpreterShell m => (Functions m -> Functions m) -> Interpreter m ()
+modifyFunctions f = modifyProgramState $
+    \st -> st { functions = f $ functions st }
+
 -- | Apply a function to the call stack
 modifyCallStack :: InterpreterShell m => ([CallStackNode] -> [CallStackNode]) -> Interpreter m ()
 modifyCallStack f = modifyProgramState $
@@ -458,6 +462,9 @@ fetch = (V.!) <$> getStatements <*> (getInteger . getAddress <$> getProgramCount
 -- | Delete a variable
 clearVar :: InterpreterShell m => Snobol4String -> Interpreter m ()
 clearVar = modifyVariables . M.delete 
+
+clearFunc :: InterpreterShell m => Snobol4String -> Interpreter m ()
+clearFunc = modifyFunctions . M.delete
 
 -- | Find the index of the statement with a label
 labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Address)
@@ -855,12 +862,3 @@ execLookup (LookupAggregate name args) = do
 wipeVariables :: InterpreterShell m => Interpreter m ()
 wipeVariables = putVariables $ M.empty
 
-{-
-allocPattern :: InterpreterShell m => Pattern -> Interpreter m PatternKey
-allocPattern = patternsNew
--}
-
-{-
-freePattern :: InterpreterShell m => PatternKey -> Interpreter m ()
-freePattern k = do
--}

@@ -20,6 +20,7 @@ module Language.Snobol4.Parser
     , SourcePos
     , parse
     , parseT
+    , Parsable
     ) where
 
 

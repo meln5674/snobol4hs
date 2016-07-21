@@ -16,10 +16,13 @@ module Language.Snobol4.Interpreter.Primitives where
 
 import Prelude hiding ( span, break, any, toInteger )
 
+import Data.List (genericReplicate)
+
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Internal
 import Language.Snobol4.Interpreter.Internal.Types
+import Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Primitives.Prototypes
 
 import Language.Snobol4.Parser
@@ -77,6 +80,7 @@ primitiveFunctions =
     , PrimitiveFunction "LT"        lt
     , PrimitiveFunction "NE"        ne
     , PrimitiveFunction "NOTANY"    notany
+    , PrimitiveFunction "UNLOAD"    unload
     , PrimitiveFunction "OPSYN"     opsyn
     , PrimitiveFunction "OUTPUT"    output
     , PrimitiveFunction "POS"       pos
@@ -211,7 +215,11 @@ detach = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
 differ :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-differ = const $ liftEval $ programError ErrorInSnobol4System
+differ [a,b] = do
+    if a /= b
+        then return $ Just $ StringData ""
+        else return Nothing
+differ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 dump :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -219,7 +227,11 @@ dump = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
 dupl :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-dupl = const $ liftEval $ programError ErrorInSnobol4System
+dupl [a,b] = do
+    a' <- toString a
+    b' <- toInteger b
+    return $ Just $ StringData $ foldl (<>) "" $ genericReplicate b' a'
+dupl _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 endfile :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -231,7 +243,21 @@ eq = numericalPredicate (==)
 
 -- | TODO
 eval :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-eval = const $ liftEval $ programError ErrorInSnobol4System
+eval [a] = do
+    expr <- case a of
+        (PatternData _) -> do
+            pat <- toPattern a
+            case pat of
+                UnevaluatedExprPattern expr -> return expr
+                _ -> liftEval $ programError IllegalArgumentToPrimitiveFunction
+        _ -> do
+            a' <- toString a
+            result <- parseT (unmkString a')
+            case result of
+                Left err -> liftEval $ programError IllegalArgumentToPrimitiveFunction
+                Right expr -> return expr
+    Just <$> evalExpr expr
+eval _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 field :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -247,7 +273,11 @@ gt = numericalPredicate (>)
 
 -- | TODO
 ident :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-ident = const $ liftEval $ programError ErrorInSnobol4System
+ident [a,b] = do
+    if a == b
+        then return $ Just $ StringData ""
+        else return Nothing
+ident _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 input :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -283,7 +313,13 @@ len [] = len [StringData ""]
 
 -- | TODO
 lgt :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-lgt = const $ liftEval $ programError ErrorInSnobol4System
+lgt [a,b] = do
+    a' <- toString a
+    b' <- toString b
+    if a' > b'
+        then return $ Just $ StringData ""
+        else return Nothing
+lgt _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 local :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -328,11 +364,22 @@ prototype = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO 
 remdr :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-remdr = const $ liftEval $ programError ErrorInSnobol4System
+remdr [a,b] = do
+    a' <- toInteger a
+    b' <- toInteger b
+    return $ Just $ IntegerData $ b' `rem` a'
+remdr _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
 replace :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-replace = const $ liftEval $ programError ErrorInSnobol4System
+replace [x,y,z] = do
+    x' <- toString x
+    y' <- toString y
+    z' <- toString z
+    if snobol4Length y' /= snobol4Length z'
+        then liftEval $ programError IllegalArgumentToPrimitiveFunction
+        else return $ Just $ StringData $ snobol4Replace x' y' z'
+replace _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
 rewind :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -403,7 +450,14 @@ trace = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO 
 trim :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-trim = const $ liftEval $ programError ErrorInSnobol4System
+trim [a] = do
+    a' <- toString a
+    return $ Just $ StringData $ snobol4Trim a' 
+trim _ = liftEval $ programError IncorrectNumberOfArguments
+
+-- | TODO
+unload :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
+unload = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO 
 value :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)

@@ -84,7 +84,7 @@ test-suite parser
                       , Language.Snobol4.Lexer.Tokens
                       , Language.Snobol4.Parser
                       , Language.Snobol4.Syntax.AST
-  build-depends:        base, HUnit, parsec, mtl, transformers
+  build-depends:        base, HUnit, parsec, mtl, transformers, containers, vector, array
   default-language:     Haskell2010
 
 

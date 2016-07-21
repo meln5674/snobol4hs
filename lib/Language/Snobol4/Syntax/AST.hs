@@ -130,7 +130,7 @@ data Goto
     | FailGoto Expr 
     -- | Goto with both success and failure case
     | BothGoto Expr Expr
-  deriving Show
+  deriving (Show, Eq)
 
 -- | Statement
 data Stmt
@@ -139,7 +139,7 @@ data Stmt
       Stmt (Maybe String) (Maybe Expr) (Maybe Expr) (Maybe Expr) (Maybe Goto)
     -- | The end statement
     | EndStmt (Maybe String)
-  deriving Show
+  deriving (Show, Eq)
 
 -- | A list of statements
 newtype Program = Program { getProgram :: [Stmt] }

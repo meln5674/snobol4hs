@@ -20,6 +20,7 @@ module Language.Snobol4.Interpreter.Data
 
 import Data.Array
 import Data.Map
+import qualified Data.Map as M
 import Data.Monoid
 import Data.String
 
@@ -260,3 +261,20 @@ snobol4NotElem _ _ = error "Internal error: Invalid call to snobol4NotElem"
 -- | Generalization of show
 snobol4Show :: Snobol4StringClass a => a -> String
 snobol4Show = getString . mkString
+
+snobol4Replace :: Snobol4String -> Snobol4String -> Snobol4String -> Snobol4String
+snobol4Replace (Snobol4String xs) (Snobol4String ys) (Snobol4String zs) = Snobol4String $ loop xs
+  where
+    charMap = M.fromList $ zip ys zs
+    loop [] = []
+    loop (c:cs) = case M.lookup c charMap of
+        Just c' -> c':loop cs
+        Nothing -> c:loop cs
+
+snobol4Trim :: Snobol4String -> Snobol4String
+snobol4Trim (Snobol4String s) = Snobol4String $ loop s
+  where
+    loop s = case break (==' ') s of
+        (a,b) -> case span (==' ') b of
+            (c,"") -> a
+            (c,d) -> a ++ c ++ loop d
