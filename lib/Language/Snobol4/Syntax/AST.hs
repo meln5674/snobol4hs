@@ -141,5 +141,18 @@ data Stmt
     | EndStmt (Maybe String)
   deriving (Show, Eq)
 
+assignStmt :: Maybe String -> Expr -> Expr -> Maybe Goto -> Stmt
+assignStmt lbl sub repl goto = Stmt lbl (Just sub) Nothing (Just repl) goto
+
+matchStmt :: Maybe String -> Expr -> Expr -> Maybe Goto -> Stmt
+matchStmt lbl sub pat goto = Stmt lbl (Just sub) (Just pat) Nothing goto
+
+replStmt :: Maybe String -> Expr -> Expr -> Expr -> Maybe Goto -> Stmt
+replStmt lbl sub pat repl goto = Stmt lbl (Just sub) (Just pat) (Just repl) goto
+
+degenStmt :: Maybe String -> Expr -> Maybe Goto -> Stmt
+degenStmt lbl sub goto = Stmt lbl (Just sub) Nothing Nothing goto
+
 -- | A list of statements
 newtype Program = Program { getProgram :: [Stmt] }
+  deriving (Show, Eq)

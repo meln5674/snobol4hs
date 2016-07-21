@@ -133,7 +133,7 @@ identifier = do
 
 -- | Parse 1 or more whitespace characters
 blanks :: Monad m => ParsecT String u m Token
-blanks = Blanks <$> P.many1 P.space
+blanks = Blanks <$> (P.many1 $ P.oneOf " \t")
 
 -- | Parse an integer, which contains 1 or more digits
 integer' :: Monad m => ParsecT String u m String
@@ -149,7 +149,7 @@ real :: Monad m => ParsecT String u m Token
 real = do
     intPart <- integer'
     dotPart <- P.char '.'
-    fractionPart <- P.option "" integer'
+    fractionPart <- P.option "0" integer'
     return $ RealLiteral $ intPart ++ dotPart : fractionPart
 
 -- | Parse a string literal in single-quotes

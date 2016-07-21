@@ -81,14 +81,14 @@ simpleParseTest s t msg = mkParseTest $ ExpectSuccess
     }
 
 
-test1 = simpleParseTest " V = 5\n" ast ""
+test_pg1_1 = simpleParseTest " V = 5\n" ast ""
   where
-    ast = assignStmt "V" (LitExpr (Int 5))
+    ast = assignStmt Nothing (IdExpr "V") (LitExpr (Int 5)) Nothing
 
-test2 = simpleParseTest " W = 14 + (16 - 10)\n" ast ""
+test_pg1_2 = simpleParseTest " W = 14 + (16 - 10)\n" ast ""
   where
-    ast = assignStmt "W"
-        $ BinaryExpr 
+    ast = assignStmt Nothing (IdExpr "W")
+         (BinaryExpr 
             (LitExpr (Int 14)) 
             Plus 
             (ParenExpr 
@@ -98,12 +98,205 @@ test2 = simpleParseTest " W = 14 + (16 - 10)\n" ast ""
                     (LitExpr (Int 10))
                 )
             )
+         )
+         Nothing
 
-assignStmt name val = Stmt Nothing (Just (IdExpr name)) Nothing (Just val) Nothing
+test_pg1_3 = simpleParseTest " V = \'DOG\'\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "V") (LitExpr (String "DOG")) Nothing
 
+test_pg2_1 = simpleParseTest " RESULT = ANS_1\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "RESULT") (IdExpr "ANS_1") Nothing
+
+test_pg2_2 = simpleParseTest " M = 4\n N = 5\n P = N * M / (N - 1)\n" ast ""
+  where
+    ast = Program
+        [ assignStmt Nothing (IdExpr "M") (LitExpr (Int 4)) Nothing
+        , assignStmt Nothing (IdExpr "N") (LitExpr (Int 5)) Nothing
+        , assignStmt Nothing (IdExpr "P")
+            (BinaryExpr
+                (BinaryExpr
+                    (IdExpr "N")
+                    Star
+                    (IdExpr "M")
+                )
+                Slash
+                (ParenExpr
+                    (BinaryExpr
+                        (IdExpr "N")
+                        Minus
+                        (LitExpr (Int 1))
+                    )
+                )
+            )
+            Nothing
+        ]
+
+test_pg2_3 = simpleParseTest " Q2 = -P / -N\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "Q2")
+        (BinaryExpr
+            (PrefixExpr Minus (IdExpr "P"))
+            Slash
+            (PrefixExpr Minus (IdExpr "N"))
+        )
+        Nothing
+
+test_pg2_4 = simpleParseTest " X = 2 ** 3 ** 2\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "X")
+        (BinaryExpr
+            (LitExpr (Int 2))
+            DoubleStar
+            (BinaryExpr
+                (LitExpr (Int 3))
+                DoubleStar
+                (LitExpr (Int 2))
+            )
+        )
+        Nothing
+
+test_pg2_5 = simpleParseTest " X = 2 ** (3 ** 2)\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "X")
+        (BinaryExpr
+            (LitExpr (Int 2))
+            DoubleStar
+            (ParenExpr
+                (BinaryExpr
+                    (LitExpr (Int 3))
+                    DoubleStar
+                    (LitExpr (Int 2))
+                )
+            )
+        )
+        Nothing
+
+test_pg3_1 = simpleParseTest " PI = 3.14159\n CIRUM = 2. * PI * 5.\n" ast ""
+  where
+    ast = Program
+        [ assignStmt Nothing (IdExpr "PI") (LitExpr (Real 3.14159)) Nothing
+        , assignStmt Nothing (IdExpr "CIRUM")
+            (BinaryExpr
+                (BinaryExpr
+                    (LitExpr (Real 2.0))
+                    Star
+                    (IdExpr "PI")
+                )
+                Star
+                (LitExpr (Real 5.0))
+            )
+            Nothing
+        ]
+
+test_pg3_2 = simpleParseTest " SUM = 16.4 + 2\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "SUM") 
+        (BinaryExpr
+            (LitExpr (Real 16.4))
+            Plus
+            (LitExpr (Int 2))
+        )
+        Nothing
+
+test_pg3_3 = simpleParseTest " SCREAM = \'HELP\'\n" ast ""
+  where
+    ast = assignStmt Nothing (IdExpr "SCREAM") (LitExpr (String "HELP")) Nothing
+
+test_pg3_4 = simpleParseTest code ast ""
+  where
+    code = " PLEA = \'HE SHOUTED, \"HELP.\"\'\n QUOTE = \'\"\'\n APOSTROPHE = \"\'\"\n"
+    ast = Program
+        [ assignStmt Nothing (IdExpr "PLEA") (LitExpr (String "HE SHOUTED, \"HELP.\"")) Nothing
+        , assignStmt Nothing (IdExpr "QUOTE") (LitExpr (String "\"")) Nothing
+        , assignStmt Nothing (IdExpr "APOSTROPHE") (LitExpr (String "\'")) Nothing
+        ]
+
+test_pg4_1 = simpleParseTest code ast ""
+  where
+    code = " NULL =\n"
+    ast = assignStmt Nothing (IdExpr "NULL") NullExpr Nothing
+
+test_pg4_2 = simpleParseTest code ast ""
+  where
+    code  = " Z = \'10\'\n X = 5 * -Z + \'10.6\'\n"
+    ast = Program
+        [ assignStmt Nothing (IdExpr "Z") (LitExpr (String "10")) Nothing
+        , assignStmt Nothing (IdExpr "X")
+            (BinaryExpr
+                (BinaryExpr
+                    (LitExpr (Int 5))
+                    Star
+                    (PrefixExpr Minus (IdExpr "Z"))
+                )
+                Plus
+                (LitExpr (String "10.6"))
+            )
+            Nothing
+        ]
+
+test_pg4_3 = mkParseTest $ ExpectFailure
+    { parseString = "1,253,465"
+    , resultFormatter = show :: Expr -> String
+    }
+
+test_pg4_4 = mkParseTest $ ExpectFailure
+    { parseString = ".364 E-03"
+    , resultFormatter = show :: Expr -> String
+    }
+
+test_pg4_5 = simpleParseTest code ast ""
+  where
+    code = " TYPE = \'SEMI\'\n OBJECT = TYPE \'GROUP\'\n"
+    ast = Program
+        [ assignStmt Nothing (IdExpr "TYPE") (LitExpr (String "SEMI")) Nothing
+        , assignStmt Nothing (IdExpr "OBJECT")
+            (BinaryExpr 
+                (IdExpr "TYPE") 
+                Blank 
+                (LitExpr (String "GROUP"))
+            )
+            Nothing
+        ]
+
+test_pg5_1 = simpleParseTest code ast ""
+  where
+    code = " FIRST = \'WINTER\'\n SECOND = \'SPRING\'\n TWO_SEASONS = FIRST \',\' SECOND\n"
+    ast = Program
+        [ assignStmt Nothing (IdExpr "FIRST") (LitExpr (String "WINTER")) Nothing
+        , assignStmt Nothing (IdExpr "SECOND") (LitExpr (String "SPRING")) Nothing
+        , assignStmt Nothing (IdExpr "TWO_SEASONS")
+            (BinaryExpr
+                (BinaryExpr
+                    (IdExpr "FIRST")
+                    Blank
+                    (LitExpr (String ","))
+                )
+                Blank
+                (IdExpr ("SECOND"))
+            )
+            Nothing
+        ]
 allTests = TestList
-    [ test1
-    , test2
+    [ test_pg1_1
+    , test_pg1_2
+    , test_pg1_3
+    , test_pg2_1
+    , test_pg2_2
+    , test_pg2_3
+    , test_pg2_4
+    , test_pg2_5
+    , test_pg3_1
+    , test_pg3_2
+    , test_pg3_3
+    , test_pg3_4
+    , test_pg4_1
+    , test_pg4_2
+    , test_pg4_3
+    , test_pg4_4
+    , test_pg4_5
+    , test_pg5_1
     ]
 
 main :: IO ()

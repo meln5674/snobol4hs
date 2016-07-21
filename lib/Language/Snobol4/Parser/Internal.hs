@@ -250,13 +250,13 @@ binary = do
         Just (Located (Operator op) _) -> case op of
             "$" -> return $ Just Dollar
             "!" -> return $ Just Bang
-            "**" -> return $ Just DoubleStar
             "*" -> return $ Just Star
             "/" -> return $ Just Slash
             "+" -> return $ Just Plus
             "-" -> return $ Just Minus
             "|" -> return $ Just Pipe
             _ -> P.unexpected $ show op
+        Just (Located Exponentiate _) -> return $ Just DoubleStar
         Nothing -> return Nothing
         _ -> error 
             $ "Internal error: Something other than an operator was lexed as an operator: " 
@@ -450,10 +450,10 @@ assign_statement = do
     lbl <- P.optionMaybe labelStr
     sub <- subject_field
     _ <- equal
-    obj <- P.optionMaybe object_field
+    obj <- P.option NullExpr object_field
     go <- P.optionMaybe goto_field
     eos
-    return $ Stmt lbl (Just sub) Nothing obj go
+    return $ Stmt lbl (Just sub) Nothing (Just obj) go
     
 -- | Parse a match statement
 match_statement :: Monad m => ParsecT TokStream Bool m Stmt
@@ -472,10 +472,10 @@ repl_statement = do
     sub <- subject_field
     pat <- pattern_field
     _ <- equal
-    obj <- P.optionMaybe object_field 
+    obj <- P.option NullExpr object_field 
     go <- P.optionMaybe goto_field
     eos
-    return $ Stmt lbl (Just sub) (Just pat) obj go
+    return $ Stmt lbl (Just sub) (Just pat) (Just obj) go
 
 -- | Parse a degenerate statement
 degen_statement :: Monad m => ParsecT TokStream Bool m Stmt
@@ -640,4 +640,4 @@ fixAssoc x = x
 
 -- | Parse something from a stream of tokens
 parseFromToksT :: (Parsable a, Monad m) => TokStream -> m (Either ParseError a)
-parseFromToksT = liftM (wrapError id) . P.runParserT parser False ""
+parseFromToksT = liftM (wrapError id) . P.runParserT (parser <* P.eof) False ""
