@@ -32,21 +32,27 @@ type TokStream = [Located Token SourcePos]
 -- | Class of types which can be parsed from source
 class Parsable a where
     parser :: Monad m => ParsecT TokStream Bool m a
+    startOfLine :: a -> Bool
 
 instance Parsable Expr where
     parser = fixedExpression
+    startOfLine = const False
 
 instance Parsable Stmt where
     parser = statement
+    startOfLine = const True
 
 instance Parsable ArrayPrototype where
     parser = array_prototype
+    startOfLine = const False
 
 instance Parsable FunctionPrototype where
     parser = function_prototype
+    startOfLine = const False
 
 instance Parsable Program where
     parser = program
+    startOfLine = const True
 
 -- | Take a token located using a parsec source position and wrap it to use
 -- the internal source position
@@ -255,7 +261,8 @@ binary = do
             "+" -> return $ Just Plus
             "-" -> return $ Just Minus
             "|" -> return $ Just Pipe
-            _ -> P.unexpected $ show op
+            "." -> return $ Just Dot
+            _ -> P.unexpected $ show op ++ "(Expecting a binary operator)"
         Just (Located Exponentiate _) -> return $ Just DoubleStar
         Nothing -> return Nothing
         _ -> error 

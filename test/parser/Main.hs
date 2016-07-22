@@ -11,6 +11,8 @@ import Test.HUnit
 import Language.Snobol4.Parser
 import Language.Snobol4.Syntax.AST
 
+import Examples
+import ASTs
 
 -- | Primitive parsing test function
 -- `testLex x s f` succeeds if applying `f` to the result of parsing `s` returns
@@ -81,222 +83,187 @@ simpleParseTest s t msg = mkParseTest $ ExpectSuccess
     }
 
 
-test_pg1_1 = simpleParseTest " V = 5\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "V") (LitExpr (Int 5)) Nothing
+test_pg1_1 = simpleParseTest ex_pg1_1 ast_pg1_1 ""
 
-test_pg1_2 = simpleParseTest " W = 14 + (16 - 10)\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "W")
-         (BinaryExpr 
-            (LitExpr (Int 14)) 
-            Plus 
-            (ParenExpr 
-                (BinaryExpr 
-                    (LitExpr (Int 16)) 
-                    Minus 
-                    (LitExpr (Int 10))
-                )
-            )
-         )
-         Nothing
+test_pg1_2 = simpleParseTest ex_pg1_2 ast_pg1_2 ""
 
-test_pg1_3 = simpleParseTest " V = \'DOG\'\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "V") (LitExpr (String "DOG")) Nothing
+test_pg1_3 = simpleParseTest ex_pg1_3 ast_pg1_3 ""
 
-test_pg2_1 = simpleParseTest " RESULT = ANS_1\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "RESULT") (IdExpr "ANS_1") Nothing
+test_pg2_1 = simpleParseTest ex_pg2_1 ast_pg2_1 ""
 
-test_pg2_2 = simpleParseTest " M = 4\n N = 5\n P = N * M / (N - 1)\n" ast ""
-  where
-    ast = Program
-        [ assignStmt Nothing (IdExpr "M") (LitExpr (Int 4)) Nothing
-        , assignStmt Nothing (IdExpr "N") (LitExpr (Int 5)) Nothing
-        , assignStmt Nothing (IdExpr "P")
-            (BinaryExpr
-                (BinaryExpr
-                    (IdExpr "N")
-                    Star
-                    (IdExpr "M")
-                )
-                Slash
-                (ParenExpr
-                    (BinaryExpr
-                        (IdExpr "N")
-                        Minus
-                        (LitExpr (Int 1))
-                    )
-                )
-            )
-            Nothing
-        ]
+test_pg2_2 = simpleParseTest ex_pg2_2 ast_pg2_2 ""
 
-test_pg2_3 = simpleParseTest " Q2 = -P / -N\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "Q2")
-        (BinaryExpr
-            (PrefixExpr Minus (IdExpr "P"))
-            Slash
-            (PrefixExpr Minus (IdExpr "N"))
-        )
-        Nothing
+test_pg2_3 = simpleParseTest ex_pg2_3 ast_pg2_3 ""
 
-test_pg2_4 = simpleParseTest " X = 2 ** 3 ** 2\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "X")
-        (BinaryExpr
-            (LitExpr (Int 2))
-            DoubleStar
-            (BinaryExpr
-                (LitExpr (Int 3))
-                DoubleStar
-                (LitExpr (Int 2))
-            )
-        )
-        Nothing
+test_pg2_4 = simpleParseTest ex_pg2_4 ast_pg2_4 ""
 
-test_pg2_5 = simpleParseTest " X = 2 ** (3 ** 2)\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "X")
-        (BinaryExpr
-            (LitExpr (Int 2))
-            DoubleStar
-            (ParenExpr
-                (BinaryExpr
-                    (LitExpr (Int 3))
-                    DoubleStar
-                    (LitExpr (Int 2))
-                )
-            )
-        )
-        Nothing
+test_pg2_5 = simpleParseTest ex_pg2_5 ast_pg2_5 ""
 
-test_pg3_1 = simpleParseTest " PI = 3.14159\n CIRUM = 2. * PI * 5.\n" ast ""
-  where
-    ast = Program
-        [ assignStmt Nothing (IdExpr "PI") (LitExpr (Real 3.14159)) Nothing
-        , assignStmt Nothing (IdExpr "CIRUM")
-            (BinaryExpr
-                (BinaryExpr
-                    (LitExpr (Real 2.0))
-                    Star
-                    (IdExpr "PI")
-                )
-                Star
-                (LitExpr (Real 5.0))
-            )
-            Nothing
-        ]
+test_pg3_1 = simpleParseTest ex_pg3_1 ast_pg3_1 ""
 
-test_pg3_2 = simpleParseTest " SUM = 16.4 + 2\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "SUM") 
-        (BinaryExpr
-            (LitExpr (Real 16.4))
-            Plus
-            (LitExpr (Int 2))
-        )
-        Nothing
+test_pg3_2 = simpleParseTest ex_pg3_2 ast_pg3_2 ""
 
-test_pg3_3 = simpleParseTest " SCREAM = \'HELP\'\n" ast ""
-  where
-    ast = assignStmt Nothing (IdExpr "SCREAM") (LitExpr (String "HELP")) Nothing
+test_pg3_3 = simpleParseTest ex_pg3_3 ast_pg3_3 ""
 
-test_pg3_4 = simpleParseTest code ast ""
-  where
-    code = " PLEA = \'HE SHOUTED, \"HELP.\"\'\n QUOTE = \'\"\'\n APOSTROPHE = \"\'\"\n"
-    ast = Program
-        [ assignStmt Nothing (IdExpr "PLEA") (LitExpr (String "HE SHOUTED, \"HELP.\"")) Nothing
-        , assignStmt Nothing (IdExpr "QUOTE") (LitExpr (String "\"")) Nothing
-        , assignStmt Nothing (IdExpr "APOSTROPHE") (LitExpr (String "\'")) Nothing
-        ]
+test_pg3_4 = simpleParseTest ex_pg3_4 ast_pg3_4 ""
 
-test_pg4_1 = simpleParseTest code ast ""
-  where
-    code = " NULL =\n"
-    ast = assignStmt Nothing (IdExpr "NULL") NullExpr Nothing
+test_pg4_1 = simpleParseTest ex_pg4_1 ast_pg4_1 ""
 
-test_pg4_2 = simpleParseTest code ast ""
-  where
-    code  = " Z = \'10\'\n X = 5 * -Z + \'10.6\'\n"
-    ast = Program
-        [ assignStmt Nothing (IdExpr "Z") (LitExpr (String "10")) Nothing
-        , assignStmt Nothing (IdExpr "X")
-            (BinaryExpr
-                (BinaryExpr
-                    (LitExpr (Int 5))
-                    Star
-                    (PrefixExpr Minus (IdExpr "Z"))
-                )
-                Plus
-                (LitExpr (String "10.6"))
-            )
-            Nothing
-        ]
+test_pg4_2 = simpleParseTest ex_pg4_2 ast_pg4_2 ""
 
 test_pg4_3 = mkParseTest $ ExpectFailure
-    { parseString = "1,253,465"
+    { parseString = ex_pg4_3
     , resultFormatter = show :: Expr -> String
     }
 
 test_pg4_4 = mkParseTest $ ExpectFailure
-    { parseString = ".364 E-03"
+    { parseString = ex_pg4_4
     , resultFormatter = show :: Expr -> String
     }
 
-test_pg4_5 = simpleParseTest code ast ""
-  where
-    code = " TYPE = \'SEMI\'\n OBJECT = TYPE \'GROUP\'\n"
-    ast = Program
-        [ assignStmt Nothing (IdExpr "TYPE") (LitExpr (String "SEMI")) Nothing
-        , assignStmt Nothing (IdExpr "OBJECT")
-            (BinaryExpr 
-                (IdExpr "TYPE") 
-                Blank 
-                (LitExpr (String "GROUP"))
-            )
-            Nothing
-        ]
+test_pg4_5 = simpleParseTest ex_pg4_5 ast_pg4_5 ""
 
-test_pg5_1 = simpleParseTest code ast ""
-  where
-    code = " FIRST = \'WINTER\'\n SECOND = \'SPRING\'\n TWO_SEASONS = FIRST \',\' SECOND\n"
-    ast = Program
-        [ assignStmt Nothing (IdExpr "FIRST") (LitExpr (String "WINTER")) Nothing
-        , assignStmt Nothing (IdExpr "SECOND") (LitExpr (String "SPRING")) Nothing
-        , assignStmt Nothing (IdExpr "TWO_SEASONS")
-            (BinaryExpr
-                (BinaryExpr
-                    (IdExpr "FIRST")
-                    Blank
-                    (LitExpr (String ","))
-                )
-                Blank
-                (IdExpr ("SECOND"))
-            )
-            Nothing
-        ]
+test_pg5_1 = simpleParseTest ex_pg5_1 ast_pg5_1 ""
+
+test_pg5_2 = simpleParseTest ex_pg5_2 ast_pg5_2 ""
+
+test_pg5_3 = simpleParseTest ex_pg5_3 ast_pg5_3 ""
+
+test_pg5_4 = simpleParseTest ex_pg5_4 ast_pg5_4 ""
+
+test_pg5_5 = simpleParseTest ex_pg5_5 ast_pg5_5 ""
+
+test_pg5_6 = simpleParseTest ex_pg5_6 ast_pg5_6 ""
+
+test_pg5_7 = simpleParseTest ex_pg5_7 ast_pg5_7 ""
+
+test_pg5_8 = simpleParseTest ex_pg5_8 ast_pg5_8 ""
+
+test_pg5_9 = simpleParseTest ex_pg5_9 ast_pg5_9 ""
+
+test_pg5_10 = simpleParseTest ex_pg5_10 ast_pg5_10 ""
+
+test_pg6_1 = simpleParseTest ex_pg6_1 ast_pg6_1 ""
+
+test_pg6_2 = simpleParseTest ex_pg6_2 ast_pg6_2 ""
+
+test_pg6_3 = simpleParseTest ex_pg6_3 ast_pg6_3 ""
+
+test_pg6_4 = simpleParseTest ex_pg6_4 ast_pg6_4 ""
+
+test_pg6_5 = simpleParseTest ex_pg6_5 ast_pg6_5 ""
+
+test_pg7_1 = simpleParseTest ex_pg7_1 ast_pg7_1 ""
+
+test_pg7_2 = simpleParseTest ex_pg7_2 ast_pg7_2 ""
+
+test_pg7_3 = simpleParseTest ex_pg7_3 ast_pg7_3 ""
+
+test_pg7_4 = simpleParseTest ex_pg7_4 ast_pg7_4 ""
+
+test_pg7_5 = simpleParseTest ex_pg7_5 ast_pg7_5 ""
+
+test_pg7_6 = simpleParseTest ex_pg7_6 ast_pg7_6 ""
+
+test_pg7_7 = simpleParseTest ex_pg7_7 ast_pg7_7 ""
+
+test_pg7_8 = simpleParseTest ex_pg7_8 ast_pg7_8 ""
+
+test_pg8_1 = simpleParseTest ex_pg8_1 ast_pg8_1 ""
+
+test_pg8_2 = simpleParseTest ex_pg8_2 ast_pg8_2 ""
+
+test_pg8_3 = simpleParseTest ex_pg8_3 ast_pg8_3 ""
+
+test_pg8_4 = simpleParseTest ex_pg8_4 ast_pg8_4 ""
+
+test_pg8_5 = simpleParseTest ex_pg8_5 ast_pg8_5 ""
+
+test_pg8_6 = simpleParseTest ex_pg8_6 ast_pg8_6 ""
+
+test_pg8_7 = simpleParseTest ex_pg8_7 ast_pg8_7 ""
+
+test_pg8_8 = simpleParseTest ex_pg8_8 ast_pg8_8 ""
+
+test_pg9_1 = simpleParseTest ex_pg9_1 ast_pg9_1 ""
+
+test_pg9_2 = simpleParseTest ex_pg9_2 ast_pg9_2 ""
+
+test_pg9_3 = simpleParseTest ex_pg9_3 ast_pg9_3 ""
+
+test_pg9_4 = simpleParseTest ex_pg9_4 ast_pg9_4 ""
+
+test_pg9_5 = simpleParseTest ex_pg9_5 ast_pg9_5 ""
+
+test_pg9_6 = simpleParseTest ex_pg9_6 ast_pg9_6 ""
+
+test_pg9_7 = simpleParseTest ex_pg9_7 ast_pg9_7 ""
+
+test_pg10_1 = simpleParseTest ex_pg10_1 ast_pg10_1 ""
+
+test_pg10_2 = simpleParseTest ex_pg10_2 ast_pg10_2 ""
+
+test_pg10_3 = simpleParseTest ex_pg10_3 ast_pg10_3 ""
+
+
 allTests = TestList
-    [ test_pg1_1
-    , test_pg1_2
-    , test_pg1_3
-    , test_pg2_1
-    , test_pg2_2
-    , test_pg2_3
-    , test_pg2_4
-    , test_pg2_5
-    , test_pg3_1
-    , test_pg3_2
-    , test_pg3_3
-    , test_pg3_4
-    , test_pg4_1
-    , test_pg4_2
-    , test_pg4_3
-    , test_pg4_4
-    , test_pg4_5
-    , test_pg5_1
+    [ TestLabel "Page 1, #1" test_pg1_1
+    , TestLabel "Page 1, #2" test_pg1_2
+    , TestLabel "Page 1, #3" test_pg1_3
+    , TestLabel "Page 2, #1" test_pg2_1
+    , TestLabel "Page 2, #2" test_pg2_2
+    , TestLabel "Page 2, #3" test_pg2_3
+    , TestLabel "Page 2, #4" test_pg2_4
+    , TestLabel "Page 2, #5" test_pg2_5
+    , TestLabel "Page 3, #1" test_pg3_1
+    , TestLabel "Page 3, #2" test_pg3_2
+    , TestLabel "Page 3, #3" test_pg3_3
+    , TestLabel "Page 3, #4" test_pg3_4
+    , TestLabel "Page 4, #1" test_pg4_1
+    , TestLabel "Page 4, #2" test_pg4_2
+    , TestLabel "Page 4, #3" test_pg4_3
+    , TestLabel "Page 4, #4" test_pg4_4
+    , TestLabel "Page 4, #5" test_pg4_5
+    , TestLabel "Page 5, #1" test_pg5_1
+    , TestLabel "Page 5, #2" test_pg5_2
+    , TestLabel "Page 5, #3" test_pg5_3
+    , TestLabel "Page 5, #4" test_pg5_4
+    , TestLabel "Page 5, #5" test_pg5_5
+    , TestLabel "Page 5, #6" test_pg5_6
+    , TestLabel "Page 5, #7" test_pg5_7
+    , TestLabel "Page 5, #8" test_pg5_8
+    , TestLabel "Page 5, #9" test_pg5_9
+    , TestLabel "Page 5, #10" test_pg5_10
+    , TestLabel "Page 6, #1" test_pg6_1
+    , TestLabel "Page 6, #2" test_pg6_2
+    , TestLabel "Page 6, #3" test_pg6_3
+    , TestLabel "Page 6, #4" test_pg6_4
+    , TestLabel "Page 6, #5" test_pg6_5
+    , TestLabel "Page 7, #1" test_pg7_1
+    , TestLabel "Page 7, #2" test_pg7_2
+    , TestLabel "Page 7, #3" test_pg7_3
+    , TestLabel "Page 7, #4" test_pg7_4
+    , TestLabel "Page 7, #5" test_pg7_5
+    , TestLabel "Page 7, #6" test_pg7_6
+    , TestLabel "Page 7, #7" test_pg7_7
+    , TestLabel "Page 7, #8" test_pg7_8
+    , TestLabel "Page 8, #1" test_pg8_1
+    , TestLabel "Page 8, #2" test_pg8_2
+    , TestLabel "Page 8, #3" test_pg8_3
+    , TestLabel "Page 8, #4" test_pg8_4
+    , TestLabel "Page 8, #5" test_pg8_5
+    , TestLabel "Page 8, #6" test_pg8_6
+    , TestLabel "Page 8, #7" test_pg8_7
+    , TestLabel "Page 9, #1" test_pg9_1
+    , TestLabel "Page 9, #2" test_pg9_2
+    , TestLabel "Page 9, #3" test_pg9_3
+    , TestLabel "Page 9, #4" test_pg9_4
+    , TestLabel "Page 9, #5" test_pg9_5
+    , TestLabel "Page 9, #6" test_pg9_6
+    , TestLabel "Page 9, #7" test_pg9_7
+    , TestLabel "Page 10, #1" test_pg10_1
+    , TestLabel "Page 10, #2" test_pg10_2
+    , TestLabel "Page 10, #3" test_pg10_3
     ]
 
 main :: IO ()

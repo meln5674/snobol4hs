@@ -69,7 +69,7 @@ executable snobol4ci
 test-suite lexer
   type:                 exitcode-stdio-1.0
   main-is:              Main.hs
-  hs-source-dirs:       lib, test/lexer
+  hs-source-dirs:       lib, test/lexer, test/common
   other-modules:        Language.Snobol4.Lexer
                       , Language.Snobol4.Lexer.Tokens
   build-depends:        base, HUnit, parsec
@@ -79,7 +79,7 @@ test-suite lexer
 test-suite parser
   type:                 exitcode-stdio-1.0
   main-is:              Main.hs
-  hs-source-dirs:       lib, test/parser
+  hs-source-dirs:       lib, test/parser, test/common
   other-modules:        Language.Snobol4.Lexer
                       , Language.Snobol4.Lexer.Tokens
                       , Language.Snobol4.Parser
@@ -91,7 +91,7 @@ test-suite parser
 test-suite expression
   type:                 exitcode-stdio-1.0
   main-is:              Main.hs
-  hs-source-dirs:       lib, test/expression
+  hs-source-dirs:       lib, test/expression, test/common
   other-modules:        Language.Snobol4.Syntax.AST
                       , Language.Snobol4.Interpreter.Types
                       , Language.Snobol4.Interpreter.Internal
@@ -104,7 +104,7 @@ test-suite expression
 test-suite scanner
   type:                 exitcode-stdio-1.0
   main-is:              Main.hs
-  hs-source-dirs:       lib, test/scanner
+  hs-source-dirs:       lib, test/scanner, test/common
   other-modules:        Language.Snobol4.Syntax.AST
                       , Language.Snobol4.Interpreter.Types
                       , Language.Snobol4.Interpreter.Evaluator

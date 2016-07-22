@@ -14,6 +14,7 @@ tree of a SNOBOL4 program.
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Snobol4.Parser
     ( parseFile
     , ParseError
@@ -39,8 +40,8 @@ import Language.Snobol4.Parser.Internal
 import qualified Language.Snobol4.Lexer as L
 
 -- | Parse a value in a transformer
-parseT :: (Parsable a, Monad m) => String -> m (Either ParseError a)
-parseT = runExceptT . (ExceptT . L.lexT False >=> ExceptT . parseFromToksT)
+parseT :: forall a m . (Parsable a, Monad m) => String -> m (Either ParseError a)
+parseT = runExceptT . (ExceptT . L.lexT (startOfLine (undefined :: a)) >=> ExceptT . parseFromToksT)
 
 -- | Parse a value
 parse :: Parsable a => String -> Either ParseError a
