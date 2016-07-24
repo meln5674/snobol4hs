@@ -205,6 +205,22 @@ test_pg10_2 = simpleParseTest ex_pg10_2 ast_pg10_2 ""
 
 test_pg10_3 = simpleParseTest ex_pg10_3 ast_pg10_3 ""
 
+test_pg10_4 = simpleParseTest ex_pg10_4 ast_pg10_4 ""
+
+test_pg11_1 = simpleParseTest ex_pg11_1 ast_pg11_1 ""
+
+test_pg11_2 = simpleParseTest ex_pg11_2 ast_pg11_2 ""
+
+test_pg11_3 = simpleParseTest ex_pg11_3 ast_pg11_3 ""
+
+test_pg11_4 = simpleParseTest ex_pg11_4 ast_pg11_4 ""
+
+test_pg11_5 = simpleParseTest ex_pg11_5 ast_pg11_5 ""
+
+test_pg11_6 = simpleParseTest ex_pg11_6 ast_pg11_6 ""
+
+test_pg11_7 = simpleParseTest ex_pg11_7 ast_pg11_7 ""
+
 
 allTests = TestList
     [ TestLabel "Page 1, #1" test_pg1_1
@@ -264,6 +280,14 @@ allTests = TestList
     , TestLabel "Page 10, #1" test_pg10_1
     , TestLabel "Page 10, #2" test_pg10_2
     , TestLabel "Page 10, #3" test_pg10_3
+    , TestLabel "Page 10, #4" test_pg10_4
+    , TestLabel "Page 11, #1" test_pg11_1
+    , TestLabel "Page 11, #2" test_pg11_2
+    , TestLabel "Page 11, #3" test_pg11_3
+    , TestLabel "Page 11, #4" test_pg11_4
+    , TestLabel "Page 11, #5" test_pg11_5
+    , TestLabel "Page 11, #6" test_pg11_6
+    , TestLabel "Page 11, #7" test_pg11_7
     ]
 
 main :: IO ()

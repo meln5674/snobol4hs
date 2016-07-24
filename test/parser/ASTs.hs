@@ -424,3 +424,94 @@ ast_pg10_3 = Program
     [ assignStmt (Just "LOOP") (IdExpr "PUNCH") (IdExpr "INPUT") (Just (SuccessGoto (IdExpr ("LOOP"))))
     , EndStmt Nothing
     ]
+
+ast_pg10_4 = Program
+    [ assignStmt Nothing (IdExpr "COLOR") 
+        (BinaryExpr
+            (BinaryExpr
+                (LitExpr (String "RED")) 
+                Pipe
+                (LitExpr (String "GREEN"))
+            )
+            Pipe
+            (LitExpr (String "BLUE"))
+        )
+        Nothing
+    , replStmt (Just "BRIGHT") (IdExpr "TEST") (IdExpr "COLOR") NullExpr
+        (Just
+            (BothGoto
+                (IdExpr "BRIGHT")
+                (IdExpr "BLAND")
+            )
+        )
+    , Stmt (Just "BLAND") Nothing Nothing Nothing Nothing
+    ]
+
+ast_pg11_1 = Program
+    [ assignStmt (Just "LOOP") (IdExpr "PUNCH") (IdExpr "INPUT") (Just (FailGoto (IdExpr "END")))
+    , assignStmt Nothing (IdExpr "OUTPUT") (IdExpr "PUNCH") (Just (Goto (IdExpr "LOOP")))
+    , EndStmt Nothing
+    ]
+
+ast_pg11_2 = assignStmt Nothing (IdExpr "MONTH") (LitExpr (String "APRIL")) Nothing
+
+ast_pg11_3 = assignStmt Nothing (PrefixExpr Dollar (IdExpr "MONTH")) (LitExpr (String "CRUEL")) Nothing
+
+ast_pg11_4 = assignStmt Nothing (IdExpr "APRIL") (LitExpr (String "CRUEL")) Nothing
+
+ast_pg11_5 = Program
+    [ assignStmt Nothing (IdExpr "WORD") (LitExpr (String "RUN")) Nothing
+    , assignStmt Nothing
+        (PrefixExpr Dollar
+            (ParenExpr
+                (BinaryExpr
+                    (IdExpr "WORD")
+                    Blank
+                    (LitExpr (String ":"))
+                )
+            )
+        )
+        (BinaryExpr
+             (PrefixExpr Dollar
+                (ParenExpr
+                    (BinaryExpr
+                        (IdExpr "WORD")
+                        Blank
+                        (LitExpr (String ":"))
+                    )
+                )
+            )
+            Plus
+            (LitExpr (Int 1))
+        )
+        Nothing
+    ]
+
+ast_pg11_6 = PrefixExpr Dollar
+    (ParenExpr
+        (BinaryExpr
+            (LitExpr (String "A"))
+            Pipe
+            (LitExpr (String "B"))
+        )
+    )
+
+ast_pg11_7 = assignStmt Nothing (IdExpr "N")
+    (BinaryExpr
+        (IdExpr "N")
+        Plus
+        (LitExpr (Int 1))
+    )
+    (Just
+        (Goto
+            (PrefixExpr Dollar
+                (ParenExpr
+                    (BinaryExpr
+                        (LitExpr (String "PHASE"))
+                        Blank
+                        (IdExpr "N")
+                    )
+                 )
+             )
+         )
+     )

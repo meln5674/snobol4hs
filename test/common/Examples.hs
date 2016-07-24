@@ -78,7 +78,7 @@ ex_pg7_6 = " WORD \'AB\' = \'OU\'\n"
 
 ex_pg7_7 = " HAND = \'AC4DAHKDKS\'\n RANK = 4\n SUIT = \'D\'\n HAND RANK SUIT = \'AS\'\n"
 
-ex_pg7_8 = " HAND RANK SUIT =\n"
+ex_pg7_8 = " HAND RANK SUIT = \n"
 
 ex_pg8_1 = "P1 | P2"
 
@@ -118,19 +118,19 @@ ex_pg10_2 = " TEXT = INPUT : F(DONE)\n"
 
 ex_pg10_3 = "LOOP PUNCH = INPUT :S(LOOP)\nEND\n"
 
-ex_pg10_4 = " COLOR = \'RED\' | \'GREEN\' | \'BLUE\'\nBRIGHT TEST COLOR = :S(BRIGHT)F(BLAND)\nBLAND"
+ex_pg10_4 = " COLOR = \'RED\' | \'GREEN\' | \'BLUE\'\nBRIGHT TEST COLOR = :S(BRIGHT)F(BLAND)\nBLAND\n"
 
 ex_pg11_1 = "LOOP PUNCH = INPUT :F(END)\n OUTPUT = PUNCH :(LOOP)\nEND\n"
 
 ex_pg11_2 = " MONTH = \'APRIL\'\n"
 
-ex_pg11_3 = " $MOTNH = \'CRUEL\'\n"
+ex_pg11_3 = " $MONTH = \'CRUEL\'\n"
 
 ex_pg11_4 = " APRIL = \'CRUEL\'\n"
 
 ex_pg11_5 = " WORD = \'RUN\'\n $(WORD \':\') = $(WORD \':\') + 1\n"
 
-ex_pg11_6 = " $(\'A\' | \'B\')\n"
+ex_pg11_6 = "$(\'A\' | \'B\')"
 
 ex_pg11_7 = " N = N + 1 :($(\'PHASE\' N))\n"
 

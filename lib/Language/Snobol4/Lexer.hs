@@ -120,7 +120,7 @@ label = do
         else do
             P.notFollowedBy $ P.string "END"
             c <- alphanumeric
-            cs <- P.many (P.noneOf [';',' '])
+            cs <- P.many (P.noneOf [';',' ','\n'])
             return $ Label $ c:cs
 
 -- | Parse an identifier, which starts with a letter and then contains any 
