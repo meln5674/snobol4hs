@@ -243,7 +243,7 @@ ex_pg20_5 = unlines
     , "          COUNT<CH> =  COUNT<CH>  +  1            :(NEXT)"
     , "DISPLAY   OUTPUT    ="
     , "LOOP      LETTERS   CHAR  =                       :F(END)"
-    , "          OUTPUT    = NE(COUNT<CD>)  CH  ' OCCURS ' COUNT<CD> 'TIMES '"
+    , "          OUTPUT    = NE(COUNT<CH>)  CH  ' OCCURS ' COUNT<CH> ' TIMES'"
     , "+                                                 :(LOOP)"
     , "END"
     ]

@@ -187,8 +187,11 @@ comment_line = do
         then P.unexpected "Cannot have a label anywhere but the start of the line"
         else do
             _ <- P.char '*'
-            comment <- P.manyTill P.anyChar (P.try (void eol) <|> P.eof)
+            comment <- P.manyTill P.anyChar (P.try (void $ P.lookAhead eol) <|> P.eof)
             return $ LineComment comment
+
+continuation :: Monad m => ParsecT String u m ()
+continuation = void $ eol >> P.oneOf ['+','.']
 
 -- | Modifie a parser so that, if it succeeds, it wraps the result in a Located 
 -- value with the position the parser started at
@@ -209,7 +212,6 @@ anyToken
     <|> equals
     <|> semicolon
     <|> colon
-    <|> eol
     <|> blanks
     <|> label
     <|> identifier
@@ -220,6 +222,8 @@ anyToken
     <|> comment_line
     <|> P.try exponentiate
     <|> operator
+    <|> P.try (continuation >> anyToken)
+    <|> eol
 
 -- | Parse any number of legal SNOBOL4 tokens
 tokens :: Monad m => ParsecT String u m [Located Token P.SourcePos]

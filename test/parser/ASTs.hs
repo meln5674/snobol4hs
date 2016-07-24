@@ -515,3 +515,75 @@ ast_pg11_7 = assignStmt Nothing (IdExpr "N")
              )
          )
      )
+
+ast_pg12_1 = Program
+    [ assignStmt Nothing (IdExpr "APE") (LitExpr (String "SIMIAN")) Nothing
+    , assignStmt Nothing (IdExpr "OUTPUT") (CallExpr "SIZE" [IdExpr "APE"]) Nothing
+    ]
+
+ast_pg12_2 = Program
+    [ assignStmt Nothing (IdExpr "N") (LitExpr (Int 100)) Nothing
+    , assignStmt Nothing (IdExpr "OUTPUT") (CallExpr "SIZE"
+        [BinaryExpr
+            (LitExpr (String "PART"))
+            Blank
+            (BinaryExpr
+                (IdExpr "N")
+                Plus
+                (LitExpr (Int 4))
+            )
+        ])
+        Nothing
+    ]
+
+ast_pg12_3 = degenStmt Nothing (CallExpr "DUPL"
+    [ LitExpr (String "/*")
+    , LitExpr (Int 5)
+    ])
+    Nothing
+
+
+ast_pg20_5 = Program
+    [ assignStmt Nothing (PrefixExpr And (IdExpr "TRIM")) (LitExpr (Int 1)) Nothing
+    , assignStmt Nothing (IdExpr "CHAR")
+        (BinaryExpr
+            (CallExpr "LEN" [LitExpr (Int 1)])
+            Dot
+            (IdExpr "CH")
+        )
+        Nothing
+    , assignStmt Nothing (IdExpr "LETTERS") (LitExpr (String "ABCDEFGHIJKLMNOPQRSTUVWXYZ")) Nothing
+    , assignStmt Nothing (IdExpr "COUNT") (CallExpr "TABLE" [LitExpr (Int 30)]) Nothing
+    , assignStmt (Just "READ") (IdExpr "OUTPUT") (IdExpr "INPUT") (Just (FailGoto (IdExpr "DISPLAY")))
+    , assignStmt Nothing (IdExpr "TEXT") (IdExpr "OUTPUT") Nothing
+    , replStmt (Just "NEXT") (IdExpr "TEXT") (IdExpr "CHAR") NullExpr (Just (FailGoto (IdExpr "READ")))
+    , assignStmt Nothing (RefExpr "COUNT" [IdExpr "CH"])
+        (BinaryExpr
+            (RefExpr "COUNT" [IdExpr "CH"])
+            Plus
+            (LitExpr (Int 1))
+        )
+        (Just (Goto (IdExpr "NEXT")))
+    , assignStmt (Just "DISPLAY") (IdExpr "OUTPUT") NullExpr Nothing
+    , replStmt (Just "LOOP") (IdExpr "LETTERS") (IdExpr "CHAR") NullExpr (Just (FailGoto (IdExpr "END")))
+    , assignStmt Nothing (IdExpr "OUTPUT") 
+        (BinaryExpr
+            (BinaryExpr
+                (BinaryExpr
+                    (BinaryExpr
+                        (CallExpr "NE" [RefExpr "COUNT" [IdExpr "CH"]])
+                        Blank
+                        (IdExpr "CH")
+                    )
+                    Blank
+                    (LitExpr (String " OCCURS "))
+                )
+                Blank
+                (RefExpr "COUNT" [IdExpr "CH"])
+            )
+            Blank
+            (LitExpr (String " TIMES"))
+        )
+        (Just (Goto (IdExpr "LOOP")))
+    , EndStmt Nothing
+    ]
