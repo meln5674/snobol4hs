@@ -125,7 +125,8 @@ goto expr = do
     lookupResult <- liftEval $ labelLookup label
     liftEval $ case lookupResult of
         Nothing -> programError UndefinedOrErroneousGoto
-        Just pc -> putProgramCounter pc
+        Just (Label pc) -> putProgramCounter pc
+        Just (CodeLabel k pc) -> undefined
 
 directGoto :: InterpreterShell m => Expr -> Evaluator m ()
 directGoto expr = do

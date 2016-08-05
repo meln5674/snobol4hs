@@ -123,6 +123,12 @@ data CallStackNode
     , callName :: Snobol4String
     }
 
+data Snobol4Datatype
+    = Snobol4Datatype
+    { datatypeName :: Snobol4String
+    , datatypeFieldNames :: [Snobol4String]
+    }
+
 -- | Information for calling a function
 data Function m
     -- A user defined function
@@ -183,15 +189,20 @@ readTable k (Snobol4Table tbl) = M.lookup k tbl
 writeTable :: Data -> Data -> Snobol4Table -> Snobol4Table
 writeTable k v (Snobol4Table tbl) = Snobol4Table $ M.insert k v tbl
 
+data Label
+    = Label Address
+    | CodeLabel CodeKey Address
+
 type Variables = Map Snobol4String Data
 type Statements = Vector Stmt
-type Labels = Map Snobol4String Address
+type Labels = Map Snobol4String Label
 type Functions m = Map Snobol4String (Function m)
 type Arrays = Map ArrayKey (RefCounted Snobol4Array)
 type Tables = Map TableKey (RefCounted Snobol4Table)
 type Patterns = Map PatternKey (RefCounted Pattern)
 type Codes = Map CodeKey (RefCounted Snobol4Code)
- 
+type Datatypes = Map Snobol4String Snobol4Datatype
+
 -- | State of the interpreter
 data ProgramState m
     = ProgramState
@@ -215,6 +226,7 @@ data ProgramState m
     -- | The patterns known to the interpreter
     , patterns :: Patterns
     , codes :: Codes
+    , datatypes :: Datatypes
     }
 
 
@@ -358,6 +370,9 @@ getPatterns = getsProgramState patterns
 getCodes :: InterpreterShell m => Interpreter m Codes
 getCodes = getsProgramState codes
 
+getDatatypes :: InterpreterShell m => Interpreter m Datatypes
+getDatatypes = getsProgramState datatypes
+
 -- | Set the variables known to the interpreter
 putVariables :: InterpreterShell m => Variables -> Interpreter m ()
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
@@ -417,6 +432,10 @@ modifyProgramCounter f = modifyProgramState $
 modifyFunctions :: InterpreterShell m => (Functions m -> Functions m) -> Interpreter m ()
 modifyFunctions f = modifyProgramState $
     \st -> st { functions = f $ functions st }
+
+modifyDatatypes :: InterpreterShell m => (Datatypes -> Datatypes) -> Interpreter m ()
+modifyDatatypes f = modifyProgramState $
+    \st -> st { datatypes = f $ datatypes st }
 
 -- | Apply a function to the call stack
 modifyCallStack :: InterpreterShell m => ([CallStackNode] -> [CallStackNode]) -> Interpreter m ()
@@ -483,7 +502,7 @@ clearFunc :: InterpreterShell m => Snobol4String -> Interpreter m ()
 clearFunc = modifyFunctions . M.delete
 
 -- | Find the index of the statement with a label
-labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Address)
+labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Label)
 labelLookup lbl = M.lookup lbl <$> getLabels
 
 -- | Retreive the value of a global variable
@@ -557,6 +576,9 @@ varWrite name val = do
 -- | Look up a function by name
 funcLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe (Function m))
 funcLookup name = M.lookup name <$> getFunctions
+
+datatypeLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Snobol4Datatype)
+datatypeLookup name = M.lookup name <$> getDatatypes
 
 -- | Allocate a new array with an upper and lower bound each set to an intital value
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
@@ -666,6 +688,12 @@ codesIncRef k = modifyCodes $ M.adjust incRefCount k
 
 codesDecRef :: InterpreterShell m => CodeKey -> Interpreter m ()
 codesDecRef k = modifyCodes $ M.update decRefCount k
+
+functionsNew :: InterpreterShell m => Function m -> Interpreter m ()
+functionsNew func = modifyFunctions $ M.insert (funcName func) func
+
+datatypesNew :: InterpreterShell m => Snobol4Datatype -> Interpreter m ()
+datatypesNew datatype = modifyDatatypes $ M.insert (datatypeName datatype) datatype
 
 -- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()

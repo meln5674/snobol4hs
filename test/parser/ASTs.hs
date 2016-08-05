@@ -418,10 +418,10 @@ ast_pg9_8 = assignStmt Nothing (IdExpr "A_OR_B")
 
 ast_pg10_1 = assignStmt (Just "START") (IdExpr "TEXT") (IdExpr "INPUT") Nothing
 
-ast_pg10_2 = assignStmt Nothing (IdExpr "TEXT") (IdExpr "INPUT") (Just (FailGoto (IdExpr "DONE")))
+ast_pg10_2 = assignStmt Nothing (IdExpr "TEXT") (IdExpr "INPUT") (Just (FailGoto (GotoPart (IdExpr "DONE"))))
 
 ast_pg10_3 = Program
-    [ assignStmt (Just "LOOP") (IdExpr "PUNCH") (IdExpr "INPUT") (Just (SuccessGoto (IdExpr ("LOOP"))))
+    [ assignStmt (Just "LOOP") (IdExpr "PUNCH") (IdExpr "INPUT") (Just (SuccessGoto (GotoPart (IdExpr ("LOOP")))))
     , EndStmt Nothing
     ]
 
@@ -440,16 +440,16 @@ ast_pg10_4 = Program
     , replStmt (Just "BRIGHT") (IdExpr "TEST") (IdExpr "COLOR") NullExpr
         (Just
             (BothGoto
-                (IdExpr "BRIGHT")
-                (IdExpr "BLAND")
+                (GotoPart (IdExpr "BRIGHT"))
+                (GotoPart (IdExpr "BLAND"))
             )
         )
     , Stmt (Just "BLAND") Nothing Nothing Nothing Nothing
     ]
 
 ast_pg11_1 = Program
-    [ assignStmt (Just "LOOP") (IdExpr "PUNCH") (IdExpr "INPUT") (Just (FailGoto (IdExpr "END")))
-    , assignStmt Nothing (IdExpr "OUTPUT") (IdExpr "PUNCH") (Just (Goto (IdExpr "LOOP")))
+    [ assignStmt (Just "LOOP") (IdExpr "PUNCH") (IdExpr "INPUT") (Just (FailGoto (GotoPart (IdExpr "END"))))
+    , assignStmt Nothing (IdExpr "OUTPUT") (IdExpr "PUNCH") (Just (Goto (GotoPart (IdExpr "LOOP"))))
     , EndStmt Nothing
     ]
 
@@ -504,13 +504,15 @@ ast_pg11_7 = assignStmt Nothing (IdExpr "N")
     )
     (Just
         (Goto
-            (PrefixExpr Dollar
-                (ParenExpr
-                    (BinaryExpr
-                        (LitExpr (String "PHASE"))
-                        Blank
-                        (IdExpr "N")
-                    )
+            (GotoPart
+                (PrefixExpr Dollar
+                    (ParenExpr
+                        (BinaryExpr
+                            (LitExpr (String "PHASE"))
+                            Blank
+                            (IdExpr "N")
+                        )
+                     )
                  )
              )
          )
@@ -554,18 +556,18 @@ ast_pg20_5 = Program
         Nothing
     , assignStmt Nothing (IdExpr "LETTERS") (LitExpr (String "ABCDEFGHIJKLMNOPQRSTUVWXYZ")) Nothing
     , assignStmt Nothing (IdExpr "COUNT") (CallExpr "TABLE" [LitExpr (Int 30)]) Nothing
-    , assignStmt (Just "READ") (IdExpr "OUTPUT") (IdExpr "INPUT") (Just (FailGoto (IdExpr "DISPLAY")))
+    , assignStmt (Just "READ") (IdExpr "OUTPUT") (IdExpr "INPUT") (Just (FailGoto (GotoPart (IdExpr "DISPLAY"))))
     , assignStmt Nothing (IdExpr "TEXT") (IdExpr "OUTPUT") Nothing
-    , replStmt (Just "NEXT") (IdExpr "TEXT") (IdExpr "CHAR") NullExpr (Just (FailGoto (IdExpr "READ")))
+    , replStmt (Just "NEXT") (IdExpr "TEXT") (IdExpr "CHAR") NullExpr (Just (FailGoto (GotoPart (IdExpr "READ"))))
     , assignStmt Nothing (RefExpr "COUNT" [IdExpr "CH"])
         (BinaryExpr
             (RefExpr "COUNT" [IdExpr "CH"])
             Plus
             (LitExpr (Int 1))
         )
-        (Just (Goto (IdExpr "NEXT")))
+        (Just (Goto (GotoPart (IdExpr "NEXT"))))
     , assignStmt (Just "DISPLAY") (IdExpr "OUTPUT") NullExpr Nothing
-    , replStmt (Just "LOOP") (IdExpr "LETTERS") (IdExpr "CHAR") NullExpr (Just (FailGoto (IdExpr "END")))
+    , replStmt (Just "LOOP") (IdExpr "LETTERS") (IdExpr "CHAR") NullExpr (Just (FailGoto (GotoPart (IdExpr "END"))))
     , assignStmt Nothing (IdExpr "OUTPUT") 
         (BinaryExpr
             (BinaryExpr
@@ -584,6 +586,6 @@ ast_pg20_5 = Program
             Blank
             (LitExpr (String " TIMES"))
         )
-        (Just (Goto (IdExpr "LOOP")))
+        (Just (Goto (GotoPart (IdExpr "LOOP"))))
     , EndStmt Nothing
     ]

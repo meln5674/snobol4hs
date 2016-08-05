@@ -28,3 +28,8 @@ data FunctionPrototype
         Snobol4String
         [Snobol4String]
         [Snobol4String]
+
+data DataPrototype
+    = DataPrototype
+        Snobol4String
+        [Snobol4String]

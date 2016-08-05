@@ -37,6 +37,7 @@ emptyState = ProgramState
     M.empty
     M.empty
     M.empty
+    M.empty
 
 
 addPrimitives :: forall m . InterpreterShell m => Interpreter m ()

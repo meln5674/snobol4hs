@@ -58,6 +58,10 @@ instance Parsable FunctionPrototype where
     parser = function_prototype
     startOfLine = const False
 
+instance Parsable DataPrototype where
+    parser = data_prototype
+    startOfLine = const False
+
 instance Parsable Program where
     parser = program
     startOfLine = const True
@@ -419,9 +423,6 @@ successGoto = do
     return $ case fGoto of
         Just fGoto' -> BothGoto sGoto fGoto'
         Nothing -> SuccessGoto sGoto
-        _ -> error
-            $ "Internal error: Something other than a goto was parsed as goto: " 
-            ++ show fGoto
 
 -- | Parse a conditional goto that begins with the failure goto
 failureGoto :: Monad m => ParsecT TokStream ParserState m Goto
@@ -433,9 +434,6 @@ failureGoto = do
     return $ case sGoto of
         Just sGoto' -> BothGoto sGoto' fGoto
         Nothing -> FailGoto fGoto
-        _ -> error
-            $ "Internal error: Something other than a goto was parsed as a goto: "
-            ++ show fGoto
 
 -- | Parse a goto field
 goto_field :: Monad m => ParsecT TokStream ParserState m Goto
@@ -616,8 +614,8 @@ item_list :: Monad m => ParsecT TokStream ParserState m [String]
 item_list = P.sepBy1 item comma
 
 -- | Parse a data prototype
-data_prototype :: Monad m => ParsecT TokStream ParserState m ()
-data_prototype = void $ identifier >> inParens item_list
+data_prototype :: Monad m => ParsecT TokStream ParserState m DataPrototype
+data_prototype = DataPrototype <$> (mkString <$> identifierStr) <*> (map mkString <$> inParens item_list)
 
 -- | Parse a function prototype
 function_prototype :: Monad m => ParsecT TokStream ParserState m FunctionPrototype

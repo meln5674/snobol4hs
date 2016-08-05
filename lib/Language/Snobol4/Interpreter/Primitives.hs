@@ -219,7 +219,16 @@ copy = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
 data_ :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-data_ = const $ liftEval $ programError ErrorInSnobol4System
+data_ [arg] = do
+    protoStr <- toString arg
+    parseResult <- parseT $ unmkString protoStr
+    DataPrototype dataName fieldNames <- case parseResult of
+        Left _ -> liftEval $ programError ErroneousPrototype
+        Right datatype -> return datatype
+    let datatype = Snobol4Datatype dataName fieldNames
+    liftEval $ datatypesNew datatype
+    return $ Just $ StringData $ nullString
+data_ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 datatype :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -231,7 +240,21 @@ date = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
 define :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-define = const $ liftEval $ programError ErrorInSnobol4System
+define [arg,labelArg] = do
+    protoStr <- toString arg
+    labelStr <- toString labelArg
+    parseResult <- parseT $ unmkString protoStr
+    FunctionPrototype funcName argNames localNames <- case parseResult of
+        Left _ -> liftEval $ programError ErroneousPrototype
+        Right func -> return func
+    labelResult <- liftEval $ labelLookup labelStr
+    Label addr <- case labelResult of
+        Just l -> return l
+        Nothing -> liftEval $ programError EntryPointOfFunctionNotLabel
+    let func = UserFunction funcName argNames localNames addr
+    liftEval $ functionsNew func
+    return Nothing
+define _ = liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
 detach :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -285,7 +308,16 @@ eval _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 field :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-field = const $ liftEval $ programError ErrorInSnobol4System
+field [dname,n] = do
+    dname' <- toString dname
+    n' <- toInteger n
+    datatypeResult <- liftEval $ datatypeLookup dname'
+    case datatypeResult of
+        Nothing -> liftEval $ programError IllegalArgumentToPrimitiveFunction
+        Just datatype -> case drop (unmkInteger n') $ datatypeFieldNames datatype of
+            [] -> liftEval $ programError IncorrectNumberOfArguments
+            (arg:_) -> return $ Just $ StringData arg
+field _ = liftEval $ programError ErrorInSnobol4System
 
 -- | Greater than or equal predicate
 ge :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -347,7 +379,16 @@ lgt _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 local :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-local = const $ liftEval $ programError ErrorInSnobol4System
+local [fname,n] = do
+    fname' <- toString fname
+    n' <- toInteger n
+    funcResult <- liftEval $ funcLookup fname'
+    case funcResult of
+        Nothing -> liftEval $ programError UndefinedFunctionOrOperation
+        Just func -> case drop (unmkInteger n') $ localNames func of
+            [] -> liftEval $ programError IncorrectNumberOfArguments
+            (arg:_) -> return $ Just $ StringData arg
+local _ = liftEval $ programError ErrorInSnobol4System
 
 -- | Less than predicate
 lt :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -485,5 +526,9 @@ unload = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO 
 value :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-value = const $ liftEval $ programError ErrorInSnobol4System
+value [arg] = do
+    name <- toString arg
+    return $ Just $ Name $ LookupId name
+value _ = liftEval $ programError IncorrectNumberOfArguments
+
 
