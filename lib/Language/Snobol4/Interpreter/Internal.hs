@@ -127,13 +127,23 @@ goto expr = do
         Nothing -> programError UndefinedOrErroneousGoto
         Just pc -> putProgramCounter pc
 
+directGoto :: InterpreterShell m => Expr -> Evaluator m ()
+directGoto expr = do
+    result <- evalExpr expr
+    code <- toCode result
+    undefined
+    
+execGotoPart :: InterpreterShell m => GotoPart -> Evaluator m ()
+execGotoPart (GotoPart expr) = goto expr
+execGotoPart (DirectGotoPart expr) = directGoto expr
+
 -- | Execute a goto
 execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m ()
-execGoto _ (Goto expr) = goto expr
-execGoto (EvalSuccess _) (SuccessGoto expr) = goto expr
-execGoto EvalFailed (FailGoto expr) = goto expr
-execGoto (EvalSuccess _) (BothGoto expr _) = goto expr
-execGoto EvalFailed (BothGoto _ expr) = goto expr
+execGoto _ (Goto g) = execGotoPart g
+execGoto (EvalSuccess _) (SuccessGoto g) = execGotoPart g
+execGoto EvalFailed (FailGoto g) = execGotoPart g
+execGoto (EvalSuccess _) (BothGoto g _) = execGotoPart g
+execGoto EvalFailed (BothGoto _ g) = execGotoPart g
 execGoto _ _ = liftEval $ modifyProgramCounter (+1)
 
 -- | Execute one of the steps above, ignoring if it is missing

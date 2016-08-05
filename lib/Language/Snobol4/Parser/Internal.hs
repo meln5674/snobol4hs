@@ -401,19 +401,23 @@ object_field = mandatoryBlanks >> fixedTopExpression
 equal :: Monad m => ParsecT TokStream ParserState m (Located Token SourcePos)
 equal = mandatoryBlanks >> equals
 
+gotoPart :: Monad m => ParsecT TokStream ParserState m GotoPart
+gotoPart =  (GotoPart <$> inParens fixedExpression) 
+        <|> (DirectGotoPart <$> inAngles fixedExpression)
+
 -- | Parse an unconditional goto
 goto :: Monad m => ParsecT TokStream ParserState m Goto
-goto = Goto <$> (inParens fixedExpression <|> inAngles fixedExpression)
+goto = Goto <$> gotoPart
 
 -- | Parse a conditional goto that begins with the success goto
 successGoto :: Monad m => ParsecT TokStream ParserState m Goto
 successGoto = do
     _ <- successTag
-    Goto sGoto <- goto
+    sGoto <- gotoPart
     optionalBlanks
-    fGoto <- P.optionMaybe (failureTag >> goto)
+    fGoto <- P.optionMaybe (failureTag >> gotoPart)
     return $ case fGoto of
-        Just (Goto fGoto') -> BothGoto sGoto fGoto'
+        Just fGoto' -> BothGoto sGoto fGoto'
         Nothing -> SuccessGoto sGoto
         _ -> error
             $ "Internal error: Something other than a goto was parsed as goto: " 
@@ -423,11 +427,11 @@ successGoto = do
 failureGoto :: Monad m => ParsecT TokStream ParserState m Goto
 failureGoto = do
     _ <- failureTag
-    Goto fGoto <- goto
+    fGoto <- gotoPart
     optionalBlanks
-    sGoto <- P.optionMaybe (successTag >> goto)
+    sGoto <- P.optionMaybe (successTag >> gotoPart)
     return $ case sGoto of
-        Just (Goto sGoto') -> BothGoto sGoto' fGoto
+        Just sGoto' -> BothGoto sGoto' fGoto
         Nothing -> FailGoto fGoto
         _ -> error
             $ "Internal error: Something other than a goto was parsed as a goto: "

@@ -77,7 +77,6 @@ data Lookup
     | LookupLiteral Data
   deriving (Show, Eq, Ord)
 
-
 -- | The data types allowed in a snobol4 program
 data Data
     -- | A string
@@ -96,6 +95,7 @@ data Data
     | TableData TableKey
     -- | Passing an expression by name
     | Name Lookup
+    | CodeData CodeKey 
   deriving (Eq, Ord)
 
 instance Show Data where
@@ -180,11 +180,15 @@ newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
 -- | Key for passing patterns by reference
 newtype PatternKey = PatternKey Int deriving (Eq,Ord,Enum)
  
+newtype CodeKey = CodeKey Int deriving (Eq,Ord,Enum)
+ 
 -- | Underlying type for arrays
 newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
 
 -- | Underlying type for tables
 newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data }
+
+newtype Snobol4Code = Snobol4Code { getCode :: Program }
 
 -- | The null string
 nullString :: Snobol4String

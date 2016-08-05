@@ -190,6 +190,7 @@ type Functions m = Map Snobol4String (Function m)
 type Arrays = Map ArrayKey (RefCounted Snobol4Array)
 type Tables = Map TableKey (RefCounted Snobol4Table)
 type Patterns = Map PatternKey (RefCounted Pattern)
+type Codes = Map CodeKey (RefCounted Snobol4Code)
  
 -- | State of the interpreter
 data ProgramState m
@@ -213,6 +214,7 @@ data ProgramState m
     , tables :: Tables
     -- | The patterns known to the interpreter
     , patterns :: Patterns
+    , codes :: Codes
     }
 
 
@@ -353,6 +355,8 @@ getTables = getsProgramState tables
 getPatterns :: InterpreterShell m => Interpreter m Patterns
 getPatterns = getsProgramState patterns
 
+getCodes :: InterpreterShell m => Interpreter m Codes
+getCodes = getsProgramState codes
 
 -- | Set the variables known to the interpreter
 putVariables :: InterpreterShell m => Variables -> Interpreter m ()
@@ -439,6 +443,12 @@ modifyPatterns :: InterpreterShell m
 modifyPatterns f = modifyProgramState $
     \st -> st { patterns = f $ patterns st }
 
+modifyCodes :: InterpreterShell m
+            => (Codes -> Codes)
+            -> Interpreter m ()
+modifyCodes f = modifyProgramState $
+    \st -> st { codes = f $ codes st }
+
 -- | Apply a function to the head of the call stack
 modifyCallStackHead :: InterpreterShell m => (CallStackNode -> CallStackNode) -> Interpreter m ()
 modifyCallStackHead f = modifyCallStack $ \(n:ns) -> f n:ns
@@ -461,7 +471,13 @@ fetch = (V.!) <$> getStatements <*> (getInteger . getAddress <$> getProgramCount
 
 -- | Delete a variable
 clearVar :: InterpreterShell m => Snobol4String -> Interpreter m ()
-clearVar = modifyVariables . M.delete 
+clearVar n = do
+    result <- varLookup n
+    case result of
+        Just (_,d) -> do
+            decRef d
+            modifyVariables $ M.delete n
+        Nothing -> return ()
 
 clearFunc :: InterpreterShell m => Snobol4String -> Interpreter m ()
 clearFunc = modifyFunctions . M.delete
@@ -633,6 +649,24 @@ patternsIncRef k = modifyPatterns $ M.adjust incRefCount k
 patternsDecRef :: InterpreterShell m => PatternKey -> Interpreter m ()
 patternsDecRef k = modifyPatterns $ M.update decRefCount k
 
+codesNew :: InterpreterShell m => Snobol4Code -> Interpreter m CodeKey
+codesNew code = do
+    newKey <- (succ . fst . M.findMax) `liftM` getCodes
+    modifyCodes $ M.insert newKey $ newRef code
+    return newKey
+
+codesLookup :: InterpreterShell m => CodeKey -> Interpreter m (Maybe Snobol4Code)
+codesLookup k = fmap getRefItem <$> M.lookup k <$> getCodes
+
+codesUpdate :: InterpreterShell m => (Snobol4Code -> Snobol4Code) -> CodeKey -> Interpreter m ()
+codesUpdate f k = modifyCodes $ M.adjust (fmap f) k
+
+codesIncRef :: InterpreterShell m => CodeKey -> Interpreter m ()
+codesIncRef k = modifyCodes $ M.adjust incRefCount k
+
+codesDecRef :: InterpreterShell m => CodeKey -> Interpreter m ()
+codesDecRef k = modifyCodes $ M.update decRefCount k
+
 -- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
 pushFuncNode f = do
@@ -705,7 +739,13 @@ toPattern (PatternData k) = liftEval $ do
 toPattern (TempPatternData p) = return p
 toPattern x = LiteralPattern <$> toString x
 
-
+toCode :: InterpreterShell m => Data -> Evaluator m Snobol4Code
+toCode (CodeData k) = liftEval $ do
+    result <- codesLookup k
+    case result of
+        Nothing -> programError ErrorInSnobol4System
+        Just code -> return code
+toCode _ = liftEval $ programError IllegalDataType
 
 -- | Convert data to an integer
 -- Fails the evaluation if this can be turned into a string, but not into an 
@@ -862,3 +902,5 @@ execLookup (LookupAggregate name args) = do
 wipeVariables :: InterpreterShell m => Interpreter m ()
 wipeVariables = putVariables $ M.empty
 
+naturalVarNames :: InterpreterShell m => Interpreter m [Snobol4String]
+naturalVarNames = liftM M.keys getVariables

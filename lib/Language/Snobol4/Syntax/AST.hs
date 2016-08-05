@@ -119,17 +119,22 @@ data Expr
     | NullExpr
   deriving (Show, Eq, Ord)
 
+data GotoPart
+    = GotoPart Expr
+    | DirectGotoPart Expr
+  deriving (Show, Eq)
+
 -- | A goto field
 data Goto
     =
     -- | Unconditional goto
-      Goto Expr 
+      Goto GotoPart
     -- | Goto only if statement succeeds
-    | SuccessGoto Expr 
+    | SuccessGoto GotoPart
     -- | Goto only if statement fails
-    | FailGoto Expr 
+    | FailGoto GotoPart
     -- | Goto with both success and failure case
-    | BothGoto Expr Expr
+    | BothGoto GotoPart GotoPart
   deriving (Show, Eq)
 
 -- | Statement

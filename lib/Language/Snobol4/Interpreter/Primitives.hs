@@ -18,8 +18,11 @@ import Prelude hiding ( span, break, any, toInteger )
 
 import Data.List (genericReplicate)
 
+import Control.Monad
+
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import Language.Snobol4.Interpreter.Types
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Internal
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Evaluator
@@ -155,9 +158,18 @@ arbno (a:_) = do
     return $ Just $ TempPatternData $ ArbNoPattern p
 arbno [] = arbno [StringData ""]
 
--- | TODO
+-- | The arg function, returns the name of the nth argument of a function
 arg :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-arg = const $ liftEval $ programError ErrorInSnobol4System
+arg [fname,n] = do
+    fname' <- toString fname
+    n' <- toInteger n
+    funcResult <- liftEval $ funcLookup fname'
+    case funcResult of
+        Nothing -> liftEval $ programError UndefinedFunctionOrOperation
+        Just func -> case drop (unmkInteger n') $ formalArgs func of
+            [] -> liftEval $ programError IncorrectNumberOfArguments
+            (arg:_) -> return $ Just $ StringData arg
+arg _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 backspace :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -175,11 +187,23 @@ break [] = break [StringData ""]
 
 -- | TODO
 clear :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-clear = const $ liftEval $ programError ErrorInSnobol4System
+clear [] = liftEval $ do
+    ns <- naturalVarNames
+    forM ns clearVar
+    return $ Just $ StringData nullString
+clear _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 code :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-code = const $ liftEval $ programError ErrorInSnobol4System
+code [src] = do
+    src' <- toString src
+    result <- parseT $ unmkString src'
+    case result of
+        Left _ -> return Nothing
+        Right stmts -> do
+            newKey <- liftEval $ codesNew $ Snobol4Code stmts
+            return $ Just $ CodeData newKey
+code _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 collect :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
