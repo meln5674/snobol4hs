@@ -13,21 +13,19 @@ evaluation fails.
 -}
 
 {-# LANGUAGE OverloadedStrings #-}
-module Language.Snobol4.Interpreter.Evaluator 
-    ( evalExpr
-    , catchEval
-    , evalLookup
-    ) where
+module Language.Snobol4.Interpreter.Evaluator where
 
 import Prelude hiding (toInteger)
 
 import Control.Monad.Trans
 
-import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Syntax.AST
-import Language.Snobol4.Interpreter.Types
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Shell
-import Language.Snobol4.Interpreter.Internal
+import Language.Snobol4.Interpreter.Error
+
+import Language.Snobol4.Interpreter.Internal.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine
 
 -- | Evaluate an arithmetic operation
 arithmetic :: InterpreterShell m 
@@ -70,93 +68,4 @@ evalOp Pipe = pattern AlternativePattern
 evalOp Blank = pattern ConcatPattern
 evalOp _ = \_ _ -> liftEval $ programError ErrorInSnobol4System
 
--- | Evaluate an expression, then choose one of two actions/values to use
-checkSuccess :: InterpreterShell m 
-             => Expr -- ^ Expression to evaluate
-             -> Evaluator m Data -- ^ Action on success
-             -> Evaluator m Data -- ^ Action on failure
-             -> Evaluator m Data
-checkSuccess expr success failure = do
-    result <- liftEval $ unliftEval $ evalExpr expr
-    case result of
-        Right _ -> success
-        Left _ -> failure
 
--- | Evaluate an expression as if it were an L-Value
-evalLookup :: InterpreterShell m => Expr -> Evaluator m Lookup
-evalLookup expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
-evalLookup (IdExpr "INPUT") = return $ Input
-evalLookup (IdExpr "OUTPUT") = return $ Output
-evalLookup (IdExpr "PUNCH") = return $ Punch
-evalLookup (IdExpr s) = return $ LookupId $ mkString s
-evalLookup (PrefixExpr Dollar expr) = do
-    expr' <- evalExpr expr
-    s <- toString expr'
-    return $ LookupId s
-evalLookup (RefExpr s args) = LookupAggregate (mkString s) <$> mapM evalExpr args
-evalLookup (ParenExpr expr) = evalLookup expr
-evalLookup expr = LookupLiteral <$> evalExpr expr
-
--- | Evaluate an expression as if it were an R-value
-evalExpr :: InterpreterShell m => Expr -> Evaluator m Data
-evalExpr (PrefixExpr Not expr) = checkSuccess 
-    expr 
-    failEvaluation 
-    (return $ StringData nullString)
-evalExpr (PrefixExpr Question expr) = checkSuccess 
-    expr 
-    (return $ StringData nullString)
-    failEvaluation
-evalExpr (PrefixExpr Minus expr) = do
-    data_ <- evalExpr expr
-    case data_ of
-        s@(StringData _) -> do
-            r <- toReal s
-            return $ RealData $ -r
-        (IntegerData i) -> return $ IntegerData $ -i
-        (RealData r) -> return $ RealData $ -r
-        _ -> liftEval $ programError IllegalDataType
-evalExpr (PrefixExpr Star expr) = return $ TempPatternData $ UnevaluatedExprPattern expr
-evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId $ mkString name
-evalExpr (IdExpr "INPUT") = StringData <$> (lift $ mkString <$> input)
-evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ mkString <$> lastOutput)
-evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ mkString <$> lastPunch)
-evalExpr (IdExpr name) = do
-    lookupResult <- liftEval $ varLookup $ mkString name
-    case lookupResult of
-        Just (_,val) -> return val
-        Nothing -> failEvaluation
-evalExpr (LitExpr (Int i)) = return $ IntegerData $ mkInteger i
-evalExpr (LitExpr (Real r)) = return $ RealData $ mkReal r
-evalExpr (LitExpr (String s)) = return $ StringData $ mkString s
-evalExpr (CallExpr name args) = do
-    args' <- mapM evalExpr args
-    callResult <- liftEval $ call (mkString name) args'
-    case callResult of
-        Just val -> return val
-        Nothing -> failEvaluation
-evalExpr (RefExpr name args) = do
-    args' <- mapM evalExpr args
-    lookupResult <- liftEval $ execLookup $ LookupAggregate (mkString name) args'
-    case lookupResult of
-        Just val -> return val
-        Nothing -> liftEval $ programError ErroneousArrayOrTableReference
-evalExpr (ParenExpr expr) = evalExpr expr
-evalExpr (BinaryExpr a op b) = do
-    a' <- evalExpr a
-    b' <- evalExpr b
-    evalOp op a' b'
-evalExpr NullExpr = return $ StringData nullString
-evalExpr _ = liftEval $ programError ErrorInSnobol4System
-
--- | Take an evaluation and return it to the interpreter stack, with a handler 
--- for a failed evaluation
-catchEval :: InterpreterShell m 
-          => Evaluator m a 
-          -> (EvalStop -> Interpreter m a)
-          -> Interpreter m a
-catchEval m h = do
-    result <- unliftEval m
-    case result of
-        Right val -> return val
-        Left stop -> h stop

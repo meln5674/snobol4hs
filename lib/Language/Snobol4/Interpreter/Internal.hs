@@ -37,11 +37,18 @@ are to be used. The 'Evaluator' can throw program termination exceptions just as
 control is transfered back to the 'Interpreter' stack.
 -}
 
+{-# LANGUAGE LambdaCase #-}
 module Language.Snobol4.Interpreter.Internal 
     ( module Language.Snobol4.Interpreter.Internal
-    , module Language.Snobol4.Interpreter.Internal.Types
     , module Language.Snobol4.Interpreter.Scanner
     , module Language.Snobol4.Interpreter.Evaluator
+    , Interpreter
+    , PausedInterpreter (..)
+    , ExecResult (..)
+    , unliftEval
+    , interpret
+    , emptyState
+    , getProgramState
     ) where
 
 import Prelude hiding ( toInteger, lookup )
@@ -53,17 +60,102 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.State
 
-import Language.Snobol4.Interpreter.Data
-import {-# SOURCE #-} Language.Snobol4.Interpreter.State
 import Language.Snobol4.Syntax.AST
-import Language.Snobol4.Interpreter.Types
-import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
+
 import Language.Snobol4.Interpreter.Shell
-import Language.Snobol4.Interpreter.Internal.Types
+import Language.Snobol4.Interpreter.Data
+import Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Scanner
---import Language.Snobol4.Interpreter.State
+import Language.Snobol4.Interpreter.Error
 
+import Language.Snobol4.Interpreter.Internal.StateMachine
+import Language.Snobol4.Interpreter.Internal.StateMachine.Statements
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
+import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
+-- | Evaluate an expression, then choose one of two actions/values to use
+checkSuccess :: InterpreterShell m 
+             => Expr -- ^ Expression to evaluate
+             -> Evaluator m Data -- ^ Action on success
+             -> Evaluator m Data -- ^ Action on failure
+             -> Evaluator m Data
+checkSuccess expr success failure = do
+    result <- liftEval $ unliftEval $ evalExpr expr
+    case result of
+        Right _ -> success
+        Left _ -> failure
+
+-- | Evaluate an expression as if it were an L-Value
+evalLookup :: InterpreterShell m => Expr -> Evaluator m Lookup
+evalLookup expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
+evalLookup (IdExpr "INPUT") = return $ Input
+evalLookup (IdExpr "OUTPUT") = return $ Output
+evalLookup (IdExpr "PUNCH") = return $ Punch
+evalLookup (IdExpr s) = return $ LookupId $ mkString s
+evalLookup (PrefixExpr Dollar expr) = do
+    expr' <- evalExpr expr
+    s <- toString expr'
+    return $ LookupId s
+evalLookup (RefExpr s args) = LookupAggregate (mkString s) <$> mapM evalExpr args
+evalLookup (ParenExpr expr) = evalLookup expr
+evalLookup expr = LookupLiteral <$> evalExpr expr
+
+-- | Evaluate an expression as if it were an R-value
+evalExpr :: InterpreterShell m => Expr -> Evaluator m Data
+evalExpr (PrefixExpr Not expr) = checkSuccess 
+    expr 
+    failEvaluation 
+    (return $ StringData nullString)
+evalExpr (PrefixExpr Question expr) = checkSuccess 
+    expr 
+    (return $ StringData nullString)
+    failEvaluation
+evalExpr (PrefixExpr Minus expr) = do
+    data_ <- evalExpr expr
+    case data_ of
+        s@(StringData _) -> do
+            r <- toReal s
+            return $ RealData $ -r
+        (IntegerData i) -> return $ IntegerData $ -i
+        (RealData r) -> return $ RealData $ -r
+        _ -> liftEval $ programError IllegalDataType
+evalExpr (PrefixExpr Star expr) = return $ TempPatternData $ UnevaluatedExprPattern expr
+evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId $ mkString name
+evalExpr (IdExpr "INPUT") = StringData <$> (lift $ mkString <$> input)
+evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ mkString <$> lastOutput)
+evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ mkString <$> lastPunch)
+evalExpr (IdExpr name) = do
+    lookupResult <- liftEval $ execLookup $ LookupId $ mkString name
+    case lookupResult of
+        Just val -> return val
+        Nothing -> failEvaluation
+evalExpr (LitExpr (Int i)) = return $ IntegerData $ mkInteger i
+evalExpr (LitExpr (Real r)) = return $ RealData $ mkReal r
+evalExpr (LitExpr (String s)) = return $ StringData $ mkString s
+evalExpr (CallExpr name args) = do
+    args' <- mapM evalExpr args
+    callResult <- liftEval $ call (mkString name) args'
+    case callResult of
+        Just val -> return val
+        Nothing -> failEvaluation
+evalExpr (RefExpr name args) = do
+    args' <- mapM evalExpr args
+    lookupResult <- liftEval $ execLookup $ LookupAggregate (mkString name) args'
+    case lookupResult of
+        Just val -> return val
+        Nothing -> liftEval $ programError ErroneousArrayOrTableReference
+evalExpr (ParenExpr expr) = evalExpr expr
+evalExpr (BinaryExpr a op b) = do
+    a' <- evalExpr a
+    b' <- evalExpr b
+    evalOp op a' b'
+evalExpr NullExpr = return $ StringData nullString
+evalExpr _ = liftEval $ programError ErrorInSnobol4System
+
+{-
 -- | Call a function by name with arguments
 call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
 call name evaldArgs = do
@@ -85,6 +177,14 @@ call name evaldArgs = do
             loop
         Just PrimitiveFunction{funcPrim=action} -> do
             catchEval (action evaldArgs) $ const $ return Nothing
+-}
+
+call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
+call n args = callFunction n args loop
+  where
+    loop = step >>= \case
+        StmtResult _ -> loop
+        returnResult -> return returnResult
 
 -- | Execute a subject and return the lookup for it
 execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
@@ -128,12 +228,15 @@ goto expr = do
         Just (Label pc) -> putProgramCounter pc
         Just (CodeLabel k pc) -> undefined
 
+-- | Evaluate an expression and to a direct jump to object code specified by
+-- the result
 directGoto :: InterpreterShell m => Expr -> Evaluator m ()
 directGoto expr = do
     result <- evalExpr expr
     code <- toCode result
     undefined
-    
+
+-- | Execute either a normal or direct goto
 execGotoPart :: InterpreterShell m => GotoPart -> Evaluator m ()
 execGotoPart (GotoPart expr) = goto expr
 execGotoPart (DirectGotoPart expr) = directGoto expr
@@ -215,12 +318,3 @@ run = do
         Right _ -> run
         Left err -> return err
     
--- | Execute an interpreter action
-interpret :: InterpreterShell m 
-          => ProgramState m
-          -> Interpreter m a 
-          -> m (Either ProgramError a)
-interpret st m = flip evalStateT st
-        $ runExceptT 
-        $ runInterpreter
-        $ addPrimitives >> m

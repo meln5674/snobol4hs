@@ -32,7 +32,10 @@ import Language.Snobol4.Interpreter.Internal
     , ExecResult(..)
     )
 import Language.Snobol4.Interpreter.Shell
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.State
+import Language.Snobol4.Interpreter.Error
+import Language.Snobol4.Interpreter.Internal (emptyState)
 import qualified Language.Snobol4.Interpreter.Internal as I
 
 -- | Run an interpreter action using an empty starting state

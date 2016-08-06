@@ -16,7 +16,8 @@ library
     hs-source-dirs:     lib
     exposed-modules:    Language.Snobol4
                       , Language.Snobol4.Interpreter
-                      , Language.Snobol4.Interpreter.Types
+                      , Language.Snobol4.Interpreter.Data
+                      , Language.Snobol4.Interpreter.Error
                       , Language.Snobol4.Interpreter.Shell
                       , Language.Snobol4.Interpreter.Shell.Console
                       , Language.Snobol4.Lexer
@@ -27,14 +28,40 @@ library
                       , Language.Snobol4.VM.Bytecode
                       , Language.Snobol4.VM.IO
     other-modules:      Language.Snobol4.Interpreter.Internal
-                      , Language.Snobol4.Interpreter.Internal.Types
-                      , Language.Snobol4.Interpreter.Data
+                      , Language.Snobol4.Interpreter.Data.Array
+                      , Language.Snobol4.Interpreter.Data.Integer
+                      , Language.Snobol4.Interpreter.Data.ObjectCode
+                      , Language.Snobol4.Interpreter.Data.Pattern
+                      , Language.Snobol4.Interpreter.Data.Real
+                      , Language.Snobol4.Interpreter.Data.String
+                      , Language.Snobol4.Interpreter.Data.Table
+                      , Language.Snobol4.Interpreter.Data.Types
+                      , Language.Snobol4.Interpreter.Data.UserData
                       , Language.Snobol4.Interpreter.Evaluator
                       , Language.Snobol4.Interpreter.Scanner
                       , Language.Snobol4.Interpreter.State
                       , Language.Snobol4.Interpreter.Primitives
                       , Language.Snobol4.Interpreter.Primitives.Prototypes
                       , Language.Snobol4.Interpreter.Scanner.Internal
+                      , Language.Snobol4.Interpreter.Internal.StateMachine
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Convert
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Error
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.GC
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Run
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Statements
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Tables
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Types
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.UserData
+                      , Language.Snobol4.Interpreter.Internal.StateMachine.Variables
                       , Language.Snobol4.Parser.Types
                       , Language.Snobol4.Parser.Internal
     build-depends:      base

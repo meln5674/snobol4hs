@@ -7,9 +7,10 @@ Maintainer      : meln5674@kettering.edu
 Portability     : Unknown
 
 This module provides two typeclasses which are used to abstract the details of
-how the INPUT, OUTPUT, and PUNCH variables are used. An instance of
-'InterpreterShell' provides these, while an instance of 'InterpreterShellRun'
-provides functions for running the interpreter inside of another monad.
+how the INPUT, OUTPUT, and PUNCH variables are used, as well as how the DATE
+and TIME primitves are implemented. An instance of 'InterpreterShell' provides
+these, while an instance of 'InterpreterShellRun' provides functions for
+running the interpreter inside of another monad.
 
 Once an interpreter action is ready to be executed, the 'shell' method of
 'InterpreterShellRun' can be used to do so.
@@ -36,7 +37,7 @@ class Monad m => InterpreterShell m where
     lastPunch :: m String
     -- | Get a string representing the date
     date :: m String
-    -- | Get a string representing the time
+    -- | Get the number of seconds ellapsed since starting the program
     time :: m Int
     
 

@@ -15,9 +15,9 @@ module Language.Snobol4.Interpreter.Scanner ( scanPattern ) where
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 
-import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Shell
-import Language.Snobol4.Interpreter.Internal.Types
+import Language.Snobol4.Interpreter.Data
+import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Interpreter.Scanner.Internal
 
 -- | Match a string against a pattern

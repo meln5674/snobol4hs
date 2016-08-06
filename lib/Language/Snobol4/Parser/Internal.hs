@@ -21,6 +21,7 @@ import qualified Text.Parsec as P
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Lexer.Tokens
+import Language.Snobol4.Interpreter.Data
 
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Parser.Types

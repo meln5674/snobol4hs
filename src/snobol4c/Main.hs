@@ -3,6 +3,7 @@ module Main where
 import System.Environment
 
 import Language.Snobol4
+import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Shell.Console
 

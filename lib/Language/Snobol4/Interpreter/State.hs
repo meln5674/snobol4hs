@@ -23,29 +23,3 @@ import qualified Data.Map as M
 import qualified Data.Vector as V
 
 
--- | A ProgramState no functions or variables, no program
--- loaded, an empty call stack, and pointing at the first statement
-emptyState :: forall m . InterpreterShell m => ProgramState m
-emptyState = ProgramState
-    M.empty
-    V.empty 
-    M.empty 
-    0 
-    M.empty
-    []
-    M.empty
-    M.empty
-    M.empty
-    M.empty
-    M.empty
-    M.empty
-
-
-addPrimitives :: forall m . InterpreterShell m => Interpreter m ()
-addPrimitives = do
-    let funcs :: [Function m]
-        funcs = primitiveFunctions
-        funcMap :: M.Map Snobol4String (Function m)
-        funcMap = M.fromList $ zip (map funcName funcs) funcs 
-    mapM_ (uncurry varWrite) primitiveVars
-    putFunctions funcMap

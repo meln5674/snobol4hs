@@ -29,10 +29,11 @@ import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 
-import Language.Snobol4.Interpreter.Types
-import {-# SOURCE #-} Language.Snobol4.Interpreter.Evaluator
+
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Shell
-import Language.Snobol4.Interpreter.Internal.Types
+import {-# SOURCE #-} Language.Snobol4.Interpreter.Internal
+import Language.Snobol4.Interpreter.Internal.StateMachine
 
 -- | The state of the scanner
 data ScannerState

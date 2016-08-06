@@ -12,25 +12,40 @@ expressed in the source language.
 -}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Snobol4.Interpreter.Primitives where
 
 import Prelude hiding ( span, break, any, toInteger )
 
+import qualified Data.Map as M
 import Data.List (genericReplicate)
 
 import Control.Monad
 import Control.Monad.Trans
 
+import Language.Snobol4.Parser
+
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import qualified Language.Snobol4.Interpreter.Shell as Shell
+import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Data
-import Language.Snobol4.Interpreter.Internal
-import Language.Snobol4.Interpreter.Internal.Types
-import Language.Snobol4.Interpreter.Evaluator
+
+import {-# SOURCE #-} Language.Snobol4.Interpreter.Internal
+
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
+import Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
+import Language.Snobol4.Interpreter.Internal.StateMachine.Tables
+import Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
+import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
+import Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
+import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
+import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Primitives.Prototypes
 
-import Language.Snobol4.Parser
 
 -- | The names and initial values of the primitive variables
 primitiveVars :: [(Snobol4String, Data)]
@@ -103,6 +118,16 @@ primitiveFunctions =
     , PrimitiveFunction "TRIM"      trim
     , PrimitiveFunction "VALUE"     value
     ]
+
+addPrimitives :: forall m . InterpreterShell m => Interpreter m ()
+addPrimitives = do
+    let funcs :: [Function m]
+        funcs = primitiveFunctions
+        funcMap :: M.Map Snobol4String (Function m)
+        funcMap = M.fromList $ zip (map funcName funcs) funcs 
+    mapM_ (uncurry varWrite) primitiveVars
+    putFunctions funcMap
+
 
 -- | Generalization for lt, le, eq, ne, ge, and gt
 numericalPredicate :: (Num a, InterpreterShell m) 
@@ -202,7 +227,7 @@ code [src] = do
     case result of
         Left _ -> return Nothing
         Right stmts -> do
-            newKey <- liftEval $ codesNew $ Snobol4Code stmts
+            newKey <- liftEval $ codesNew $ newCode stmts
             return $ Just $ CodeData newKey
 code _ = liftEval $ programError IncorrectNumberOfArguments
 
@@ -210,7 +235,8 @@ code _ = liftEval $ programError IncorrectNumberOfArguments
 collect :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 collect = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | The convert function, attempts to convert the first argument to the type
+-- specified by the second as a string
 convert :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 convert [toConvert,resultType] = do
     resultType' <- toString resultType
@@ -247,7 +273,7 @@ convert [toConvert,resultType] = do
                     result <- liftEval $ arraysLookup k
                     case result of
                         Nothing -> liftEval $ programError ErrorInSnobol4System
-                        Just arr -> liftM (Just . StringData) $ liftEval $ arrayFormalIdent arr
+                        Just arr -> return $ Just $ StringData $ arrayFormalIdent arr
                 | resultType' == datatypeNameArray -> return $ Just toConvert
                 | resultType' == datatypeNameTable -> do
                     result <- liftEval $ arraysLookup k
@@ -267,7 +293,7 @@ convert [toConvert,resultType] = do
                     result <- liftEval $ tablesLookup k
                     case result of
                         Nothing -> liftEval $ programError ErrorInSnobol4System
-                        Just tab -> liftM (Just . StringData) $ liftEval $ tableFormalIdent tab
+                        Just tab -> return $ Just $ StringData $ tableFormalIdent tab
                 | resultType' == datatypeNameArray -> do
                     result <- liftEval $ tablesLookup k
                     case result of
@@ -328,7 +354,8 @@ data_ [arg] = do
     return $ Just $ StringData $ nullString
 data_ _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The datatype function, returns the string representation of the type of
+-- the argument
 datatype :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 datatype [arg] = do
     case arg of
@@ -354,7 +381,7 @@ datatype [arg] = do
             CodeData _ -> datatypeNameCode
 datatype _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The date function, returns the current date in mm/dd/yyyy format
 date :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 date [] = Just . StringData . mkString <$> (liftEval $ lift Shell.date)
 date _ = liftEval $ programError IncorrectNumberOfArguments
@@ -545,7 +572,8 @@ pos _ = liftEval $ programError IncorrectNumberOfArguments
 prototype :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 prototype = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO 
+-- | The remainder primitive, returns the the remainder of the second argument
+-- divided by the first
 remdr :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 remdr [a,b] = do
     a' <- toInteger a
@@ -625,7 +653,8 @@ table (a:_) = do
         else liftEval $ programError NegativeNumberInIllegalContext
 table _ = Just . TableData <$> liftEval tablesNew
 
--- | TODO 
+-- | The time primitive, returns the number of seconds ellapsed since the
+-- beginning of the program
 time :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 time [] = Just . IntegerData . mkInteger <$> (liftEval $ lift Shell.time)
 time _ = liftEval $ programError IncorrectNumberOfArguments

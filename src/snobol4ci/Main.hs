@@ -6,6 +6,7 @@ import System.Console.Haskeline
 
 import Language.Snobol4
 import Language.Snobol4.Interpreter.Shell
+import Language.Snobol4.Interpreter.Data
 
 import Shell
 

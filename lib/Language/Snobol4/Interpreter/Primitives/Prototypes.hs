@@ -11,7 +11,10 @@ Portability     : Unknown
 
 module Language.Snobol4.Interpreter.Primitives.Prototypes where
 
-import Language.Snobol4.Interpreter.Data
+import Language.Snobol4.Interpreter.Data.Integer
+import Language.Snobol4.Interpreter.Data.String
+import Language.Snobol4.Interpreter.Data.Real
+
 
 -- | Dimenion of an 1D array
 type Dimension = (Snobol4Integer,Snobol4Integer)
