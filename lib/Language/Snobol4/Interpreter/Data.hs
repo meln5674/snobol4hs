@@ -61,6 +61,26 @@ instance Snobol4Read Snobol4Integer where
 instance Snobol4Read Snobol4Real where
     snobol4Read (Snobol4String s) = liftM Snobol4Real $ readMaybe s
 
+datatypeNameString :: Snobol4String
+datatypeNameString = "STRING"
+datatypeNameInteger :: Snobol4String
+datatypeNameInteger = "INTEGER"
+datatypeNameReal :: Snobol4String
+datatypeNameReal = "REAL"
+datatypeNamePattern :: Snobol4String
+datatypeNamePattern = "PATTERN"
+datatypeNameArray :: Snobol4String
+datatypeNameArray = "ARRAY"
+datatypeNameTable :: Snobol4String
+datatypeNameTable = "TABLE"
+datatypeNameName :: Snobol4String
+datatypeNameName = "NAME"
+datatypeNameExpression :: Snobol4String
+datatypeNameExpression = "EXPRESSION"
+datatypeNameCode :: Snobol4String
+datatypeNameCode = "CODE"
+
+
 -- | A lookup request
 data Lookup 
     -- | Lookup a variable by name
@@ -96,6 +116,7 @@ data Data
     -- | Passing an expression by name
     | Name Lookup
     | CodeData CodeKey 
+    | UserData UserKey
   deriving (Eq, Ord)
 
 instance Show Data where
@@ -181,6 +202,8 @@ newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
 newtype PatternKey = PatternKey Int deriving (Eq,Ord,Enum)
  
 newtype CodeKey = CodeKey Int deriving (Eq,Ord,Enum)
+
+newtype UserKey = UserKey Int deriving (Eq,Ord,Enum)
  
 -- | Underlying type for arrays
 newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
@@ -189,6 +212,7 @@ newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
 newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data }
 
 newtype Snobol4Code = Snobol4Code { getCode :: Program }
+
 
 -- | The null string
 nullString :: Snobol4String

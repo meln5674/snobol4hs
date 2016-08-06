@@ -18,6 +18,7 @@ See "Language.Snobol4.Interpreter.Shell.Console" for an example.
 -}
 
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 module Language.Snobol4.Interpreter.Shell where
 
 -- | Class of monads which can do input, output, and punching, as well as
@@ -33,10 +34,15 @@ class Monad m => InterpreterShell m where
     lastOutput :: m String
     -- | Get the string last sent to punch
     lastPunch :: m String
+    -- | Get a string representing the date
+    date :: m String
+    -- | Get a string representing the time
+    time :: m Int
+    
 
 -- | Class of a pair monads, the first is an instance of 'InterpreterShell', and
 -- the second is a monad which the first can be run inside
-class InterpreterShell m => InterpreterShellRun m base where
+class InterpreterShell m => InterpreterShellRun m base | m -> base where
     -- | Perform any initial actions
     start :: m ()
     -- | Run the shell monad inside the base monad

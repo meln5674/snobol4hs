@@ -22,6 +22,9 @@ module Language.Snobol4.Interpreter.Shell.Console
 
 import System.IO
 
+import Data.Time
+
+import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 
@@ -34,12 +37,15 @@ import qualified Language.Snobol4.Interpreter.Shell
     , InterpreterShellRun (..)
     )
 
+newtype ConsoleShellTime = ConsoleShellTime { getConsoleShellTime :: UTCTime }
+
 -- | The state of the shell
 data ConsoleShellState
     = ConsoleShellState
     { lastInput :: String
     , lastOutput :: String
     , lastPunch :: String
+    , startTime :: ConsoleShellTime
     }
 
 --  Get the last string inputted
@@ -68,7 +74,22 @@ putLastPunch s = ConsoleShell $ modify $ \st -> st{ lastPunch = s }
 
 -- | Initial state of the shell
 emptyState :: ConsoleShellState
-emptyState = ConsoleShellState "" "" ""
+emptyState = ConsoleShellState "" "" "" undefined
+
+getCurrentConsoleShellTime :: ConsoleShell ConsoleShellTime
+getCurrentConsoleShellTime = liftM ConsoleShellTime $ liftIO $ getCurrentTime
+    
+getConsoleShellDateString :: ConsoleShellTime -> String
+getConsoleShellDateString (ConsoleShellTime utctime) = [m1,m2,'/',d1,d2,'/',y1,y2,y3,y4]
+  where
+    [y1,y2,y3,y4,_,m1,m2,_,d1,d2] = showGregorian $ utctDay utctime
+    
+consoleShellDateDiff :: ConsoleShellTime -> ConsoleShellTime -> Int
+consoleShellDateDiff (ConsoleShellTime t2) (ConsoleShellTime t1) = floor secs
+  where
+    picoSecs = diffUTCTime t2 t1
+    secs = picoSecs * 1000000000000
+    
 
 -- | A monad for running the interpreter using the console for IO
 newtype ConsoleShell a 
@@ -91,7 +112,14 @@ instance InterpreterShell ConsoleShell where
         liftIO $ hPutStrLn stderr str
     lastOutput = getLastOutput
     lastPunch = getLastPunch
+    date = getConsoleShellDateString <$> getCurrentConsoleShellTime
+    time = do
+        t1 <- ConsoleShell $ gets startTime
+        t2 <- getCurrentConsoleShellTime
+        return $ consoleShellDateDiff t2 t1
 
 instance InterpreterShellRun ConsoleShell IO where
-    start = ConsoleShell $ put emptyState
+    start = do
+        currentTime <- getCurrentConsoleShellTime
+        ConsoleShell $ modify $ \s -> s{ startTime = currentTime }
     shell = flip evalStateT emptyState . runConsoleShell

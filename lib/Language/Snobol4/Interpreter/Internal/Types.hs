@@ -129,6 +129,12 @@ data Snobol4Datatype
     , datatypeFieldNames :: [Snobol4String]
     }
 
+data Snobol4UserData
+    = Snobol4UserData
+    { datatypeNameUser :: Snobol4String
+    , userDataFields :: [Snobol4String]
+    }
+
 -- | Information for calling a function
 data Function m
     -- A user defined function
@@ -202,6 +208,8 @@ type Tables = Map TableKey (RefCounted Snobol4Table)
 type Patterns = Map PatternKey (RefCounted Pattern)
 type Codes = Map CodeKey (RefCounted Snobol4Code)
 type Datatypes = Map Snobol4String Snobol4Datatype
+type UserDatas = Map UserKey Snobol4UserData
+
 
 -- | State of the interpreter
 data ProgramState m
@@ -227,6 +235,7 @@ data ProgramState m
     , patterns :: Patterns
     , codes :: Codes
     , datatypes :: Datatypes
+    , userDatas :: UserDatas
     }
 
 
@@ -372,6 +381,9 @@ getCodes = getsProgramState codes
 
 getDatatypes :: InterpreterShell m => Interpreter m Datatypes
 getDatatypes = getsProgramState datatypes
+
+getUserDatas :: InterpreterShell m => Interpreter m UserDatas
+getUserDatas = getsProgramState userDatas
 
 -- | Set the variables known to the interpreter
 putVariables :: InterpreterShell m => Variables -> Interpreter m ()
@@ -580,11 +592,17 @@ funcLookup name = M.lookup name <$> getFunctions
 datatypeLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Snobol4Datatype)
 datatypeLookup name = M.lookup name <$> getDatatypes
 
+userDataLookup :: InterpreterShell m => UserKey -> Interpreter m (Maybe Snobol4UserData)
+userDataLookup k = M.lookup k <$> getUserDatas
+
 -- | Allocate a new array with an upper and lower bound each set to an intital value
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
-arraysNew minIx maxIx v = do
+arraysNew minIx maxIx v = arraysNew' $ newArray minIx maxIx v
+
+arraysNew' :: InterpreterShell m => Snobol4Array -> Interpreter m ArrayKey
+arraysNew' arr = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
-    modifyArrays $ M.insert newKey $ newRef $ newArray minIx maxIx v
+    modifyArrays $ M.insert newKey $ newRef $ arr
     return newKey
 
 -- | Allocate a new array with the provided dimensions and initial value
@@ -600,6 +618,16 @@ arraysNew'' ((minIx,maxIx):ds) val = do
         return (ix,v)
     modifyArrays $ M.insert newKey $ newRef $ newArray' xs
     return $ ArrayData newKey
+
+arraysCopy :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe ArrayKey)
+arraysCopy k = do
+    result <- arraysLookup k
+    case result of
+        Nothing -> return Nothing
+        Just arr -> do
+            newKey <- (succ . fst . M.findMax) `liftM` getArrays
+            modifyArrays $ M.insert newKey $ newRef arr
+            return $ Just newKey
 
 -- | Lookup an array
 arraysLookup :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe Snobol4Array)
@@ -625,9 +653,12 @@ arraysDecRef k = modifyArrays $ M.update decRefCount k
 
 -- | Allocate a new table
 tablesNew :: InterpreterShell m => Interpreter m TableKey
-tablesNew = do
+tablesNew = tablesNew' emptyTable
+
+tablesNew' :: InterpreterShell m => Snobol4Table -> Interpreter m TableKey
+tablesNew' tab = do
     newKey <- (succ . fst . M.findMax) `liftM` getTables
-    modifyTables $ M.insert newKey $ newRef emptyTable
+    modifyTables $ M.insert newKey $ newRef tab
     return newKey
 
 -- | Lookup a table
@@ -694,6 +725,9 @@ functionsNew func = modifyFunctions $ M.insert (funcName func) func
 
 datatypesNew :: InterpreterShell m => Snobol4Datatype -> Interpreter m ()
 datatypesNew datatype = modifyDatatypes $ M.insert (datatypeName datatype) datatype
+
+datatypesLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Snobol4Datatype)
+datatypesLookup k = M.lookup k <$> getDatatypes
 
 -- | Push a node onto the call stack for calling a function
 pushFuncNode :: InterpreterShell m => Function m -> Interpreter m ()
@@ -932,3 +966,16 @@ wipeVariables = putVariables $ M.empty
 
 naturalVarNames :: InterpreterShell m => Interpreter m [Snobol4String]
 naturalVarNames = liftM M.keys getVariables
+
+
+arrayFormalIdent :: InterpreterShell m => Snobol4Array -> Interpreter m Snobol4String
+arrayFormalIdent arr = undefined
+
+tableFormalIdent :: InterpreterShell m => Snobol4Table -> Interpreter m Snobol4String
+tableFormalIdent tab = undefined
+    
+arrayToTable :: InterpreterShell m => Snobol4Array -> Interpreter m (Maybe Snobol4Table)
+arrayToTable arr = undefined
+
+tableToArray :: InterpreterShell m => Snobol4Table -> Interpreter m (Maybe Snobol4Array)
+tableToArray tab = undefined

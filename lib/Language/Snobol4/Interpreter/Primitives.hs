@@ -19,8 +19,10 @@ import Prelude hiding ( span, break, any, toInteger )
 import Data.List (genericReplicate)
 
 import Control.Monad
+import Control.Monad.Trans
 
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
+import qualified Language.Snobol4.Interpreter.Shell as Shell
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Internal
@@ -73,7 +75,6 @@ primitiveFunctions =
     , PrimitiveFunction "GE"        ge
     , PrimitiveFunction "GT"        gt
     , PrimitiveFunction "IDENT"     ident
-    , PrimitiveFunction "INPUT"     input
     , PrimitiveFunction "INTEGER"   integer
     , PrimitiveFunction "ITEM"      item
     , PrimitiveFunction "LE"        le
@@ -85,7 +86,6 @@ primitiveFunctions =
     , PrimitiveFunction "NOTANY"    notany
     , PrimitiveFunction "UNLOAD"    unload
     , PrimitiveFunction "OPSYN"     opsyn
-    , PrimitiveFunction "OUTPUT"    output
     , PrimitiveFunction "POS"       pos
     , PrimitiveFunction "PROTOTYPE" prototype
     , PrimitiveFunction "REMDR"     remdr
@@ -185,7 +185,7 @@ break (a:_) = do
         _ ->  return $ Just $ TempPatternData $ BreakPattern s
 break [] = break [StringData ""]
 
--- | TODO
+-- | The clear function, resets the values of all natural variables
 clear :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 clear [] = liftEval $ do
     ns <- naturalVarNames
@@ -193,7 +193,8 @@ clear [] = liftEval $ do
     return $ Just $ StringData nullString
 clear _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The code function, parses a string containing source code and creates a
+-- code object
 code :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 code [src] = do
     src' <- toString src
@@ -211,13 +212,110 @@ collect = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
 convert :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-convert = const $ liftEval $ programError ErrorInSnobol4System
+convert [toConvert,resultType] = do
+    resultType' <- toString resultType
+    case toConvert of
+        StringData _ -> case () of
+            ()
+                | resultType' == datatypeNameString -> return $ Just toConvert
+                | resultType' == datatypeNameInteger -> Just . IntegerData <$> toInteger toConvert
+                | resultType' == datatypeNameReal -> Just . RealData <$> toReal toConvert
+                | resultType' == datatypeNameExpression -> undefined
+                | resultType' == datatypeNameCode -> undefined
+                | otherwise -> return Nothing
+        IntegerData _ -> case () of
+            ()
+                | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
+                | resultType' == datatypeNameInteger -> return $ Just toConvert
+                | resultType' == datatypeNameReal -> Just . RealData <$> toReal toConvert
+                | otherwise -> return Nothing
+        RealData _ -> case () of
+            ()
+                | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
+                | resultType' == datatypeNameInteger -> Just . IntegerData <$> toInteger toConvert
+                | resultType' == datatypeNameReal -> return $ Just toConvert
+                | otherwise -> return Nothing
+        TempPatternData (UnevaluatedExprPattern _) -> undefined
+        PatternData _ -> case () of
+            ()
+                | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNamePattern
+                | resultType' == datatypeNamePattern -> return $ Just toConvert
+                | otherwise -> return Nothing
+        ArrayData k -> case () of
+            ()
+                | resultType' == datatypeNameString -> do
+                    result <- liftEval $ arraysLookup k
+                    case result of
+                        Nothing -> liftEval $ programError ErrorInSnobol4System
+                        Just arr -> liftM (Just . StringData) $ liftEval $ arrayFormalIdent arr
+                | resultType' == datatypeNameArray -> return $ Just toConvert
+                | resultType' == datatypeNameTable -> do
+                    result <- liftEval $ arraysLookup k
+                    case result of
+                        Nothing -> liftEval $ programError ErrorInSnobol4System
+                        Just arr -> do
+                            tabResult <- liftEval $ arrayToTable arr
+                            case tabResult of
+                                Nothing -> return Nothing
+                                Just tab -> do
+                                    k' <- liftEval $ tablesNew' tab
+                                    return $ Just $ TableData k'
+                | otherwise -> return Nothing
+        TableData k -> case () of
+            ()
+                | resultType' == datatypeNameString -> do
+                    result <- liftEval $ tablesLookup k
+                    case result of
+                        Nothing -> liftEval $ programError ErrorInSnobol4System
+                        Just tab -> liftM (Just . StringData) $ liftEval $ tableFormalIdent tab
+                | resultType' == datatypeNameArray -> do
+                    result <- liftEval $ tablesLookup k
+                    case result of
+                        Nothing -> liftEval $ programError ErrorInSnobol4System
+                        Just tab -> do
+                            arrResult <- liftEval $ tableToArray tab
+                            case arrResult of
+                                Nothing -> return Nothing
+                                Just arr -> do
+                                    k' <- liftEval $ arraysNew' arr
+                                    return $ Just $ ArrayData k'
+                | resultType' == datatypeNameTable -> return $ Just toConvert
+                | otherwise -> return Nothing
+        Name _ -> case () of
+            ()
+                | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNameName
+                | resultType' == datatypeNameName -> return $ Just toConvert
+                | otherwise -> return Nothing
+        CodeData _ -> case () of
+            ()
+                | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNameCode
+                | otherwise -> return Nothing
+        UserData k -> do
+            result <- liftEval $ userDataLookup k
+            case result of
+                Nothing -> liftEval $ programError ErrorInSnobol4System
+                Just userData -> case () of
+                    ()
+                        | resultType' == datatypeNameString -> do
+                            return $ Just $ StringData $ datatypeNameUser userData
+                        | resultType' == datatypeNameUser userData -> return $ Just toConvert
+                        | otherwise -> return Nothing
+convert _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The copy function, creates a new instance of the given array
 copy :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-copy = const $ liftEval $ programError ErrorInSnobol4System
+copy [arg] = do
+    case arg of
+        ArrayData k -> do
+            result <- liftEval $ arraysCopy k
+            case result of
+                Nothing -> liftEval $ programError ErrorInSnobol4System
+                Just k' -> return $ Just $ ArrayData k'
+        _ -> liftEval $ programError IllegalDataType
+copy _ = liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | The data function, parses a data prototype to create a user-defined
+-- datatype
 data_ :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 data_ [arg] = do
     protoStr <- toString arg
@@ -232,13 +330,36 @@ data_ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 datatype :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-datatype = const $ liftEval $ programError ErrorInSnobol4System
+datatype [arg] = do
+    case arg of
+        UserData k -> do
+            result <- liftEval $ userDataLookup k
+            case result of
+                Nothing -> liftEval $ programError ErrorInSnobol4System
+                Just userData -> do
+                    datatypeResult <- liftEval $ datatypesLookup $ datatypeNameUser userData
+                    case datatypeResult of
+                        Nothing -> liftEval $ programError ErrorInSnobol4System
+                        Just datatype -> return $ Just $ StringData $ datatypeName datatype
+        _ -> return $ Just $ StringData $ mkString $ case arg of
+            StringData _ -> datatypeNameString
+            PatternData _ -> datatypeNamePattern
+            TempPatternData (UnevaluatedExprPattern _) -> datatypeNameExpression
+            TempPatternData _ -> datatypeNamePattern
+            IntegerData _ -> datatypeNameInteger
+            RealData _ -> datatypeNameReal
+            ArrayData _ -> datatypeNameArray
+            TableData _ -> datatypeNameTable
+            Name _ -> datatypeNameName
+            CodeData _ -> datatypeNameCode
+datatype _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
 date :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-date = const $ liftEval $ programError ErrorInSnobol4System
+date [] = Just . StringData . mkString <$> (liftEval $ lift Shell.date)
+date _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The define function, creates a user-defined function
 define :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 define [arg,labelArg] = do
     protoStr <- toString arg
@@ -260,7 +381,8 @@ define _ = liftEval $ programError ErrorInSnobol4System
 detach :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 detach = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | The differ function, returns the null string if the two arguments are not
+-- the same
 differ :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 differ [a,b] = do
     if a /= b
@@ -272,7 +394,7 @@ differ _ = liftEval $ programError IncorrectNumberOfArguments
 dump :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 dump = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO
+-- | The dupl function, creates a string by repeating a sub-string
 dupl :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 dupl [a,b] = do
     a' <- toString a
@@ -288,7 +410,7 @@ endfile = const $ liftEval $ programError ErrorInSnobol4System
 eq :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 eq = numericalPredicate (==)
 
--- | TODO
+-- | The eval function, evaluates an unevaluated expression
 eval :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 eval [a] = do
     expr <- case a of
@@ -306,7 +428,8 @@ eval [a] = do
     Just <$> evalExpr expr
 eval _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The field function, returns the name of the nth field of a user-defined
+-- data type
 field :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 field [dname,n] = do
     dname' <- toString dname
@@ -327,17 +450,14 @@ ge = numericalPredicate (>=)
 gt :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 gt = numericalPredicate (>)
 
--- | TODO
+-- | The ident function, returns the null string if the two arguments are the
+-- same
 ident :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 ident [a,b] = do
     if a == b
         then return $ Just $ StringData ""
         else return Nothing
 ident _ = liftEval $ programError IncorrectNumberOfArguments
-
--- | TODO
-input :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-input = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | Integer predicate
 integer :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
@@ -346,7 +466,7 @@ integer [a] = do
     return $ Just $ StringData ""
 integer [] = return $ Just $ StringData ""
 
--- | TODO
+-- | The item function, indexes an array or table
 item :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 item (name:keys) = do
     name' <- toString name
@@ -367,7 +487,8 @@ len (a:_) = do
         else programError NegativeNumberInIllegalContext
 len [] = len [StringData ""]
 
--- | TODO
+-- | The lgt function, returns the null string if the first argument comes after
+-- the second, lexically
 lgt :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 lgt [a,b] = do
     a' <- toString a
@@ -377,7 +498,7 @@ lgt [a,b] = do
         else return Nothing
 lgt _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO
+-- | The local function, returns the name of the nth local variable of a user-defined function
 local :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 local [fname,n] = do
     fname' <- toString fname
@@ -412,11 +533,8 @@ notany [] = notany [StringData ""]
 opsyn :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 opsyn = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO 
-output :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-output = const $ liftEval $ programError ErrorInSnobol4System
-
--- | TODO 
+-- | The pos function, returns a pattern that succeeds if the cursor is at the
+-- given column
 pos :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 pos [a] = do
     result <- toInteger a
@@ -435,7 +553,8 @@ remdr [a,b] = do
     return $ Just $ IntegerData $ b' `rem` a'
 remdr _ = liftEval $ programError IncorrectNumberOfArguments
 
--- | TODO 
+-- | The replace function, returns a string formed by replacing instances of a
+-- substring with another
 replace :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 replace [x,y,z] = do
     x' <- toString x
@@ -450,7 +569,8 @@ replace _ = liftEval $ programError IncorrectNumberOfArguments
 rewind :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 rewind = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO 
+-- | The rpos function, creates a pattern which succeeds if the cursor is the
+-- current position from the right
 rpos :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 rpos [a] = do
     result <- toInteger a
@@ -467,7 +587,7 @@ rtab (a:_) = do
         else programError NegativeNumberInIllegalContext
 rtab [] = rtab [StringData ""]
 
--- | TODO 
+-- | The size function, returns the length of the argument
 size :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 size [arg] = Just . IntegerData . snobol4Length <$> toString arg
 size _ = liftEval $ programError IncorrectNumberOfArguments
@@ -507,13 +627,14 @@ table _ = Just . TableData <$> liftEval tablesNew
 
 -- | TODO 
 time :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
-time = const $ liftEval $ programError ErrorInSnobol4System
+time [] = Just . IntegerData . mkInteger <$> (liftEval $ lift Shell.time)
+time _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
 trace :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 trace = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO 
+-- | The trim function, removes whitespace from a string
 trim :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 trim [a] = do
     a' <- toString a
@@ -524,7 +645,7 @@ trim _ = liftEval $ programError IncorrectNumberOfArguments
 unload :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 unload = const $ liftEval $ programError ErrorInSnobol4System
 
--- | TODO 
+-- | The value function, looks up a variable by name
 value :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 value [arg] = do
     name <- toString arg
