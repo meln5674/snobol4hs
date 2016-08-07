@@ -62,7 +62,7 @@ resumeInterpreter (Paused st) m = do
         return (st', Just x)
     case result of
         Right (st', x) -> return (Paused st', x)
-        Left err -> return (Terminated err, Nothing)
+        Left err -> return (Terminated $ ErrorTermination err, Nothing)
 
 -- | Run an interpreter action in a paused interpreter, and discard the result
 resumeInterpreter' :: InterpreterShell m
@@ -72,12 +72,12 @@ resumeInterpreter' :: InterpreterShell m
 resumeInterpreter' st = liftM fst . resumeInterpreter st
     
 -- | Run a SNOBOL4 program
-run :: InterpreterShell m => Program -> m ProgramError
+run :: InterpreterShell m => Program -> m ProgramResult
 run code = do
     result <- I.interpret emptyState $ I.load code >> I.run
     case result of
         Right err -> return err
-        Left _ -> return ErrorInSnobol4System
+        Left _ -> return $ ErrorTermination ErrorInSnobol4System
 
 -- | Load a program into the interpreter and then pause it
 load :: InterpreterShell m => Program -> m (PausedInterpreter m)
@@ -90,7 +90,7 @@ step (Terminated err) = return $ Terminated err
 step (Paused st) = do
     result <- I.interpret st $ I.step >> I.getProgramState
     case result of
-        Left err -> return $ Terminated err
+        Left err -> return $ Terminated $ ErrorTermination err
         Right st' -> return $ Paused st'
 
 -- | Evaluate an expression in a paused interpreter
@@ -107,7 +107,7 @@ eval expr (Paused st) = do
             Left _ -> (Paused st', Nothing)
             Right val -> (Paused st', Just val)
     return $ case result of
-        Left err -> (Terminated err, Nothing)
+        Left err -> (Terminated $ ErrorTermination err, Nothing)
         Right x -> x
 
 -- | Execute a statement in a paused interpreter
@@ -122,12 +122,12 @@ exec stmt (Paused st) = do
         st' <- I.getProgramState
         return (st', result)
     case result of
-        Left err -> return (Terminated err, Nothing)
+        Left err -> return (Terminated $ ErrorTermination err, Nothing)
         Right (st', StmtResult x) -> return (Paused st', x)
-        Right (_, Return) -> return (Terminated ReturnFromZeroLevel, Nothing)
-        Right (_, FReturn) -> return (Terminated ReturnFromZeroLevel, Nothing)
+        Right (_, Return) -> return (Terminated $ ErrorTermination ReturnFromZeroLevel, Nothing)
+        Right (_, FReturn) -> return (Terminated $ ErrorTermination ReturnFromZeroLevel, Nothing)
 
 -- | Check if a paused interpreter is terminated, and if so, return the error
-isTerminated :: PausedInterpreter m -> Maybe ProgramError
-isTerminated (Terminated err) = Just err
+isTerminated :: PausedInterpreter m -> Maybe ProgramResult
+isTerminated (Terminated result) = Just result
 isTerminated _ = Nothing

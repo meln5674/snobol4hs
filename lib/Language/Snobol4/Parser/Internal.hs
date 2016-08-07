@@ -203,7 +203,7 @@ plus = token (Operator "+")
 
 -- | Parse an END keyword
 kwEnd :: Monad m => ParsecT TokStream ParserState m (Located Token SourcePos)
-kwEnd = token (Identifier "END")
+kwEnd = token (Label "END")
 
 -- | Parse a LIST keyword
 kwList :: Monad m => ParsecT TokStream ParserState m (Located Token SourcePos)

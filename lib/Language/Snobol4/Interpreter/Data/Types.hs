@@ -14,6 +14,7 @@ import Language.Snobol4.Syntax.AST
 
 -- | Wrapper around underlying type for arrays
 newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
+    deriving (Show)
 
 -- | String data type
 newtype Snobol4String = Snobol4String { getString :: String }
@@ -89,10 +90,10 @@ data Pattern
   deriving (Show, Eq, Ord)
 
 -- | Wrapper around underlying type for tables
-newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data }
+newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data } deriving (Show)
 
 -- | Object code
-newtype Snobol4Code = Snobol4Code { getCode :: Program }
+newtype Snobol4Code = Snobol4Code { getCode :: Program } deriving (Show)
 
 -- | A user-defined datatype
 data Snobol4Datatype
@@ -100,33 +101,33 @@ data Snobol4Datatype
     { datatypeName :: Snobol4String
     , datatypeFieldNames :: [Snobol4String]
     }
-
+  deriving (Show)
 -- | An instance of a user-defined type
 data Snobol4UserData
     = Snobol4UserData
     { datatypeNameUser :: Snobol4String
     , userDataFields :: [Data]
     }
-
+  deriving (Show)
 
 -- | Type of identifiers
 newtype Snobol4Identifier = Snobol4Identifier Snobol4String
 
 
 -- | Key for passing tables by reference
-newtype TableKey = TableKey Int deriving (Eq,Ord,Enum)
+newtype TableKey = TableKey Int deriving (Eq,Ord,Enum,Show)
  
 -- | Key for passing patterns by reference
-newtype PatternKey = PatternKey Int deriving (Eq,Ord,Enum)
+newtype PatternKey = PatternKey Int deriving (Eq,Ord,Enum,Show)
  
 -- | Key for passing object code by reference
-newtype CodeKey = CodeKey Int deriving (Eq,Ord,Enum)
+newtype CodeKey = CodeKey Int deriving (Eq,Ord,Enum,Show)
 
 -- | Key for passing user-defined data type values by reference
-newtype UserKey = UserKey Int deriving (Eq,Ord,Enum)
+newtype UserKey = UserKey Int deriving (Eq,Ord,Enum,Show)
  
  -- | Key for passing arrays by reference
-newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum)
+newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum,Show)
 
 
 -- | A lookup request

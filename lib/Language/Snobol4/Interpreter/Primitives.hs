@@ -401,7 +401,7 @@ define [arg,labelArg] = do
         Nothing -> liftEval $ programError EntryPointOfFunctionNotLabel
     let func = UserFunction funcName argNames localNames addr
     liftEval $ functionsNew func
-    return Nothing
+    return $ Just $ StringData nullString
 define _ = liftEval $ programError ErrorInSnobol4System
 
 -- | TODO

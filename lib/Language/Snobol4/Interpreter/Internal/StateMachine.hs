@@ -22,6 +22,7 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , fetch
     , ExecResult (..)
     , catchEval
+    , addPrimitives
     ) where
 
 import Prelude hiding (toInteger)
@@ -79,4 +80,4 @@ interpret :: InterpreterShell m
 interpret st m = flip evalStateT st
         $ runExceptT 
         $ runInterpreter
-        $ addPrimitives >> m
+        $ m

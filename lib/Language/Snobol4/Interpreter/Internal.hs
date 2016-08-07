@@ -218,37 +218,51 @@ execRepl lookup pattern expr = do
                     finishEvaluation $ Nothing
 
 -- | Evaluate an expression and jump to the label named by the result
-goto :: InterpreterShell m => Expr -> Evaluator m ()
+goto :: InterpreterShell m => Expr -> Evaluator m GotoResult
+goto (IdExpr "RETURN") = return GotoReturn
+goto (IdExpr "FRETURN") = return GotoFReturn
 goto expr = do
     result <- evalExpr expr
     label <- toString result
-    lookupResult <- liftEval $ labelLookup label
-    liftEval $ case lookupResult of
-        Nothing -> programError UndefinedOrErroneousGoto
-        Just (Label pc) -> putProgramCounter pc
-        Just (CodeLabel k pc) -> undefined
+    liftEval $ do
+        lookupResult <- labelLookup label
+        case lookupResult of
+            Nothing -> programError UndefinedOrErroneousGoto
+            Just (Label pc) -> do
+                putProgramCounter pc
+                return GotoLabel
+            Just (CodeLabel k pc) -> undefined
+
+data GotoResult
+    = GotoReturn
+    | GotoFReturn
+    | GotoLabel
+    | GotoNext
+  deriving Show
 
 -- | Evaluate an expression and to a direct jump to object code specified by
 -- the result
-directGoto :: InterpreterShell m => Expr -> Evaluator m ()
+directGoto :: InterpreterShell m => Expr -> Evaluator m GotoResult
 directGoto expr = do
     result <- evalExpr expr
     code <- toCode result
     undefined
 
 -- | Execute either a normal or direct goto
-execGotoPart :: InterpreterShell m => GotoPart -> Evaluator m ()
+execGotoPart :: InterpreterShell m => GotoPart -> Evaluator m GotoResult
 execGotoPart (GotoPart expr) = goto expr
 execGotoPart (DirectGotoPart expr) = directGoto expr
 
 -- | Execute a goto
-execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m ()
+execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m GotoResult
 execGoto _ (Goto g) = execGotoPart g
 execGoto (EvalSuccess _) (SuccessGoto g) = execGotoPart g
 execGoto EvalFailed (FailGoto g) = execGotoPart g
 execGoto (EvalSuccess _) (BothGoto g _) = execGotoPart g
 execGoto EvalFailed (BothGoto _ g) = execGotoPart g
-execGoto _ _ = liftEval $ modifyProgramCounter (+1)
+execGoto _ _ = do
+    liftEval $ modifyProgramCounter (+1)
+    return GotoNext
 
 -- | Execute one of the steps above, ignoring if it is missing
 execMaybe :: Monad m 
@@ -260,7 +274,7 @@ execMaybe _ _ = return Nothing
 
 -- | Execute a statement in the interpreter
 exec :: InterpreterShell m => Stmt -> Interpreter m ExecResult
-exec (EndStmt _) = programError NormalTermination
+exec (EndStmt _) = return EndOfProgram
 exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
     subResult <- execMaybe execSub sub
     lookup <- case subResult of
@@ -292,14 +306,16 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
         gotoResult <- catchEval (execMaybe (execGoto r) go) 
                    $ \_ -> programError FailureDuringGotoEvaluation
         case gotoResult of
-            Just _ -> return ()
-            Nothing -> modifyProgramCounter (+1)
-        case r of
-            EvalFailed -> return $ StmtResult Nothing
-            EvalSuccess x -> return $ StmtResult x
-            
-
-                        
+            Just GotoReturn -> return Return
+            Just GotoFReturn -> return FReturn
+            _ -> do
+                case gotoResult of
+                    Just GotoLabel -> return ()
+                    Just GotoNext -> modifyProgramCounter (+1)
+                    Nothing -> modifyProgramCounter (+1)
+                case r of
+                    EvalFailed -> return $ StmtResult Nothing
+                    EvalSuccess x -> return $ StmtResult x
                         
 -- | Execute the next statement pointed to by the program counter
 step :: InterpreterShell m => Interpreter m ExecResult
@@ -307,14 +323,29 @@ step = fetch >>= exec
 
 -- | Load a program into the interpreter
 load :: InterpreterShell m => Program -> Interpreter m ()
-load (Program stmts) = putStatements $ V.fromList stmts
+load (Program stmts) = do
+    let prog = V.fromList stmts
+    addPrimitives
+    putStatements prog
+    scanForLabels
+    case V.last prog of
+        EndStmt Nothing -> putProgramCounter 0
+        EndStmt (Just lbl) -> do
+            result <- labelLookup $ mkString lbl
+            case result of
+                Just (Label addr) -> putProgramCounter addr
+                Nothing -> programError UndefinedOrErroneousGoto
+            
 
 -- | Run the interpreter continuously by fetching the next statement 
 -- until the program ends
-run :: InterpreterShell m => Interpreter m ProgramError
+run :: InterpreterShell m => Interpreter m ProgramResult
 run = do
     result <- Interpreter $ lift $ runExceptT $ runInterpreter $ step
     case result of
-        Right _ -> run
-        Left err -> return err
+        Right (StmtResult _) -> run
+        Right Return -> return $ ErrorTermination ReturnFromZeroLevel
+        Right FReturn -> return $ ErrorTermination ReturnFromZeroLevel
+        Right EndOfProgram -> return $ NormalTermination
+        Left err -> return $ ErrorTermination err
     

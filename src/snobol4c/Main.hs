@@ -14,6 +14,6 @@ main = do
     parseResult <- parseFile path
     case parseResult of
         Right code -> do
-            result <- shell $ (run code :: ConsoleShell ProgramError)
+            result <- shell $ (run code :: ConsoleShell ProgramResult)
             print result
         Left err -> print err

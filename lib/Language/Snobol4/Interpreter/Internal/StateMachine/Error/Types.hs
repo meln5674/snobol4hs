@@ -8,4 +8,4 @@ data EvalStop
     = EvalSuccess (Maybe Data)
     -- | The evaluation failed
     | EvalFailed
-  deriving Show
+  deriving (Show, Eq)

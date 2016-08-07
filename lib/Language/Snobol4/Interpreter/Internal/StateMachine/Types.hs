@@ -31,7 +31,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
 
 -- | Address of a statement
 newtype Address = Address { getAddress :: Snobol4Integer }
-  deriving (Eq, Ord, Bounded, Enum, Num)
+  deriving (Show, Eq, Ord, Bounded, Enum, Num)
 
 -- | A node of the call stack
 data CallStackNode
@@ -44,6 +44,7 @@ data CallStackNode
     -- | The name of the function called
     , callName :: Snobol4String
     }
+  deriving Show
 
 -- | Information for calling a function
 data Function m
@@ -67,11 +68,28 @@ data Function m
     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
     }
 
+instance Show (Function m) where
+    show (UserFunction a b c d) = "(UserFunction " 
+                                ++ show a 
+                                ++ " " 
+                                ++ show b 
+                                ++ " " 
+                                ++ show c 
+                                ++ " " 
+                                ++ show d 
+                                ++ ")"
+    show (PrimitiveFunction a _) = "(PrimitiveFunction " ++ show a ++ ")"
+
+instance Eq (Function m) where
+    PrimitiveFunction{} == _ = False
+    _ == PrimitiveFunction{} = False
+    (UserFunction a b c d) == (UserFunction a' b' c' d') = a == a' && b == b' && c == c' && d == d'
 
 
 data Label
     = Label Address
     | CodeLabel CodeKey Address
+  deriving Show
 
 type Variables = Map Snobol4String Data
 type Statements = Vector Stmt
@@ -114,7 +132,7 @@ data ProgramState m
     -- | User define datatype values known to the interpreter
     , userDatas :: UserDatas
     }
-
+  deriving Show
 
 -- | Transformer stack which represents the actions of the interpreter
 newtype Interpreter m a
@@ -145,7 +163,8 @@ data PausedInterpreter m
     -- | An interpreter that has been paused
       Paused (ProgramState m)
     -- | An interpreter that has been terminated
-    | Terminated ProgramError
+    | Terminated ProgramResult
+  deriving Show
 
 -- | A result from running the pattern scanner
 data ScanResult
@@ -167,6 +186,7 @@ data ExecResult
     -- | The statement resulted in returning from the current function call
     -- with failure
     | FReturn
+    | EndOfProgram
 
 -- | Lift an operation from non-evaluation stack into evaluation stack
 liftEval :: InterpreterShell m => Interpreter m a -> Evaluator m a

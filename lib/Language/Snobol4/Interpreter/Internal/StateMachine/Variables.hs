@@ -77,7 +77,7 @@ globalWrite name = modifyVariables . M.insert name
 
 -- | Write the value of a local variable
 localWrite :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
-localWrite name = modifyVariables . M.insert name
+localWrite = writeCallStackLocal
 
 -- | Write the value of a variable, first checking if there are any locals with
 -- that name, then writing as a global if there isn't
@@ -114,6 +114,7 @@ incRef :: InterpreterShell m => Data -> Interpreter m ()
 incRef (PatternData k) = patternsIncRef k
 incRef (ArrayData k) = arraysIncRef k
 incRef (TableData k) = tablesIncRef k
+incRef _ = return ()
 
 decRef :: InterpreterShell m => Data -> Interpreter m ()
 decRef (PatternData k) = patternsDecRef k
@@ -146,8 +147,8 @@ assign (LookupAggregate name args) val = do
     liftEval $ case base of
         Just (_,baseVal) -> loop baseVal args
         Nothing -> programError ErroneousArrayOrTableReference
-assign Output val = toString val >>= lift . output . show
-assign Punch val = toString val >>= lift . punch . show
+assign Output val = toString val >>= lift . output . unmkString
+assign Punch val = toString val >>= lift . punch . unmkString
 assign _ _ = liftEval $ programError VariableNotPresentWhereRequired
 
 -- | Execute a lookup

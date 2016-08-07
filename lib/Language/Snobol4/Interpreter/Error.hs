@@ -1,12 +1,17 @@
 module Language.Snobol4.Interpreter.Error where
 
--- | A program error
-data ProgramError
+data ProgramResult
     = 
     -- | The program ended by reaching the END statement
       NormalTermination
+    | ErrorTermination ProgramError
+  deriving (Show, Eq)
+
+-- | A program error
+data ProgramError
+    = 
     -- | e.g. X = X + 'A'
-    | IllegalDataType
+      IllegalDataType
     -- | Division by zero, numeric overflow, etc
     | ErrorInArithmeticOperation
     -- | Reference with a bad key or index
@@ -41,4 +46,4 @@ data ProgramError
     | LimitOnCompilationErrorsExceeded
     | ErroneousEndStatement
     | ExecutionOfStatementWithACompilationError
-  deriving Show
+  deriving (Show, Eq)

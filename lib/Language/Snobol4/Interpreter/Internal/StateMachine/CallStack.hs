@@ -32,6 +32,10 @@ modifyCallStack f = modifyProgramState $
 modifyCallStackHead :: InterpreterShell m => (CallStackNode -> CallStackNode) -> Interpreter m ()
 modifyCallStackHead f = modifyCallStack $ \(n:ns) -> f n:ns
 
+writeCallStackLocal :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
+writeCallStackLocal name val = modifyCallStackHead $ 
+    \n -> n { locals = M.insert name val $ locals n }
+
 -- | Push a node onto the call stack
 pushCallStack :: InterpreterShell m => CallStackNode -> Interpreter m ()
 pushCallStack n = modifyCallStack (n:)
