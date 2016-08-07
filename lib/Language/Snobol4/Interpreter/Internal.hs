@@ -388,5 +388,8 @@ load (Program stmts) = do
 run :: InterpreterShell m => Interpreter m ProgramResult
 run = do
     result <- Interpreter $ lift $ runExceptT $ runInterpreter $ stepStmt
-    foo result
+    result' <- foo result
+    case result' of
+        ProgramIncomplete -> run
+        _ -> return result'
     
