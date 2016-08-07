@@ -37,6 +37,7 @@ import Language.Snobol4.Interpreter.State
 import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal (emptyState)
 import qualified Language.Snobol4.Interpreter.Internal as I
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 
 -- | Run an interpreter action using an empty starting state
 startInterpreter :: InterpreterShell m 
@@ -62,7 +63,10 @@ resumeInterpreter (Paused st) m = do
         return (st', Just x)
     case result of
         Right (st', x) -> return (Paused st', x)
-        Left err -> return (Terminated $ ErrorTermination err, Nothing)
+        Left err -> return 
+            ( Terminated $ ErrorTermination err $ unmkInteger $ getAddress $ programCounter st
+            , Nothing
+            )
 
 -- | Run an interpreter action in a paused interpreter, and discard the result
 resumeInterpreter' :: InterpreterShell m
@@ -76,8 +80,8 @@ run :: InterpreterShell m => Program -> m ProgramResult
 run code = do
     result <- I.interpret emptyState $ I.load code >> I.run
     case result of
-        Right err -> return err
-        Left _ -> return $ ErrorTermination ErrorInSnobol4System
+        Right result -> return result
+        Left _ -> return $ ErrorTermination ErrorInSnobol4System $ -1
 
 -- | Load a program into the interpreter and then pause it
 load :: InterpreterShell m => Program -> m (PausedInterpreter m)
@@ -88,10 +92,15 @@ load code = startInterpreter' $ I.load code
 step :: InterpreterShell m => PausedInterpreter m -> m (PausedInterpreter m)
 step (Terminated err) = return $ Terminated err
 step (Paused st) = do
-    result <- I.interpret st $ I.step >> I.getProgramState
-    case result of
-        Left err -> return $ Terminated $ ErrorTermination err
-        Right st' -> return $ Paused st'
+    result <- I.interpret st $ do
+        result <- I.step
+        st' <- I.getProgramState
+        return (st', result)
+    return $ case result of
+        Right (st', ProgramIncomplete) -> Paused st'
+        Right (_, NormalTermination) -> Terminated $ NormalTermination
+        Right (_, err) -> Terminated err
+        Left _ -> Terminated $ ErrorTermination ErrorInSnobol4System $ -1
 
 -- | Evaluate an expression in a paused interpreter
 eval :: InterpreterShell m 
@@ -101,14 +110,13 @@ eval :: InterpreterShell m
 eval _ (Terminated err) = return (Terminated err, Nothing)
 eval expr (Paused st) = do
     result <- I.interpret st $ do
-        result <- I.unliftEval $ I.evalExpr expr
+        result <- I.eval expr
         st' <- I.getProgramState
-        return $ case result of
-            Left _ -> (Paused st', Nothing)
-            Right val -> (Paused st', Just val)
+        return (st', result)
     return $ case result of
-        Left err -> (Terminated $ ErrorTermination err, Nothing)
-        Right x -> x
+        Right (st', (ProgramIncomplete, val)) -> (Paused st', val)
+        Right (_, (ErrorTermination err addr, _)) -> (Terminated $ ErrorTermination err addr, Nothing)
+        Left _ -> (Terminated $ ErrorTermination ErrorInSnobol4System $ -1, Nothing)
 
 -- | Execute a statement in a paused interpreter
 exec :: InterpreterShell m
@@ -121,11 +129,11 @@ exec stmt (Paused st) = do
         result <- I.exec stmt
         st' <- I.getProgramState
         return (st', result)
-    case result of
-        Left err -> return (Terminated $ ErrorTermination err, Nothing)
-        Right (st', StmtResult x) -> return (Paused st', x)
-        Right (_, Return) -> return (Terminated $ ErrorTermination ReturnFromZeroLevel, Nothing)
-        Right (_, FReturn) -> return (Terminated $ ErrorTermination ReturnFromZeroLevel, Nothing)
+    return $ case result of
+        Right (st', (ProgramIncomplete, x)) -> (Paused st', x)
+        Right (_, (NormalTermination, x)) -> (Terminated $ NormalTermination, x)
+        Right (_, (ErrorTermination err addr,_)) -> (Terminated $ ErrorTermination err addr, Nothing)
+        Left _ -> (Terminated $ ErrorTermination ErrorInSnobol4System $ -1, Nothing)
 
 -- | Check if a paused interpreter is terminated, and if so, return the error
 isTerminated :: PausedInterpreter m -> Maybe ProgramResult

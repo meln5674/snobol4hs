@@ -134,7 +134,7 @@ numericalPredicate :: (Num a, InterpreterShell m)
                   => (a -> a -> Bool)
                   -> [Data] 
                   -> Evaluator m (Maybe Data)
-numericalPreciate pred [a,b] = do
+numericalPredicate pred [a,b] = do
     (a',b') <- raiseArgs a b
     (a'',b'') <- case a' of
         StringData a -> (,) <$> (IntegerData <$> toInteger a') <*> (IntegerData <$> toInteger b')

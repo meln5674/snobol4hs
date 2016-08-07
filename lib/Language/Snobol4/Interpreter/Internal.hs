@@ -39,8 +39,7 @@ control is transfered back to the 'Interpreter' stack.
 
 {-# LANGUAGE LambdaCase #-}
 module Language.Snobol4.Interpreter.Internal 
-    ( module Language.Snobol4.Interpreter.Internal
-    , module Language.Snobol4.Interpreter.Scanner
+    ( module Language.Snobol4.Interpreter.Scanner
     , module Language.Snobol4.Interpreter.Evaluator
     , Interpreter
     , PausedInterpreter (..)
@@ -49,6 +48,13 @@ module Language.Snobol4.Interpreter.Internal
     , interpret
     , emptyState
     , getProgramState
+    , eval
+    , run
+    , step
+    , exec
+    , call
+    , evalExpr
+    , load
     ) where
 
 import Prelude hiding ( toInteger, lookup )
@@ -182,7 +188,7 @@ call name evaldArgs = do
 call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
 call n args = callFunction n args loop
   where
-    loop = step >>= \case
+    loop = stepStmt >>= \case
         StmtResult _ -> loop
         returnResult -> return returnResult
 
@@ -273,9 +279,9 @@ execMaybe f (Just x) = Just <$> f x
 execMaybe _ _ = return Nothing
 
 -- | Execute a statement in the interpreter
-exec :: InterpreterShell m => Stmt -> Interpreter m ExecResult
-exec (EndStmt _) = return EndOfProgram
-exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
+execStmt :: InterpreterShell m => Stmt -> Interpreter m ExecResult
+execStmt (EndStmt _) = return EndOfProgram
+execStmt (Stmt _ sub pat obj go) = flip catchEval handler $ do
     subResult <- execMaybe execSub sub
     lookup <- case subResult of
         Just lookup -> return lookup
@@ -316,10 +322,50 @@ exec (Stmt _ sub pat obj go) = flip catchEval handler $ do
                 case r of
                     EvalFailed -> return $ StmtResult Nothing
                     EvalSuccess x -> return $ StmtResult x
+
+exec :: InterpreterShell m => Stmt -> Interpreter m (ProgramResult, Maybe Data)
+exec stmt = do
+    result <- Interpreter $ lift $ runExceptT $ runInterpreter $ execStmt stmt
+    presult <- foo result
+    return $ case result of
+        (Right (StmtResult val)) -> (presult, val)
+        _ -> (presult, Nothing)
+    
+foo :: InterpreterShell m => Either ProgramError ExecResult -> Interpreter m ProgramResult
+foo (Right (StmtResult _)) = return ProgramIncomplete
+foo (Right Return) = do
+    Address pc <- getProgramCounter
+    return $ ErrorTermination ReturnFromZeroLevel $ unmkInteger pc
+foo (Right FReturn) = do
+    Address pc <- getProgramCounter
+    return $ ErrorTermination ReturnFromZeroLevel $ unmkInteger pc
+foo (Right EndOfProgram) = return $ NormalTermination
+foo (Left err) = do
+    Address pc <- getProgramCounter
+    return $ ErrorTermination err $ unmkInteger pc
                         
 -- | Execute the next statement pointed to by the program counter
-step :: InterpreterShell m => Interpreter m ExecResult
-step = fetch >>= exec
+stepStmt :: InterpreterShell m => Interpreter m ExecResult
+stepStmt = fetch >>= execStmt
+
+step :: InterpreterShell m => Interpreter m ProgramResult
+step = do
+    result <- Interpreter $ lift $ runExceptT $ runInterpreter $ stepStmt
+    foo result
+
+eval :: InterpreterShell m => Expr -> Interpreter m (ProgramResult, Maybe Data)
+eval expr = do
+    result <- Interpreter $ lift $ runExceptT $ runInterpreter $ unliftEval $ evalExpr expr
+    case result of
+        Right (Right v) -> return (ProgramIncomplete, Just v)
+        Right (Left (EvalSuccess _)) -> do
+            Address pc <- getProgramCounter
+            return (ErrorTermination ErrorInSnobol4System $ unmkInteger pc, Nothing)
+        Right (Left EvalFailed) -> return (ProgramIncomplete, Nothing)
+        Left err -> do
+            Address pc <- getProgramCounter
+            return (ErrorTermination err $ unmkInteger pc, Nothing)
+        
 
 -- | Load a program into the interpreter
 load :: InterpreterShell m => Program -> Interpreter m ()
@@ -341,11 +387,6 @@ load (Program stmts) = do
 -- until the program ends
 run :: InterpreterShell m => Interpreter m ProgramResult
 run = do
-    result <- Interpreter $ lift $ runExceptT $ runInterpreter $ step
-    case result of
-        Right (StmtResult _) -> run
-        Right Return -> return $ ErrorTermination ReturnFromZeroLevel
-        Right FReturn -> return $ ErrorTermination ReturnFromZeroLevel
-        Right EndOfProgram -> return $ NormalTermination
-        Left err -> return $ ErrorTermination err
+    result <- Interpreter $ lift $ runExceptT $ runInterpreter $ stepStmt
+    foo result
     

@@ -1,4 +1,4 @@
-module Language.Snobol4.Interpreter.Internal where
+module Language.Snobol4.Interpreter.Internal (call, evalExpr) where
 
 import Prelude hiding ( toInteger, lookup )
 

@@ -4,7 +4,8 @@ data ProgramResult
     = 
     -- | The program ended by reaching the END statement
       NormalTermination
-    | ErrorTermination ProgramError
+    | ProgramIncomplete
+    | ErrorTermination ProgramError Int
   deriving (Show, Eq)
 
 -- | A program error
