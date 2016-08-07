@@ -75,8 +75,8 @@ library
     default-language:   Haskell2010
 
 
-executable snobol4c
-  hs-source-dirs:       src/snobol4c
+executable runsnobol4
+  hs-source-dirs:       src/runsnobol4
   main-is:              Main.hs
   build-depends:        base >= 4.7 && < 5
                       , snobol4c
