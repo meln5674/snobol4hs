@@ -227,17 +227,18 @@ execRepl lookup pattern expr = do
 goto :: InterpreterShell m => Expr -> Evaluator m GotoResult
 goto (IdExpr "RETURN") = return GotoReturn
 goto (IdExpr "FRETURN") = return GotoFReturn
+goto (IdExpr label) = liftEval $ do
+    lookupResult <- labelLookup $ mkString label
+    case lookupResult of
+        Nothing -> programError UndefinedOrErroneousGoto
+        Just (Label pc) -> do
+            putProgramCounter pc
+            return GotoLabel
+        Just (CodeLabel k pc) -> undefined
 goto expr = do
     result <- evalExpr expr
     label <- toString result
-    liftEval $ do
-        lookupResult <- labelLookup label
-        case lookupResult of
-            Nothing -> programError UndefinedOrErroneousGoto
-            Just (Label pc) -> do
-                putProgramCounter pc
-                return GotoLabel
-            Just (CodeLabel k pc) -> undefined
+    goto (IdExpr $ unmkString label)
 
 data GotoResult
     = GotoReturn
@@ -316,9 +317,8 @@ execStmt (Stmt _ sub pat obj go) = flip catchEval handler $ do
             Just GotoFReturn -> return FReturn
             _ -> do
                 case gotoResult of
-                    Just GotoLabel -> return ()
-                    Just GotoNext -> modifyProgramCounter (+1)
                     Nothing -> modifyProgramCounter (+1)
+                    _ -> return ()
                 case r of
                     EvalFailed -> return $ StmtResult Nothing
                     EvalSuccess x -> return $ StmtResult x
@@ -374,13 +374,14 @@ load (Program stmts) = do
     addPrimitives
     putStatements prog
     scanForLabels
-    case V.last prog of
-        EndStmt Nothing -> putProgramCounter 0
-        EndStmt (Just lbl) -> do
-            result <- labelLookup $ mkString lbl
-            case result of
-                Just (Label addr) -> putProgramCounter addr
-                Nothing -> programError UndefinedOrErroneousGoto
+    unless (V.length prog == 0) $ 
+        case V.last prog of
+            EndStmt Nothing -> putProgramCounter 0
+            EndStmt (Just lbl) -> do
+                result <- labelLookup $ mkString lbl
+                case result of
+                    Just (Label addr) -> putProgramCounter addr
+                    Nothing -> programError UndefinedOrErroneousGoto
             
 
 -- | Run the interpreter continuously by fetching the next statement 

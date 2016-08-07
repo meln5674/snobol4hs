@@ -13,6 +13,7 @@ expressed in the source language.
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
 module Language.Snobol4.Interpreter.Primitives where
 
 import Prelude hiding ( span, break, any, toInteger )
@@ -130,8 +131,8 @@ addPrimitives = do
 
 
 -- | Generalization for lt, le, eq, ne, ge, and gt
-numericalPredicate :: (Num a, InterpreterShell m) 
-                  => (a -> a -> Bool)
+numericalPredicate :: (InterpreterShell m) 
+                  => (forall a . (Eq a, Ord a, Num a) => a -> a -> Bool)
                   -> [Data] 
                   -> Evaluator m (Maybe Data)
 numericalPredicate pred [a,b] = do
@@ -139,7 +140,11 @@ numericalPredicate pred [a,b] = do
     (a'',b'') <- case a' of
         StringData a -> (,) <$> (IntegerData <$> toInteger a') <*> (IntegerData <$> toInteger b')
         _ -> return (a',b')
-    return $ if a'' < b''
+    result <- case (a'',b'') of
+        (IntegerData a''', IntegerData b''') -> return $ a''' `pred` b'''
+        (RealData a''', RealData b''') -> return $ a''' `pred` b'''
+        _ -> liftEval $ programError IllegalDataType
+    return $ if result
         then Just $ StringData ""
         else Nothing
 numericalPredicate pred [a] = numericalPredicate pred [a,IntegerData 0]
