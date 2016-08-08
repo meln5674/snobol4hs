@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Data.Types
+Description     : Underlying types used in the SNOBOL4 datatypes
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -12,23 +22,23 @@ import Data.String
 
 import Language.Snobol4.Syntax.AST
 
--- | Wrapper around underlying type for arrays
+-- | A SNOBOL4 Array
 newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
     deriving (Show)
 
--- | String data type
+-- | A SNOBOL4 String
 newtype Snobol4String = Snobol4String { getString :: String }
     deriving (Read, Eq, Ord, Monoid, IsString)
 
--- | Integer data type
+-- | A SNOBOL4 Integer
 newtype Snobol4Integer = Snobol4Integer { getInteger :: Int }
     deriving (Read, Eq, Ord, Bounded, Enum, Num, Integral, Real, Ix)
 
--- | Real data type
+-- | A SNOBOL4 Real Number
 newtype Snobol4Real = Snobol4Real { getReal :: Float }
     deriving (Read, Eq, Ord, Num, Enum, RealFrac, Real, Fractional, Floating, RealFloat)
 
--- | Patterns for matching against strings
+-- | A SNOBOL4 Pattern
 data Pattern
     -- | A pattern which records the matched value in the provided lookup on 
     -- success
@@ -89,10 +99,10 @@ data Pattern
     | SucceedPattern
   deriving (Show, Eq, Ord)
 
--- | Wrapper around underlying type for tables
+-- | A SNOBOL4 Table
 newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data } deriving (Show)
 
--- | Object code
+-- | A SNOBOL4 Object Code Value
 newtype Snobol4Code = Snobol4Code { getCode :: Program } deriving (Show)
 
 -- | A user-defined datatype
@@ -102,6 +112,7 @@ data Snobol4Datatype
     , datatypeFieldNames :: [Snobol4String]
     }
   deriving (Show)
+
 -- | An instance of a user-defined type
 data Snobol4UserData
     = Snobol4UserData
@@ -112,7 +123,6 @@ data Snobol4UserData
 
 -- | Type of identifiers
 newtype Snobol4Identifier = Snobol4Identifier Snobol4String
-
 
 -- | Key for passing tables by reference
 newtype TableKey = TableKey Int deriving (Eq,Ord,Enum,Show)
@@ -126,7 +136,7 @@ newtype CodeKey = CodeKey Int deriving (Eq,Ord,Enum,Show)
 -- | Key for passing user-defined data type values by reference
 newtype UserKey = UserKey Int deriving (Eq,Ord,Enum,Show)
  
- -- | Key for passing arrays by reference
+-- | Key for passing arrays by reference
 newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum,Show)
 
 
@@ -146,7 +156,7 @@ data Lookup
     | LookupLiteral Data
   deriving (Show, Eq, Ord)
 
--- | The data types allowed in a snobol4 program
+-- | A SNOBOL4 Value
 data Data
     -- | A string
     = StringData Snobol4String
@@ -171,16 +181,19 @@ data Data
   deriving (Eq, Ord)
 
 
-
+-- | 
 instance Show Snobol4String where
     show = show . getString
 
+-- | 
 instance Show Snobol4Integer where
     show = show . getInteger
 
+-- | 
 instance Show Snobol4Real where
     show = show . getReal
 
+-- | 
 instance Show Data where
     show (StringData s) = show s
     show (PatternData _) = "[PATTERN]"

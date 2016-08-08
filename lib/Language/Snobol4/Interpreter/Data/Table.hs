@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Data.Table
+Description     : Table Datatype
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Data.Table 
     ( module Language.Snobol4.Interpreter.Data.Table 
     , Snobol4Table
@@ -22,5 +32,7 @@ readTable k (Snobol4Table tbl) = M.lookup k tbl
 writeTable :: Data -> Data -> Snobol4Table -> Snobol4Table
 writeTable k v (Snobol4Table tbl) = Snobol4Table $ M.insert k v tbl
 
+-- | Get the formal identification of a table
+-- TODO
 tableFormalIdent :: Snobol4Table -> Snobol4String
 tableFormalIdent tab = undefined

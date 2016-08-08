@@ -37,6 +37,7 @@ import qualified Language.Snobol4.Interpreter.Shell
     , InterpreterShellRun (..)
     )
 
+-- | A wrapper around whatever type is used to track time
 newtype ConsoleShellTime = ConsoleShellTime { getConsoleShellTime :: UTCTime }
 
 -- | The state of the shell
@@ -76,14 +77,17 @@ putLastPunch s = ConsoleShell $ modify $ \st -> st{ lastPunch = s }
 emptyState :: ConsoleShellState
 emptyState = ConsoleShellState "" "" "" undefined
 
+-- | Get the current time
 getCurrentConsoleShellTime :: ConsoleShell ConsoleShellTime
 getCurrentConsoleShellTime = liftM ConsoleShellTime $ liftIO $ getCurrentTime
     
+-- | Convert whatever time type is used to a string with format mm/dd/yyyy
 getConsoleShellDateString :: ConsoleShellTime -> String
 getConsoleShellDateString (ConsoleShellTime utctime) = [m1,m2,'/',d1,d2,'/',y1,y2,y3,y4]
   where
     [y1,y2,y3,y4,_,m1,m2,_,d1,d2] = showGregorian $ utctDay utctime
-    
+
+-- | Get the difference between two times
 consoleShellDateDiff :: ConsoleShellTime -> ConsoleShellTime -> Int
 consoleShellDateDiff (ConsoleShellTime t2) (ConsoleShellTime t1) = floor secs
   where
@@ -99,6 +103,7 @@ newtype ConsoleShell a
     }
     deriving (Functor, Applicative, Monad, MonadIO)
 
+-- |
 instance InterpreterShell ConsoleShell where
     input = do
         str <- liftIO $ hGetLine stdin
@@ -118,6 +123,7 @@ instance InterpreterShell ConsoleShell where
         t2 <- getCurrentConsoleShellTime
         return $ consoleShellDateDiff t2 t1
 
+-- |
 instance InterpreterShellRun ConsoleShell IO where
     start = do
         currentTime <- getCurrentConsoleShellTime

@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine
+Description     : The SNOBOL4 Interpreter
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 {-# LANGUAGE ExplicitForAll #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine 
@@ -22,7 +32,6 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , fetch
     , ExecResult (..)
     , catchEval
-    , addPrimitives
     ) where
 
 import Prelude hiding (toInteger)
@@ -52,7 +61,6 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
 import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
 import Language.Snobol4.Interpreter.Internal.StateMachine.Run
-import Language.Snobol4.Interpreter.Primitives
 
 
 -- | A ProgramState no functions or variables, no program

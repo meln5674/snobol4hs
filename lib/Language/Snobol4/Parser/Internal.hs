@@ -30,39 +30,44 @@ import Language.Snobol4.Interpreter.Primitives.Prototypes
 -- | Stream of tokens
 type TokStream = [Located Token SourcePos]
 
+-- | The user state of the parser. Is set to true if the last token parsed was
+-- whitespace
 type ParserState = Bool
-{-
-push :: Bool -> ParserState -> ParserState
-push b (ParserState bs) = ParserState (b:bs)
 
-pop :: ParserState -> (Bool,ParserState)
-pop (ParserState (b:bs)) = (b,ParserState bs)
--}
 -- | Class of types which can be parsed from source
 class Parsable a where
+    -- | Parser to use
     parser :: Monad m => ParsecT TokStream ParserState m a
+    -- | Constant function to determine if the lexing should assume the start of
+    -- line or not
     startOfLine :: a -> Bool
 
+-- | 
 instance Parsable Expr where
     parser = fixedExpression
     startOfLine = const False
 
+-- | 
 instance Parsable Stmt where
     parser = statement
     startOfLine = const True
 
+-- | 
 instance Parsable ArrayPrototype where
     parser = array_prototype
     startOfLine = const False
 
+-- | 
 instance Parsable FunctionPrototype where
     parser = function_prototype
     startOfLine = const False
 
+-- | 
 instance Parsable DataPrototype where
     parser = data_prototype
     startOfLine = const False
 
+-- | 
 instance Parsable Program where
     parser = program
     startOfLine = const True
@@ -237,9 +242,11 @@ label = token' isLabel
 comment_line :: Monad m => ParsecT TokStream ParserState m (Located Token SourcePos)
 comment_line = token' isLineComment
 
+-- | Optionally parse blanks
 optionalBlanks :: Monad m => ParsecT TokStream ParserState m ()
 optionalBlanks = P.optional blanks
 
+-- | Parse blanks, but make them optional if the previous token was blanks
 mandatoryBlanks :: Monad m => ParsecT TokStream ParserState m ()
 mandatoryBlanks = do
     st <- P.getState
@@ -383,10 +390,12 @@ reference = do
     return $ RefExpr ref args
 
     
--- | Parse an expression and then fix the associativity and precedence    
+-- | Parse an expression and then fix the associativity and precedence
 fixedExpression :: Monad m => ParsecT TokStream ParserState m Expr
 fixedExpression = liftM (fixPrec . fixAssoc) expression
 
+-- | Parse an expression that is not permitted to be surrouned by blanks, then
+-- fix the associativity and precdence
 fixedTopExpression :: Monad m => ParsecT TokStream ParserState m Expr
 fixedTopExpression = liftM (fixPrec . fixAssoc) topExpression
 
@@ -406,6 +415,8 @@ object_field = mandatoryBlanks >> fixedTopExpression
 equal :: Monad m => ParsecT TokStream ParserState m (Located Token SourcePos)
 equal = mandatoryBlanks >> equals
 
+-- | Parse an expression in parenthesis or angle brackets for part of a goto
+-- field
 gotoPart :: Monad m => ParsecT TokStream ParserState m GotoPart
 gotoPart =  (GotoPart <$> inParens fixedExpression) 
         <|> (DirectGotoPart <$> inAngles fixedExpression)
@@ -472,18 +483,6 @@ identifierStr = do
         t -> error 
             $ "Internal Error: Something other than an identifier was parsed as an identifier: " 
             ++ show t
-{-
-assign_statement_null :: Monad m => ParsecT TokStream ParserState m Stmt
-assign_statement_null = do
-    lbl <- P.optionMaybe labelStr
-    _ <- blanks
-    sub <- element
-    _ <- blanks
-    _ <- equals
-    <- P.optionMaybe goto_field
-    eos
-    return $ Stmt lbl (Just sub) Nothing (Just NullExpr) go
--}  
 
 -- | Parse an assignment statement
 assign_statement :: Monad m => ParsecT TokStream ParserState m Stmt
@@ -546,54 +545,6 @@ statement
    <|> P.try match_statement 
    <|> P.try repl_statement 
 
-{-
-label
-subject
-label subject
-subject pattern
-label subject pattern
-subject object
-label subject object
-subject pattern object
-label subject pattern object
-goto
-label goto
-subject goto
-label subject goto
-subject pattern goto
-label subject pattern goto
-subject object goto
-label subject object goto
-subject pattern object goto
-label subject pattern object goto
--}
-{-
-labelOnly = do
-    lbl <- P.optionMaybe labelStr
-    eos
-    return $ Stmt lbl Nothing Nothing Nothing Nothing
-
-subjectOnly = do
-    _ <- blanks
-    sub <- element
-    eos
-    return $ Stmt Nothing (Just sub) Nothing Nothing Nothing
-
-labelAndSubject = do
-    lbl <- P.optionMaybe labelStr
-    _ <- blanks
-    sub <- element
-    eos
-    return $ Stmt lbl (Just sub) Nothing Nothing Nothing Nothing
-
-subjectAndPattern = do
-    _ <- blanks
-    sub <- element
-    _ <- blanks
-    pat <- topExpression
-    eos
-    return $ Stmt 
--}
 -- | Parse a control line
 control_line :: Monad m => ParsecT TokStream ParserState m ()
 control_line = void $ minus >> P.optional blanks >> 
@@ -726,6 +677,7 @@ fixAssoc (RefExpr i args) = RefExpr i $ map fixAssoc args
 fixAssoc (ParenExpr expr) = ParenExpr $ fixAssoc expr
 fixAssoc x = x
 
+-- Top level function
 
 -- | Parse something from a stream of tokens
 parseFromToksT :: (Parsable a, Monad m) => TokStream -> m (Either ParseError a)

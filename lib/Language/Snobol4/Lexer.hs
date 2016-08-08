@@ -34,9 +34,12 @@ import Language.Snobol4.Parser.Types
 
 type ParserState = Bool
 
+-- | Modify a token located using parsec source position to use the internal
+-- source position
 wrapPos :: Located a P.SourcePos -> Located a SourcePos
 wrapPos (Located x pos) = Located x $ SourcePos pos
 
+-- | Modify a value using the parsec error type to use the internal one
 wrapError :: (a -> b) -> Either P.ParseError a -> Either ParseError b
 wrapError _ (Left err) = Left $ ParseError err
 wrapError f (Right x) = Right $ f x
@@ -194,6 +197,7 @@ comment_line = do
             comment <- P.manyTill P.anyChar (P.try (void $ P.lookAhead eol) <|> P.eof)
             return $ LineComment comment
 
+-- | Parse an end of line followed by a continuation character
 continuation :: Monad m => ParsecT String ParserState m ()
 continuation = void $ eol >> P.oneOf ['+','.']
 
@@ -248,7 +252,8 @@ lex x = wrapError (map wrapPos) . P.runParser parser False ""
         tokens
 
 -- | Produce a list of tokens tagged with their source locations from an input 
--- stream, inside of a monad transformer
+-- stream, inside of a monad transformer. First parameter sets if the lexing
+-- should assume that the input is from the start of a line or not.
 lexT :: Monad m => Bool -> String -> m (Either ParseError [Located Token SourcePos])
 lexT x = liftM (wrapError (map wrapPos)) . P.runParserT parser False ""
   where

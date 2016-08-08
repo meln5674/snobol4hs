@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
+Description     : Maintaining variables
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 {-# LANGUAGE LambdaCase #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Variables where
 
@@ -19,7 +29,9 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
 import Language.Snobol4.Interpreter.Internal.StateMachine.Tables
 import Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
 import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
+import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
+-- | Empty collection of variables
 noVariables :: Variables
 noVariables = M.empty
 
@@ -103,28 +115,31 @@ clearVar n = do
             modifyVariables $ M.delete n
         Nothing -> return ()
 
+-- | Erase all variables
 wipeVariables :: InterpreterShell m => Interpreter m ()
 wipeVariables = putVariables $ M.empty
 
+-- | Get the names of the natural variables
 naturalVarNames :: InterpreterShell m => Interpreter m [Snobol4String]
 naturalVarNames = liftM M.keys getVariables
 
-
+-- | Take a value, if it is a reference to data maintained by the GC, increment
+-- the number of references to it
 incRef :: InterpreterShell m => Data -> Interpreter m ()
 incRef (PatternData k) = patternsIncRef k
 incRef (ArrayData k) = arraysIncRef k
 incRef (TableData k) = tablesIncRef k
 incRef _ = return ()
 
+-- | Take a value, if it is a reference to data maintained by the GC, decrement
+-- the number of references to it
 decRef :: InterpreterShell m => Data -> Interpreter m ()
 decRef (PatternData k) = patternsDecRef k
 decRef (ArrayData k) = arraysDecRef k
 decRef (TableData k) = tablesDecRef k
 decRef _ = return ()
 
-
-    
--- | Assign a value using a lookup
+-- | Assign a value to the location pointed to by a lookup
 assign :: InterpreterShell m => Lookup -> Data -> Evaluator m ()
 assign (LookupId s) val = liftEval $ varWrite s val
 assign (LookupAggregate name args) val = do
@@ -151,7 +166,7 @@ assign Output val = toString val >>= lift . output . unmkString
 assign Punch val = toString val >>= lift . punch . unmkString
 assign _ _ = liftEval $ programError VariableNotPresentWhereRequired
 
--- | Execute a lookup
+-- | Get the data pointed to by a lookup
 execLookup :: InterpreterShell m => Lookup -> Interpreter m (Maybe Data) 
 execLookup Input = (Just . StringData . mkString) <$> lift input 
 execLookup Output = (Just . StringData . mkString) <$> lift lastOutput 

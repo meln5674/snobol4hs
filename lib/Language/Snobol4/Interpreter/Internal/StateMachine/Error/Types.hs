@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
+Description     : State machine error types
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types where
 
 import Language.Snobol4.Interpreter.Data

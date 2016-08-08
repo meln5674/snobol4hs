@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Types
+Description     : Types used by the state machine
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Types 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine.Types 
@@ -68,6 +78,7 @@ data Function m
     ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
     }
 
+-- | 
 instance Show (Function m) where
     show (UserFunction a b c d) = "(UserFunction " 
                                 ++ show a 
@@ -80,26 +91,49 @@ instance Show (Function m) where
                                 ++ ")"
     show (PrimitiveFunction a _) = "(PrimitiveFunction " ++ show a ++ ")"
 
+-- |
 instance Eq (Function m) where
     PrimitiveFunction{} == _ = False
     _ == PrimitiveFunction{} = False
     (UserFunction a b c d) == (UserFunction a' b' c' d') = a == a' && b == b' && c == c' && d == d'
 
-
+-- | A label that can be jumped to
 data Label
-    = Label Address
+    = 
+    -- | A normal goto label
+      Label Address
+    -- | A label within dynamic object code
     | CodeLabel CodeKey Address
   deriving Show
 
+-- | Collection of variables
 type Variables = Map Snobol4String Data
+
+-- | A loaded program
 type Statements = Vector Stmt
+
+-- | Collection of labels
 type Labels = Map Snobol4String Label
+
+-- | Collection of functions
 type Functions m = Map Snobol4String (Function m)
+
+-- | Collection of arrays
 type Arrays = Map ArrayKey (RefCounted Snobol4Array)
+
+-- | Collection of tables
 type Tables = Map TableKey (RefCounted Snobol4Table)
+
+-- | Collection of patterns
 type Patterns = Map PatternKey (RefCounted Pattern)
+
+-- | Collection of object code
 type Codes = Map CodeKey (RefCounted Snobol4Code)
+
+-- | Collection of user-defined datatypes
 type Datatypes = Map Snobol4String Snobol4Datatype
+
+-- | Collection of values of user-defined datatypes
 type UserDatas = Map UserKey Snobol4UserData
 
 
@@ -111,7 +145,7 @@ data ProgramState m
       variables :: Variables
     -- | The statements in the current program
     , statements :: Statements
-    -- | A map of label names to the index of their statement
+    -- | A map of label names to the index =of their statement
     , labels :: Labels
     -- | The index of the current statement
     , programCounter :: Address
@@ -142,6 +176,7 @@ newtype Interpreter m a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+-- |
 instance MonadTrans Interpreter where
     lift = Interpreter . lift . lift
 
@@ -154,6 +189,7 @@ newtype Evaluator m a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+-- |
 instance MonadTrans Evaluator where
     lift = Evaluator . lift . lift . lift
 
@@ -186,9 +222,5 @@ data ExecResult
     -- | The statement resulted in returning from the current function call
     -- with failure
     | FReturn
+    -- | The statement executed was the end statement
     | EndOfProgram
-
--- | Lift an operation from non-evaluation stack into evaluation stack
-liftEval :: InterpreterShell m => Interpreter m a -> Evaluator m a
-liftEval = Evaluator . ExceptT . lift . runExceptT . runInterpreter
-

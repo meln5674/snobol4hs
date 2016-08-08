@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Run
+Description     : Moving between tranformer stacks
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.Run where
 
 import Control.Monad.Trans
@@ -6,6 +16,10 @@ import Control.Monad.Trans.Except
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.Error
+
+-- | Lift an operation from non-evaluation stack into evaluation stack
+liftEval :: InterpreterShell m => Interpreter m a -> Evaluator m a
+liftEval = Evaluator . ExceptT . lift . runExceptT . runInterpreter
 
 -- | Lift an evaluation stack result back into the non-evaluation stack
 unliftEval :: InterpreterShell m => Evaluator m a -> Interpreter m (Either EvalStop a)
@@ -27,3 +41,4 @@ catchEval m h = do
     case result of
         Right val -> return val
         Left stop -> h stop
+

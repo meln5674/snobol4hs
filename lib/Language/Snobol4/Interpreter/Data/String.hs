@@ -1,3 +1,14 @@
+{-|
+Module          : Language.Snobol4.String.Data.String
+Description     : String Datatype
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
+
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 module Language.Snobol4.Interpreter.Data.String 
@@ -66,10 +77,12 @@ nullString :: Snobol4String
 nullString = Snobol4String ""
 
 
-
+-- |
 instance Snobol4StringClass Snobol4String where
     mkString = id
     unmkString = id
+
+-- | 
 instance Snobol4StringClass String where
     mkString = Snobol4String
     unmkString = getString

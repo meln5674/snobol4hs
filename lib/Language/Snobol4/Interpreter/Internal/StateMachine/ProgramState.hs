@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
+Description     : Maintaining the state of the interpreter
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState where
 
 import Control.Monad.Trans
@@ -6,6 +16,7 @@ import Control.Monad.Trans.State.Strict
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Shell
 
+-- | The program counter to start at
 initialProgramCounter :: Address
 initialProgramCounter = 0
 

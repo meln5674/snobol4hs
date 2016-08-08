@@ -39,7 +39,6 @@ library
                       , Language.Snobol4.Interpreter.Data.UserData
                       , Language.Snobol4.Interpreter.Evaluator
                       , Language.Snobol4.Interpreter.Scanner
-                      , Language.Snobol4.Interpreter.State
                       , Language.Snobol4.Interpreter.Primitives
                       , Language.Snobol4.Interpreter.Primitives.Prototypes
                       , Language.Snobol4.Interpreter.Scanner.Internal
@@ -86,6 +85,7 @@ executable runsnobol4
 executable snobol4ci
   hs-source-dirs:       src/snobol4ci
   main-is:              Main.hs
+  other-modules:        Shell
   build-depends:        base >= 4.7 && < 5
                       , snobol4c
                       , haskeline
@@ -122,7 +122,6 @@ test-suite expression
   main-is:              Main.hs
   hs-source-dirs:       lib, test/expression, test/common
   other-modules:        Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.Interpreter.Types
                       , Language.Snobol4.Interpreter.Internal
                       , Language.Snobol4.Interpreter.Internal.Types
                       , Language.Snobol4.Interpreter.Shell
@@ -135,7 +134,6 @@ test-suite scanner
   main-is:              Main.hs
   hs-source-dirs:       lib, test/scanner, test/common
   other-modules:        Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.Interpreter.Types
                       , Language.Snobol4.Interpreter.Evaluator
                       , Language.Snobol4.Interpreter.Internal
                       , Language.Snobol4.Interpreter.Internal.Types
@@ -150,7 +148,6 @@ test-suite primitive
   main-is:              Main.hs
   hs-source-dirs:       lib, test/primitive, test/common
   other-modules:        Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.Interpreter.Types
                       , Language.Snobol4.Interpreter.Evaluator
                       , Language.Snobol4.Interpreter.Internal
                       , Language.Snobol4.Interpreter.Internal.Types

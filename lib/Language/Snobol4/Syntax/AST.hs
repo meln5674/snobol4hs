@@ -119,8 +119,12 @@ data Expr
     | NullExpr
   deriving (Show, Eq, Ord)
 
+-- | A goto target
 data GotoPart
-    = GotoPart Expr
+    = 
+    -- | A goto targeting a label or expression
+      GotoPart Expr
+    -- | A goto targetin a label or expression in dynamic object code
     | DirectGotoPart Expr
   deriving (Show, Eq)
 
@@ -146,15 +150,19 @@ data Stmt
     | EndStmt (Maybe String)
   deriving (Show, Eq)
 
+-- | Create an assignment statement
 assignStmt :: Maybe String -> Expr -> Expr -> Maybe Goto -> Stmt
 assignStmt lbl sub repl goto = Stmt lbl (Just sub) Nothing (Just repl) goto
 
+-- | Create a match statement
 matchStmt :: Maybe String -> Expr -> Expr -> Maybe Goto -> Stmt
 matchStmt lbl sub pat goto = Stmt lbl (Just sub) (Just pat) Nothing goto
 
+-- | Create a replacement statement
 replStmt :: Maybe String -> Expr -> Expr -> Expr -> Maybe Goto -> Stmt
 replStmt lbl sub pat repl goto = Stmt lbl (Just sub) (Just pat) (Just repl) goto
 
+-- | Create a degenerate statement
 degenStmt :: Maybe String -> Expr -> Maybe Goto -> Stmt
 degenStmt lbl sub goto = Stmt lbl (Just sub) Nothing Nothing goto
 

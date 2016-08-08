@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Convert
+Description     : Converting between datatypes
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.Convert where
 
 import Prelude hiding (toInteger)
@@ -9,10 +19,13 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
 import Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
+import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
+-- | Attempt to convert an array to a table
 arrayToTable :: InterpreterShell m => Snobol4Array -> Interpreter m (Maybe Snobol4Table)
 arrayToTable arr = undefined
 
+-- | Attempt to convert a table to an array
 tableToArray :: InterpreterShell m => Snobol4Table -> Interpreter m (Maybe Snobol4Array)
 tableToArray tab = undefined
 
@@ -124,6 +137,8 @@ toPattern (PatternData k) = liftEval $ do
 toPattern (TempPatternData p) = return p
 toPattern x = LiteralPattern <$> toString x
 
+-- | Convert data to object code
+-- Throws a ProgramError if this is not valid
 toCode :: InterpreterShell m => Data -> Evaluator m Snobol4Code
 toCode (CodeData k) = liftEval $ do
     result <- codesLookup k

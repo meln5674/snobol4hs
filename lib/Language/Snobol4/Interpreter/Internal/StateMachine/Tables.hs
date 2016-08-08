@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Tables
+Description     : Maintaining tables
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.Tables where
 
 import qualified Data.Map as M
@@ -11,6 +21,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
+-- | Empty collection of tables
 noTables :: Tables
 noTables = M.empty
 
@@ -29,10 +40,11 @@ modifyTables :: InterpreterShell m
 modifyTables f = modifyProgramState $
     \st -> st { tables = f $ tables st }
 
--- | Allocate a new table
+-- | Allocate an empty table
 tablesNew :: InterpreterShell m => Interpreter m TableKey
 tablesNew = tablesNew' emptyTable
 
+-- | Add a new table
 tablesNew' :: InterpreterShell m => Snobol4Table -> Interpreter m TableKey
 tablesNew' tab = do
     newKey <- (succ . fst . M.findMax) `liftM` getTables
@@ -55,8 +67,10 @@ tablesRead k1 k2 = tablesLookup k2 >>= \x -> return $ x >>= readTable k1
 tablesWrite :: InterpreterShell m => Data -> Data -> TableKey -> Interpreter m ()
 tablesWrite k v = tablesUpdate $ writeTable k v
 
+-- | Increment the number of references to a table
 tablesIncRef :: InterpreterShell m => TableKey -> Interpreter m ()
 tablesIncRef k = modifyTables $ M.adjust incRefCount k
 
+-- | Decrement the number of refernces to a table
 tablesDecRef :: InterpreterShell m => TableKey -> Interpreter m ()
 tablesDecRef k = modifyTables $ M.update decRefCount k

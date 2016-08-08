@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
+Description     : Interpreter call stack
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.CallStack where
 
 import qualified Data.Map as M
@@ -9,6 +19,7 @@ import Language.Snobol4.Interpreter.Data.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 
+-- | Call stack with no nodes
 emptyCallStack :: [CallStackNode]
 emptyCallStack = []
 
@@ -32,6 +43,7 @@ modifyCallStack f = modifyProgramState $
 modifyCallStackHead :: InterpreterShell m => (CallStackNode -> CallStackNode) -> Interpreter m ()
 modifyCallStackHead f = modifyCallStack $ \(n:ns) -> f n:ns
 
+-- | Write a local variable to the top of the call stack
 writeCallStackLocal :: InterpreterShell m => Snobol4String -> Data -> Interpreter m ()
 writeCallStackLocal name val = modifyCallStackHead $ 
     \n -> n { locals = M.insert name val $ locals n }

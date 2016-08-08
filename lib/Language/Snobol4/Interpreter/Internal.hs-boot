@@ -1,4 +1,4 @@
-module Language.Snobol4.Interpreter.Internal (call, evalExpr) where
+module Language.Snobol4.Interpreter.Internal (call, evalExpr, liftEval) where
 
 import Prelude hiding ( toInteger, lookup )
 
@@ -16,6 +16,7 @@ import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Error
 
 import Language.Snobol4.Interpreter.Internal.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine
 
 call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
 

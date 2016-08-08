@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Data.Array
+Description     : Array Datatype
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Data.Array 
     ( module Language.Snobol4.Interpreter.Data.Array 
     , Snobol4Array
@@ -18,14 +28,15 @@ arr `arrayGet` ix
     inBounds = minB <= ix && ix < maxB
     (minB,maxB) = A.bounds arr 
 
--- | Create a new array with upper and lower bounds with an initial value
+-- | Create a new array with upper and lower bounds with an initial value for each index
 newArray :: Snobol4Integer -> Snobol4Integer -> Data -> Snobol4Array
 newArray minIx maxIx v
     = Snobol4Array 
     $ A.array (minIx,maxIx) 
     $ map (\x -> (x,v)) [minIx..maxIx]
 
--- | Create a new array from a list of pairs of indices and values
+-- | Create a new array from a list of pairs of indices and values, the indices
+-- are assumed to be contiguous
 newArray' :: [(Snobol4Integer,Data)] -> Snobol4Array
 newArray' xs = Snobol4Array $ A.array (minIx,maxIx) xs
   where
@@ -44,5 +55,7 @@ readArray ix (Snobol4Array arr)
 writeArray :: Snobol4Integer -> Data -> Snobol4Array -> Snobol4Array
 writeArray ix v (Snobol4Array arr) = Snobol4Array $ arr A.// [(ix,v)]
 
+-- | Get the formal identification of an array
+-- TODO
 arrayFormalIdent :: Snobol4Array -> Snobol4String
 arrayFormalIdent arr = undefined

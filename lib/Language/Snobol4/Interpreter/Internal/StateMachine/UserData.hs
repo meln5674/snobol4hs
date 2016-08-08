@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.UserData
+Description     : Maintaining user-defined datatypes and their values
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.UserData where
 
 import qualified Data.Map as M
@@ -7,32 +17,37 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Data.Types
 import Language.Snobol4.Interpreter.Shell
 
+-- | Empty collection of user-defined datatypes
 noDatatypes :: Datatypes
 noDatatypes = M.empty
 
+-- | Empty collection of vaules of user-defined datatypes
 noUserData :: UserDatas
 noUserData = M.empty
 
+-- | Get the user-defined datatypes known to the interpreter
 getDatatypes :: InterpreterShell m => Interpreter m Datatypes
 getDatatypes = getsProgramState datatypes
 
+-- | Get the values of user-defined datatypes known to the interpreter
 getUserDatas :: InterpreterShell m => Interpreter m UserDatas
 getUserDatas = getsProgramState userDatas
 
+-- | Apply a function to the the user-defined datatypes known to the interpreter
 modifyDatatypes :: InterpreterShell m => (Datatypes -> Datatypes) -> Interpreter m ()
 modifyDatatypes f = modifyProgramState $
     \st -> st { datatypes = f $ datatypes st }
 
-datatypeLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Snobol4Datatype)
-datatypeLookup name = M.lookup name <$> getDatatypes
+-- | Lookup a user-defined datatype
+datatypesLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Snobol4Datatype)
+datatypesLookup k = M.lookup k <$> getDatatypes
 
+-- | Lookup a value of a user-defined datatype
 userDataLookup :: InterpreterShell m => UserKey -> Interpreter m (Maybe Snobol4UserData)
 userDataLookup k = M.lookup k <$> getUserDatas
 
-
+-- | Create a new user-defined datatype
 datatypesNew :: InterpreterShell m => Snobol4Datatype -> Interpreter m ()
 datatypesNew datatype = modifyDatatypes $ M.insert (datatypeName datatype) datatype
 
-datatypesLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Snobol4Datatype)
-datatypesLookup k = M.lookup k <$> getDatatypes
 

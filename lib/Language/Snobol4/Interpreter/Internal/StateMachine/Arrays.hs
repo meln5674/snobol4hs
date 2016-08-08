@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
+Description     : Maintaining arrays
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.Arrays where
 
 import qualified Data.Map as M
@@ -10,6 +20,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
+-- | Empty collection of arrays
 noArrays :: Arrays
 noArrays = M.empty
 
@@ -52,6 +63,7 @@ arraysNew'' ((minIx,maxIx):ds) val = do
     modifyArrays $ M.insert newKey $ newRef $ newArray' xs
     return $ ArrayData newKey
 
+-- | Create a new array that is a copy of an existing one
 arraysCopy :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe ArrayKey)
 arraysCopy k = do
     result <- arraysLookup k
@@ -78,8 +90,10 @@ arraysRead ix k = arraysLookup k >>= \x -> return $ x >>= readArray ix
 arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> Interpreter m ()
 arraysWrite ix v = arraysUpdate $ writeArray ix v
 
+-- | Increment the reference counter for an array
 arraysIncRef :: InterpreterShell m => ArrayKey -> Interpreter m ()
 arraysIncRef k = modifyArrays $ M.adjust incRefCount k
 
+-- | Decrement the reference counter for an array
 arraysDecRef :: InterpreterShell m => ArrayKey -> Interpreter m ()
 arraysDecRef k = modifyArrays $ M.update decRefCount k

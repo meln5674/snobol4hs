@@ -16,10 +16,11 @@ to catch failures, and a StateT on top which contains the input yet to be
 scanned, the assignments to be performed after scanning, and the range of input
 that has been scanned.
 
-The scanner operates by finding all alternatives at the current position, then
-attempting each one. If an alternative fails, represented by the Nothing value
-in the MaybeT transformer, the state is rewound and the next alternative is
-tried.
+The scanner works using continuation passing, the operation to be performed
+next is passed along with the pattern to match. When a pattern can fail and
+try an alternative, it passes the next operation to that alternative along with
+the current string to be matched, and runs it. If that fails, it repeats this
+process for each remaining alternative.
 -}
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -188,21 +189,21 @@ startState s = ScannerState
              , endPos = 0
              }
 
--- | ???
+-- | I haven't thought up a name for this yet
 func :: Monad m 
      => Scanner m Snobol4String 
      -> (Snobol4String -> Scanner m a) 
      -> (Snobol4String -> Scanner m a)
 func f next = \s1 -> f >>= \s2 -> next (s1 <> s2)
 
--- | ???
+-- | I haven't thought up a name for this either
 bar :: Monad m => (a -> Scanner m b) -> a -> Scanner m a
 bar f v = f v >> return v
 
 -- | Main scanner function
 -- `match p next` attempts to match the pattern `p`, and if successful, calls
 -- `next` with the string scanned so far.
--- The restult of this function is a function which itself takes the string
+-- The result of this function is a function which itself takes the string
 -- scanned so far.
 -- The top level call of this function should be called with the empty string.
 match :: InterpreterShell m 

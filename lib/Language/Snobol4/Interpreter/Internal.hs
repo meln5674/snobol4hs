@@ -44,6 +44,7 @@ module Language.Snobol4.Interpreter.Internal
     , Interpreter
     , PausedInterpreter (..)
     , ExecResult (..)
+    , liftEval
     , unliftEval
     , interpret
     , emptyState
@@ -73,6 +74,7 @@ import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Scanner
 import Language.Snobol4.Interpreter.Error
+import Language.Snobol4.Interpreter.Primitives (addPrimitives)
 
 import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Interpreter.Internal.StateMachine.Statements
@@ -130,6 +132,13 @@ evalExpr (PrefixExpr Minus expr) = do
         _ -> liftEval $ programError IllegalDataType
 evalExpr (PrefixExpr Star expr) = return $ TempPatternData $ UnevaluatedExprPattern expr
 evalExpr (PrefixExpr Dot (IdExpr name)) = return $ Name $ LookupId $ mkString name
+evalExpr (PrefixExpr Dollar expr) = do
+    expr' <- evalExpr expr
+    s <- toString expr'
+    result <- liftEval $ execLookup $ LookupId s
+    case result of
+        Just d -> return d
+        Nothing -> failEvaluation
 evalExpr (IdExpr "INPUT") = StringData <$> (lift $ mkString <$> input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ mkString <$> lastOutput)
 evalExpr (IdExpr "PUNCH") = StringData <$> (lift $ mkString <$> lastPunch)
@@ -161,30 +170,7 @@ evalExpr (BinaryExpr a op b) = do
 evalExpr NullExpr = return $ StringData nullString
 evalExpr _ = liftEval $ programError ErrorInSnobol4System
 
-{-
 -- | Call a function by name with arguments
-call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
-call name evaldArgs = do
-    lookupResult <- funcLookup name
-    case lookupResult of
-        Nothing -> programError UndefinedFunctionOrOperation
-        Just func@UserFunction{formalArgs=argNames} -> do
-            pushFuncNode func
-            mapM_ (uncurry varWrite) $ zip argNames evaldArgs
-            putProgramCounter $ entryPoint func
-            let loop = do
-                    result <- step
-                    case result of
-                        Return -> do
-                            _ <- popCallStack
-                            varLookup' $ name
-                        FReturn -> return Nothing
-                        StmtResult _ -> loop
-            loop
-        Just PrimitiveFunction{funcPrim=action} -> do
-            catchEval (action evaldArgs) $ const $ return Nothing
--}
-
 call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
 call n args = callFunction n args loop
   where
@@ -209,7 +195,7 @@ execRepl lookup pattern expr = do
         _ -> do
             val <- liftEval $ execLookup lookup
             str <- case val of
-                Nothing -> return ""
+                Nothing -> return nullString
                 Just d -> toString d
             scanResult <- scanPattern str pattern
             case scanResult of
@@ -223,7 +209,7 @@ execRepl lookup pattern expr = do
                     assign lookup $ StringData val'
                     finishEvaluation $ Nothing
 
--- | Evaluate an expression and jump to the label named by the result
+-- | Evaluate a goto and jump to the appropriate address
 goto :: InterpreterShell m => Expr -> Evaluator m GotoResult
 goto (IdExpr "RETURN") = return GotoReturn
 goto (IdExpr "FRETURN") = return GotoFReturn
@@ -235,6 +221,10 @@ goto (IdExpr label) = liftEval $ do
             putProgramCounter pc
             return GotoLabel
         Just (CodeLabel k pc) -> undefined
+goto (PrefixExpr Dollar expr) = do
+    result <- evalExpr expr
+    label <- toString result
+    goto (IdExpr $ unmkString label)
 goto expr = do
     result <- evalExpr expr
     label <- toString result
@@ -323,6 +313,7 @@ execStmt (Stmt _ sub pat obj go) = flip catchEval handler $ do
                     EvalFailed -> return $ StmtResult Nothing
                     EvalSuccess x -> return $ StmtResult x
 
+-- | Execute a statement
 exec :: InterpreterShell m => Stmt -> Interpreter m (ProgramResult, Maybe Data)
 exec stmt = do
     result <- Interpreter $ lift $ runExceptT $ runInterpreter $ execStmt stmt
@@ -348,11 +339,13 @@ foo (Left err) = do
 stepStmt :: InterpreterShell m => Interpreter m ExecResult
 stepStmt = fetch >>= execStmt
 
+-- | Execute the next statement in the program
 step :: InterpreterShell m => Interpreter m ProgramResult
 step = do
     result <- Interpreter $ lift $ runExceptT $ runInterpreter $ stepStmt
     foo result
 
+-- | Evaluate an expression
 eval :: InterpreterShell m => Expr -> Interpreter m (ProgramResult, Maybe Data)
 eval expr = do
     result <- Interpreter $ lift $ runExceptT $ runInterpreter $ unliftEval $ evalExpr expr

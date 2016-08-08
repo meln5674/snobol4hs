@@ -1,3 +1,13 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+Description     : Maintaining labels
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
+
 module Language.Snobol4.Interpreter.Internal.StateMachine.Labels where
 
 import Data.Maybe
@@ -13,6 +23,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.Statements
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
+-- | Empty collection of labels
 noLabels :: Labels
 noLabels = M.empty
  
@@ -31,6 +42,7 @@ modifyLabels :: InterpreterShell m
 modifyLabels f = modifyProgramState $
     \st -> st { labels = f $ labels st }
 
+-- | Scan the loaded program for labels, and then add them
 scanForLabels :: InterpreterShell m
               => Interpreter m ()
 scanForLabels = do

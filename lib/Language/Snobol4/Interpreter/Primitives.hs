@@ -120,6 +120,7 @@ primitiveFunctions =
     , PrimitiveFunction "VALUE"     value
     ]
 
+-- | Add the primitive variables and functions to the current interpreter state
 addPrimitives :: forall m . InterpreterShell m => Interpreter m ()
 addPrimitives = do
     let funcs :: [Function m]
@@ -466,7 +467,7 @@ field :: InterpreterShell m => [Data] -> Evaluator m (Maybe Data)
 field [dname,n] = do
     dname' <- toString dname
     n' <- toInteger n
-    datatypeResult <- liftEval $ datatypeLookup dname'
+    datatypeResult <- liftEval $ datatypesLookup dname'
     case datatypeResult of
         Nothing -> liftEval $ programError IllegalArgumentToPrimitiveFunction
         Just datatype -> case drop (unmkInteger n') $ datatypeFieldNames datatype of
@@ -685,5 +686,3 @@ value [arg] = do
     name <- toString arg
     return $ Just $ Name $ LookupId name
 value _ = liftEval $ programError IncorrectNumberOfArguments
-
-
