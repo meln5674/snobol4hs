@@ -10,6 +10,7 @@ Portability     : Unknown
 Public interface to the SNOBOL4 interpreter
 -}
 
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter 
     ( PausedInterpreter
     , load
@@ -18,13 +19,22 @@ module Language.Snobol4.Interpreter
     , exec
     , run
     , isTerminated
-    , module Language.Snobol4.Interpreter.Types
+    , InterpreterT
+    , runInterpreterT
+    , loadT
+    , stepT
+    , evalT
+    , execT
+    , isTerminatedT
     ) where
 
+import Data.Tuple
+
 import Control.Monad
+import Control.Monad.Trans
+import Control.Monad.Trans.State
 
 import Language.Snobol4.Syntax.AST
-import Language.Snobol4.Interpreter.Types
 
 import Language.Snobol4.Interpreter.Internal
     ( PausedInterpreter (..)
@@ -38,6 +48,19 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal (emptyState)
 import qualified Language.Snobol4.Interpreter.Internal as I
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
+
+-- | Monad transformer wrapper around the interpreter operations
+newtype InterpreterT m a = InterpreterT
+    { runInterpreterTInternal :: StateT (PausedInterpreter m) m a }
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadTrans InterpreterT where
+    lift = InterpreterT . lift
+
+-- | Execute the monadic wrapper
+runInterpreterT :: InterpreterShell m => InterpreterT m a -> m (a, PausedInterpreter m)
+runInterpreterT f = runStateT (runInterpreterTInternal f) $ Paused $ emptyState
+
 
 -- | Run an interpreter action using an empty starting state
 startInterpreter :: InterpreterShell m 
@@ -86,7 +109,12 @@ run code = do
 -- | Load a program into the interpreter and then pause it
 load :: InterpreterShell m => Program -> m (PausedInterpreter m)
 load code = startInterpreter' $ I.load code
-    
+
+-- | Monad transformer version of load
+loadT :: InterpreterShell m => Program -> InterpreterT m ()
+loadT p = InterpreterT $ StateT $ \st -> do
+    result <- load p
+    return ((),result)
 
 -- | Take a paused interpreter and execute the next statement
 step :: InterpreterShell m => PausedInterpreter m -> m (PausedInterpreter m)
@@ -101,6 +129,12 @@ step (Paused st) = do
         Right (_, NormalTermination) -> Terminated $ NormalTermination
         Right (_, err) -> Terminated err
         Left _ -> Terminated $ ErrorTermination ErrorInSnobol4System $ -1
+
+-- | Monad transformer version of step
+stepT :: InterpreterShell m => InterpreterT m ()
+stepT = InterpreterT $ StateT $ \st -> do
+    result <- step st
+    return ((),result)
 
 -- | Evaluate an expression in a paused interpreter
 eval :: InterpreterShell m 
@@ -117,6 +151,10 @@ eval expr (Paused st) = do
         Right (st', (ProgramIncomplete, val)) -> (Paused st', val)
         Right (_, (ErrorTermination err addr, _)) -> (Terminated $ ErrorTermination err addr, Nothing)
         Left _ -> (Terminated $ ErrorTermination ErrorInSnobol4System $ -1, Nothing)
+
+-- | Monad transformer version of eval
+evalT :: InterpreterShell m => Expr -> InterpreterT m (Maybe Data)
+evalT e = InterpreterT $ StateT $ \st -> liftM swap $ eval e st
 
 -- | Execute a statement in a paused interpreter
 exec :: InterpreterShell m
@@ -135,7 +173,16 @@ exec stmt (Paused st) = do
         Right (_, (ErrorTermination err addr,_)) -> (Terminated $ ErrorTermination err addr, Nothing)
         Left _ -> (Terminated $ ErrorTermination ErrorInSnobol4System $ -1, Nothing)
 
+-- | Monad transformer version of exec
+execT :: InterpreterShell m => Stmt -> InterpreterT m (Maybe Data)
+execT s = InterpreterT $ StateT $ \st -> liftM swap $ exec s st
+
+
 -- | Check if a paused interpreter is terminated, and if so, return the error
-isTerminated :: PausedInterpreter m -> Maybe ProgramResult
+isTerminated :: InterpreterShell m => PausedInterpreter m -> Maybe ProgramResult
 isTerminated (Terminated result) = Just result
 isTerminated _ = Nothing
+
+-- | Monad transformer verseion of isTerminated
+isTerminatedT :: InterpreterShell m => InterpreterT m (Maybe ProgramResult)
+isTerminatedT = InterpreterT $ StateT $ \st -> return (isTerminated st, st)

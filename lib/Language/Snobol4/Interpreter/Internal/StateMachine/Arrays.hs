@@ -43,6 +43,7 @@ modifyArrays f = modifyProgramState $
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
 arraysNew minIx maxIx v = arraysNew' $ newArray minIx maxIx v
 
+-- | Add a new array
 arraysNew' :: InterpreterShell m => Snobol4Array -> Interpreter m ArrayKey
 arraysNew' arr = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays

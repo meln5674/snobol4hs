@@ -27,7 +27,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 noLabels :: Labels
 noLabels = M.empty
  
- -- | Get the labels known to the interpreter
+-- | Get the labels known to the interpreter
 getLabels :: InterpreterShell m => Interpreter m Labels
 getLabels = getsProgramState labels
 
