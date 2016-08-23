@@ -26,8 +26,11 @@ library
         Language.Snobol4.Parser
         Language.Snobol4.Syntax.AST
         --Language.Snobol4.Intermediate
-        --Language.Snobol4.VM
-        --Language.Snobol4.VM.Bytecode
+        Language.Snobol4.VM
+        Language.Snobol4.VM.Bytecode
+        Language.Snobol4.VM.Bytecode.Primitives
+        Language.Snobol4.VM.Bytecode.Compiler
+        Language.Snobol4.VM.Bytecode.Compiler.Simple
         --Language.Snobol4.VM.IO
         --Language.Snobol4.VM.Compiler
         --Language.Snobol4.VM.Instruction

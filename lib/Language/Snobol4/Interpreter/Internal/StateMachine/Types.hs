@@ -218,7 +218,6 @@ type Evaluator = EvaluatorGeneric Statements Stmt
 class Snobol4Machine program instruction | program -> instruction where
     call :: InterpreterShell m => Snobol4String -> [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
     eval :: InterpreterShell m => Expr -> EvaluatorGeneric program instruction m Data
-    code :: InterpreterShell m => Program -> EvaluatorGeneric program instruction m Data
 
 -- |
 instance MonadTrans (EvaluatorGeneric a b) where

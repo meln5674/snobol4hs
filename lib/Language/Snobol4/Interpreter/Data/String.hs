@@ -15,6 +15,7 @@ module Language.Snobol4.Interpreter.Data.String
     ( module Language.Snobol4.Interpreter.Data.String 
     , Snobol4StringClass (..)
     , Snobol4String
+    , nullString
     ) where
 
 import qualified Data.Map as M

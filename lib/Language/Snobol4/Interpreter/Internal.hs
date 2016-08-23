@@ -270,7 +270,6 @@ eval expr = do
 instance Snobol4Machine Statements Stmt where
     call n args = liftEval $ call n args
     eval = evalExpr
-    code = undefined
 
 -- | Load a program into the interpreter
 load :: InterpreterShell m => Program -> Interpreter m ()
