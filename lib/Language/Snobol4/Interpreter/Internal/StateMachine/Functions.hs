@@ -24,41 +24,41 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
 import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 -- | Empty collection of functions
-noFunctions :: InterpreterShell m => Functions m
+noFunctions :: InterpreterShell m => Functions program instruction m
 noFunctions = M.empty
 
 -- | Get the functions known to the interpreter
-getFunctions :: InterpreterShell m => Interpreter m (Functions m)
+getFunctions :: InterpreterShell m => InterpreterGeneric program instruction m (Functions program instruction m)
 getFunctions = getsProgramState functions
 
 -- | Set the functions known to the interpreter
-putFunctions :: InterpreterShell m => Functions m -> Interpreter m ()
+putFunctions :: InterpreterShell m => Functions program instruction m -> InterpreterGeneric program instruction m ()
 putFunctions funcs = modifyProgramState $ \st -> st { functions = funcs }
 
 -- | Apply a function to the functions known to the interpreter
-modifyFunctions :: InterpreterShell m => (Functions m -> Functions m) -> Interpreter m ()
+modifyFunctions :: InterpreterShell m => (Functions program instruction m -> Functions program instruction m) -> InterpreterGeneric program instruction m ()
 modifyFunctions f = modifyProgramState $
     \st -> st { functions = f $ functions st }
 
 -- | Erase all functions known to the interpreter
-clearFunc :: InterpreterShell m => Snobol4String-> Interpreter m ()
+clearFunc :: InterpreterShell m => Snobol4String-> InterpreterGeneric program instruction m ()
 clearFunc = modifyFunctions . M.delete
 
 -- | Look up a function by name
-funcLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe (Function m))
+funcLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe (Function program instruction m))
 funcLookup name = M.lookup name <$> getFunctions
 
 -- | Add a new function
-functionsNew :: InterpreterShell m => Function m -> Interpreter m ()
+functionsNew :: InterpreterShell m => Function program instruction m -> InterpreterGeneric program instruction m ()
 functionsNew func = modifyFunctions $ M.insert (funcName func) func
 
 -- | Call a function
 callFunction :: InterpreterShell m 
              => Snobol4String -- ^ Name of the function
              -> [Data] -- ^ Arguments to pass
-             -> Interpreter m ExecResult -- ^ Action to be performed between
+             -> InterpreterGeneric program instruction m ExecResult -- ^ Action to be performed between
                                          -- pushing arguments and popping result
-             -> Interpreter m (Maybe Data)
+             -> InterpreterGeneric program instruction m (Maybe Data)
 callFunction name evaldArgs f = do
     lookupResult <- funcLookup name
     case lookupResult of

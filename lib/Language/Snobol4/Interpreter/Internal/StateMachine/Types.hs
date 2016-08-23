@@ -9,6 +9,8 @@ Portability     : Unknown
 -}
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Types 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine.Types 
     , module Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types 
@@ -57,7 +59,7 @@ data CallStackNode
   deriving Show
 
 -- | Information for calling a function
-data Function m
+data Function program instruction m
     -- A user defined function
     = UserFunction
     { 
@@ -75,11 +77,11 @@ data Function m
     -- | Name of the function
        funcName :: Snobol4String
     -- | The primitive function to call
-    ,  funcPrim :: [Data] -> Evaluator m (Maybe Data)
+    ,  funcPrim :: [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
     }
 
 -- | 
-instance Show (Function m) where
+instance Show (Function program instruction m) where
     show (UserFunction a b c d) = "(UserFunction " 
                                 ++ show a 
                                 ++ " " 
@@ -92,7 +94,7 @@ instance Show (Function m) where
     show (PrimitiveFunction a _) = "(PrimitiveFunction " ++ show a ++ ")"
 
 -- |
-instance Eq (Function m) where
+instance Eq (Function program instruction m) where
     PrimitiveFunction{} == _ = False
     _ == PrimitiveFunction{} = False
     (UserFunction a b c d) == (UserFunction a' b' c' d') = a == a' && b == b' && c == c' && d == d'
@@ -110,13 +112,14 @@ data Label
 type Variables = Map Snobol4String Data
 
 -- | A loaded program
-type Statements = Vector Stmt
+newtype Statements = Statements { getStatements :: Vector Stmt }
+  deriving (Show)
 
 -- | Collection of labels
 type Labels = Map Snobol4String Label
 
 -- | Collection of functions
-type Functions m = Map Snobol4String (Function m)
+type Functions program instruction m = Map Snobol4String (Function program instruction m)
 
 -- | Collection of arrays
 type Arrays = Map ArrayKey (RefCounted Snobol4Array)
@@ -137,20 +140,31 @@ type Datatypes = Map Snobol4String Snobol4Datatype
 type UserDatas = Map UserKey Snobol4UserData
 
 
--- | State of the interpreter
-data ProgramState m
+class EmptyProgramClass program where
+    emptyProgram :: program
+    
+class ProgramClass program instruction | program -> instruction where
+    getInstruction :: Address -> program -> instruction
+
+instance EmptyProgramClass Statements where
+    emptyProgram = Statements V.empty
+
+instance ProgramClass Statements Stmt where
+    getInstruction (Address ix) (Statements v) = v V.! unmkInteger ix
+
+data ProgramStateGeneric program instruction m
     = ProgramState
     { 
     -- | A map of names to variables bound
       variables :: Variables
     -- | The statements in the current program
-    , statements :: Statements
+    , program :: program
     -- | A map of label names to the index =of their statement
     , labels :: Labels
     -- | The index of the current statement
     , programCounter :: Address
     -- | The functions known to the interpreter
-    , functions :: Functions m
+    , functions :: Functions program instruction m
     -- | The call stack
     , callStack :: [CallStackNode]
     -- | The arrays known to the interpreter
@@ -168,29 +182,46 @@ data ProgramState m
     }
   deriving Show
 
+-- | State of the interpreter
+type ProgramState = ProgramStateGeneric Statements Stmt
+
 -- | Transformer stack which represents the actions of the interpreter
-newtype Interpreter m a
+newtype InterpreterGeneric program instruction m a
     = Interpreter
     { runInterpreter
-        :: ExceptT ProgramError (StateT (ProgramState m) m) a
+        :: ExceptT ProgramError (StateT (ProgramStateGeneric program instruction m) m) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+type Interpreter = InterpreterGeneric Statements Stmt
+
 -- |
-instance MonadTrans Interpreter where
+instance MonadTrans (InterpreterGeneric a b) where
     lift = Interpreter . lift . lift
 
 -- | Transformer stack for when the interpreter is evaluating a statement
-newtype Evaluator m a 
+newtype EvaluatorGeneric program instruction m a 
     = Evaluator
     { runEvaluator
-        :: ExceptT ProgramError (ExceptT EvalStop (StateT (ProgramState m) m)) a
+        :: ExceptT ProgramError 
+          (ExceptT EvalStop 
+          (StateT (ProgramStateGeneric program instruction m) 
+           m
+          )
+          ) a
     
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+type Evaluator = EvaluatorGeneric Statements Stmt
+
+class Snobol4Machine program instruction | program -> instruction where
+    call :: InterpreterShell m => Snobol4String -> [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+    eval :: InterpreterShell m => Expr -> EvaluatorGeneric program instruction m Data
+    code :: InterpreterShell m => Program -> EvaluatorGeneric program instruction m Data
+
 -- |
-instance MonadTrans Evaluator where
+instance MonadTrans (EvaluatorGeneric a b) where
     lift = Evaluator . lift . lift . lift
 
 -- | A paused interpreter

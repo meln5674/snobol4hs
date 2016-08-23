@@ -12,6 +12,7 @@ import Control.Monad.State
 import Test.HUnit hiding (State, Label)
 import qualified Test.HUnit as HUnit
 
+import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Primitives
@@ -24,12 +25,12 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
 import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 test_define = TestLabel "define" $ TestCase $ do
-    let doTest :: ConsoleShell (Either ProgramError (Either EvalStop (Maybe (Function ConsoleShell))))
+    let doTest :: ConsoleShell (Either ProgramError (Either EvalStop (Maybe (Function Statements Stmt ConsoleShell))))
         doTest = interpret emptyState $ unliftEval $ do
             liftEval $ putLabels $ M.fromList [("TEST.INIT", Label $ Address 0)]
             define [ StringData "TEST(A)B", StringData "TEST.INIT" ]
             liftEval $ funcLookup "TEST"
-    result <- shell doTest :: IO (Either ProgramError (Either EvalStop (Maybe (Function ConsoleShell))))
+    result <- shell doTest :: IO (Either ProgramError (Either EvalStop (Maybe (Function Statements Stmt ConsoleShell))))
     let expected = Right $ Right $ Just $ UserFunction "TEST" ["A"] ["B"] $ Address 0
     assertEqual "" expected result
 

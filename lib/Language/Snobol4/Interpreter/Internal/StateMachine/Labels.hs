@@ -14,7 +14,7 @@ import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Vector as V
 
-import Language.Snobol4.Syntax.AST
+import Language.Snobol4.Syntax.AST hiding (getProgram)
 
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Data
@@ -28,26 +28,26 @@ noLabels :: Labels
 noLabels = M.empty
  
 -- | Get the labels known to the interpreter
-getLabels :: InterpreterShell m => Interpreter m Labels
+getLabels :: InterpreterShell m => InterpreterGeneric program instruction m Labels
 getLabels = getsProgramState labels
 
 -- | Set the labels known to the interpreter
-putLabels :: InterpreterShell m => Labels -> Interpreter m ()
+putLabels :: InterpreterShell m => Labels -> InterpreterGeneric program instruction m ()
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
 
 -- | Apply a function to the labels known to the interpreter
 modifyLabels :: InterpreterShell m 
              => (Labels -> Labels)
-             -> Interpreter m ()
+             -> InterpreterGeneric program instruction m ()
 modifyLabels f = modifyProgramState $
     \st -> st { labels = f $ labels st }
 
 -- | Scan the loaded program for labels, and then add them
 scanForLabels :: InterpreterShell m
-              => Interpreter m ()
+              => InterpreterGeneric Statements Stmt m ()
 scanForLabels = do
-    stmts <- getStatements
-    let lbls = flip V.imap stmts $ \ix stmt -> case stmt of
+    stmts <- getProgram
+    let lbls = flip V.imap (getStatements stmts) $ \ix stmt -> case stmt of
             Stmt (Just lbl) _ _ _ _ -> Just (mkString lbl,Label $ Address $ mkInteger ix)
             _ -> Nothing
         lbls' = V.filter isJust lbls
@@ -56,7 +56,7 @@ scanForLabels = do
     modifyLabels $ M.union lblMap
 
 -- | Find the index of the statement with a label
-labelLookup :: InterpreterShell m => Snobol4String -> Interpreter m (Maybe Label)
+labelLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Label)
 labelLookup lbl = M.lookup lbl <$> getLabels
 
 

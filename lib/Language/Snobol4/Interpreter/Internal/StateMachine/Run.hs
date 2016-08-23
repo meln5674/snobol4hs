@@ -18,11 +18,15 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 
 -- | Lift an operation from non-evaluation stack into evaluation stack
-liftEval :: InterpreterShell m => Interpreter m a -> Evaluator m a
+liftEval :: InterpreterShell m 
+         => InterpreterGeneric program instruction m a 
+         -> EvaluatorGeneric program instruction m a
 liftEval = Evaluator . ExceptT . lift . runExceptT . runInterpreter
 
 -- | Lift an evaluation stack result back into the non-evaluation stack
-unliftEval :: InterpreterShell m => Evaluator m a -> Interpreter m (Either EvalStop a)
+unliftEval :: InterpreterShell m 
+           => EvaluatorGeneric program instruction m a 
+           -> InterpreterGeneric program instruction m (Either EvalStop a)
 unliftEval (Evaluator m) = do
     x <- Interpreter $ lift $ runExceptT $ runExceptT m
     case x of
@@ -33,9 +37,9 @@ unliftEval (Evaluator m) = do
 -- | Take an evaluation and return it to the interpreter stack, with a handler 
 -- for a failed evaluation
 catchEval :: InterpreterShell m 
-          => Evaluator m a 
-          -> (EvalStop -> Interpreter m a)
-          -> Interpreter m a
+          => EvaluatorGeneric program instruction m a 
+          -> (EvalStop -> InterpreterGeneric program instruction m a)
+          -> InterpreterGeneric program instruction m a
 catchEval m h = do
     result <- unliftEval m
     case result of

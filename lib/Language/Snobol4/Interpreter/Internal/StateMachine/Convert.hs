@@ -22,15 +22,15 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
 import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 -- | Attempt to convert an array to a table
-arrayToTable :: InterpreterShell m => Snobol4Array -> Interpreter m (Maybe Snobol4Table)
+arrayToTable :: InterpreterShell m => Snobol4Array -> InterpreterGeneric program instruction m (Maybe Snobol4Table)
 arrayToTable arr = undefined
 
 -- | Attempt to convert a table to an array
-tableToArray :: InterpreterShell m => Snobol4Table -> Interpreter m (Maybe Snobol4Array)
+tableToArray :: InterpreterShell m => Snobol4Table -> InterpreterGeneric program instruction m (Maybe Snobol4Array)
 tableToArray tab = undefined
 
 -- | Check if a value can be turned into a string
-isStringable :: InterpreterShell m => Data -> Interpreter m Bool
+isStringable :: InterpreterShell m => Data -> InterpreterGeneric program instruction m Bool
 isStringable (StringData _) = return True
 isStringable (IntegerData _) = return True
 isStringable (RealData _) = return True
@@ -47,7 +47,7 @@ isStringable _ = return False
     
 -- | Take two arguments and cast the "lower" one on the scale of
 -- String -> Int -> Real to match the "higher" one
-raiseArgs :: InterpreterShell m => Data -> Data -> Evaluator m (Data, Data)
+raiseArgs :: InterpreterShell m => Data -> Data -> EvaluatorGeneric program instruction m (Data, Data)
 raiseArgs a b
     | isString a && isString b = return (a,b)
     | isInteger a && isInteger b = return (a,b)
@@ -78,7 +78,7 @@ raiseArgs a b
 
 -- | Take two arguments and cast the "higher" one on the scale of
 -- String -> Int -> Real to match the "lower" one
-lowerArgs :: InterpreterShell m => Data -> Data -> Evaluator m (Data, Data)
+lowerArgs :: InterpreterShell m => Data -> Data -> EvaluatorGeneric program instruction m (Data, Data)
 lowerArgs a b
     | isString a && isString b = return (a,b)
     | isInteger a && isInteger b = return (a,b)
@@ -111,7 +111,7 @@ lowerArgs a b
 
 -- | Convert data to a string
 -- Throws a ProgramError if this is not valid
-toString :: InterpreterShell m => Data -> Evaluator m Snobol4String
+toString :: InterpreterShell m => Data -> EvaluatorGeneric program instruction m Snobol4String
 toString (StringData s) = return s
 toString (IntegerData i) = return $ mkString i
 toString (RealData r) = return $ mkString r
@@ -128,7 +128,7 @@ toString _ = liftEval $ programError IllegalDataType
 
 -- | Convert data to a pattern
 -- Throws a ProgramError if this is not valid
-toPattern :: InterpreterShell m => Data -> Evaluator m Pattern
+toPattern :: InterpreterShell m => Data -> EvaluatorGeneric program instruction m Pattern
 toPattern (PatternData k) = liftEval $ do
     result <- patternsLookup k
     case result of
@@ -139,7 +139,7 @@ toPattern x = LiteralPattern <$> toString x
 
 -- | Convert data to object code
 -- Throws a ProgramError if this is not valid
-toCode :: InterpreterShell m => Data -> Evaluator m Snobol4Code
+toCode :: InterpreterShell m => Data -> EvaluatorGeneric program instruction m Snobol4Code
 toCode (CodeData k) = liftEval $ do
     result <- codesLookup k
     case result of
@@ -151,7 +151,7 @@ toCode _ = liftEval $ programError IllegalDataType
 -- Fails the evaluation if this can be turned into a string, but not into an 
 -- integer
 -- Throws a ProgramError if this is not valid
-toInteger :: InterpreterShell m => Data -> Evaluator m Snobol4Integer
+toInteger :: InterpreterShell m => Data -> EvaluatorGeneric program instruction m Snobol4Integer
 toInteger (IntegerData i) = return i
 toInteger x = do
     s <- toString x
@@ -165,7 +165,7 @@ toInteger x = do
 -- Fails the evaluation if this can be turned into a string, but not into an 
 -- real
 -- Throws a ProgramError if this is not valid
-toReal :: InterpreterShell m => Data -> Evaluator m Snobol4Real
+toReal :: InterpreterShell m => Data -> EvaluatorGeneric program instruction m Snobol4Real
 toReal (RealData r) = return r
 toReal x = do
     s <- toString x

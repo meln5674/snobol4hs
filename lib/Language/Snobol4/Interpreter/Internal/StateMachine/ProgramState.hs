@@ -21,35 +21,35 @@ initialProgramCounter :: Address
 initialProgramCounter = 0
 
 -- | Get the state of the interpreter
-getProgramState :: InterpreterShell m => Interpreter m (ProgramState m)
+getProgramState :: InterpreterShell m => InterpreterGeneric program instruction m (ProgramStateGeneric program instruction m)
 getProgramState = getsProgramState id
 
 -- | Set the state of the interpreter
-putProgramState :: InterpreterShell m => ProgramState m -> Interpreter m ()
+putProgramState :: InterpreterShell m => ProgramStateGeneric program instruction m -> InterpreterGeneric program instruction m ()
 putProgramState = modifyProgramState . const
 
 -- | Apply an accessor function to the state of the interpreter
-getsProgramState :: InterpreterShell m => (ProgramState m -> a) -> Interpreter m a
+getsProgramState :: InterpreterShell m => (ProgramStateGeneric program instruction m -> a) -> InterpreterGeneric program instruction m a
 getsProgramState = Interpreter . lift . gets
 
 -- | Apply an update function to the state of the interpreter
 modifyProgramState :: InterpreterShell m 
-                   => (ProgramState m
-                   -> ProgramState m) 
-                   -> Interpreter m ()
+                   => (ProgramStateGeneric program instruction m
+                   -> ProgramStateGeneric program instruction m) 
+                   -> InterpreterGeneric program instruction m ()
 modifyProgramState = Interpreter . lift . modify
 
 -- | Get the program counter from the interpreter
-getProgramCounter :: InterpreterShell m => Interpreter m Address
+getProgramCounter :: InterpreterShell m => InterpreterGeneric program instruction m Address
 getProgramCounter = getsProgramState programCounter
 
 
 -- | Set the program counter
-putProgramCounter :: InterpreterShell m => Address -> Interpreter m ()
+putProgramCounter :: InterpreterShell m => Address -> InterpreterGeneric program instruction m ()
 putProgramCounter pc = modifyProgramState $ \st -> st { programCounter = pc }
 
 
 -- | Apply a function to the program counter
-modifyProgramCounter :: InterpreterShell m => (Address -> Address) -> Interpreter m ()
+modifyProgramCounter :: InterpreterShell m => (Address -> Address) -> InterpreterGeneric program instruction m ()
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }

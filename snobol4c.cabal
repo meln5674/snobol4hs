@@ -1,159 +1,202 @@
-name:                snobol4c
-version:             0.1.0.0
-synopsis:            Interpreter/Compiler for the SNOBOL4 language
-description:         Please see README.md
-homepage:            https://github.com/githubuser/snobol4c#readme
-license:             MIT
-license-file:        LICENSE
-author:              Andrew Melnick
-maintainer:          meln5674@kettering.edu
-copyright:           2016 Andrew Melnick
-category:            Compilers
-build-type:          Simple
-cabal-version:       >=1.10
+name: snobol4c
+version: 0.1.0.0
+cabal-version: >=1.10
+build-type: Simple
+license: MIT
+license-file: LICENSE
+copyright: 2016 Andrew Melnick
+maintainer: meln5674@kettering.edu
+homepage: https://github.com/githubuser/snobol4c#readme
+synopsis: Interpreter/Compiler for the SNOBOL4 language
+description:
+    Please see README.md
+category: Compilers
+author: Andrew Melnick
 
 library
-    hs-source-dirs:     lib
-    exposed-modules:    Language.Snobol4
-                      , Language.Snobol4.Interpreter
-                      , Language.Snobol4.Interpreter.Data
-                      , Language.Snobol4.Interpreter.Error
-                      , Language.Snobol4.Interpreter.Shell
-                      , Language.Snobol4.Interpreter.Shell.Console
-                      , Language.Snobol4.Lexer
-                      , Language.Snobol4.Lexer.Tokens
-                      , Language.Snobol4.Parser
-                      , Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.VM
-                      , Language.Snobol4.VM.Bytecode
-                      , Language.Snobol4.VM.IO
-    other-modules:      Language.Snobol4.Interpreter.Internal
-                      , Language.Snobol4.Interpreter.Data.Array
-                      , Language.Snobol4.Interpreter.Data.Integer
-                      , Language.Snobol4.Interpreter.Data.ObjectCode
-                      , Language.Snobol4.Interpreter.Data.Pattern
-                      , Language.Snobol4.Interpreter.Data.Real
-                      , Language.Snobol4.Interpreter.Data.String
-                      , Language.Snobol4.Interpreter.Data.Table
-                      , Language.Snobol4.Interpreter.Data.Types
-                      , Language.Snobol4.Interpreter.Data.UserData
-                      , Language.Snobol4.Interpreter.Evaluator
-                      , Language.Snobol4.Interpreter.Scanner
-                      , Language.Snobol4.Interpreter.Primitives
-                      , Language.Snobol4.Interpreter.Primitives.Prototypes
-                      , Language.Snobol4.Interpreter.Scanner.Internal
-                      , Language.Snobol4.Interpreter.Internal.StateMachine
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Convert
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Error
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Functions
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.GC
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Labels
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Run
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Statements
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Tables
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Types
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.UserData
-                      , Language.Snobol4.Interpreter.Internal.StateMachine.Variables
-                      , Language.Snobol4.Parser.Types
-                      , Language.Snobol4.Parser.Internal
-    build-depends:      base
-                      , parsec
-                      , transformers
-                      , containers
-                      , vector
-                      , mtl
-                      , array
-                      , time
-    default-language:   Haskell2010
-
+    exposed-modules:
+        Language.Snobol4
+        Language.Snobol4.Interpreter
+        Language.Snobol4.Interpreter.Data
+        Language.Snobol4.Interpreter.Error
+        Language.Snobol4.Interpreter.Shell
+        Language.Snobol4.Interpreter.Shell.Console
+        Language.Snobol4.Lexer
+        Language.Snobol4.Lexer.Tokens
+        Language.Snobol4.Parser
+        Language.Snobol4.Syntax.AST
+        --Language.Snobol4.Intermediate
+        --Language.Snobol4.VM
+        --Language.Snobol4.VM.Bytecode
+        --Language.Snobol4.VM.IO
+        --Language.Snobol4.VM.Compiler
+        --Language.Snobol4.VM.Instruction
+        --Language.Snobol4.VM.MachineState
+        --Language.Snobol4.VM.Machine
+        --Language.Snobol4.VM.Data
+        --Language.Snobol4.VM.Stack
+        --Language.Snobol4.VM.Stack.State
+    build-depends:
+        base -any,
+        parsec -any,
+        transformers -any,
+        containers -any,
+        vector -any,
+        mtl -any,
+        array -any,
+        time -any
+    default-language: Haskell2010
+    hs-source-dirs: lib
+    other-modules:
+        Language.Snobol4.Interpreter.Internal
+        Language.Snobol4.Interpreter.Data.Array
+        Language.Snobol4.Interpreter.Data.Integer
+        Language.Snobol4.Interpreter.Data.ObjectCode
+        Language.Snobol4.Interpreter.Data.Pattern
+        Language.Snobol4.Interpreter.Data.Real
+        Language.Snobol4.Interpreter.Data.String
+        Language.Snobol4.Interpreter.Data.Table
+        Language.Snobol4.Interpreter.Data.Types
+        Language.Snobol4.Interpreter.Data.UserData
+        Language.Snobol4.Interpreter.Evaluator
+        Language.Snobol4.Interpreter.Scanner
+        Language.Snobol4.Interpreter.Primitives
+        Language.Snobol4.Interpreter.Primitives.Prototypes
+        Language.Snobol4.Interpreter.Scanner.Internal
+        Language.Snobol4.Interpreter.Internal.StateMachine
+        Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
+        Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
+        Language.Snobol4.Interpreter.Internal.StateMachine.Convert
+        Language.Snobol4.Interpreter.Internal.StateMachine.Error
+        Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
+        Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+        Language.Snobol4.Interpreter.Internal.StateMachine.GC
+        Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types
+        Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+        Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
+        Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
+        Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
+        Language.Snobol4.Interpreter.Internal.StateMachine.Run
+        Language.Snobol4.Interpreter.Internal.StateMachine.Statements
+        Language.Snobol4.Interpreter.Internal.StateMachine.Tables
+        Language.Snobol4.Interpreter.Internal.StateMachine.Types
+        Language.Snobol4.Interpreter.Internal.StateMachine.UserData
+        Language.Snobol4.Interpreter.Internal.StateMachine.Variables
+        Language.Snobol4.Parser.Types
+        Language.Snobol4.Parser.Internal
 
 executable runsnobol4
-  hs-source-dirs:       src/runsnobol4
-  main-is:              Main.hs
-  build-depends:        base >= 4.7 && < 5
-                      , snobol4c
-  default-language:     Haskell2010
-
+    main-is: Main.hs
+    build-depends:
+        base >=4.7 && <5,
+        snobol4c -any
+    default-language: Haskell2010
+    hs-source-dirs: src/runsnobol4
 
 executable snobol4ci
-  hs-source-dirs:       src/snobol4ci
-  main-is:              Main.hs
-  other-modules:        Shell
-  build-depends:        base >= 4.7 && < 5
-                      , snobol4c
-                      , haskeline
-                      , transformers
-                      , mtl
-                      , time
-  default-language:     Haskell2010
-
+    main-is: Main.hs
+    build-depends:
+        base >=4.7 && <5,
+        snobol4c -any,
+        haskeline -any,
+        transformers -any,
+        mtl -any,
+        time -any
+    default-language: Haskell2010
+    hs-source-dirs: src/snobol4ci
+    other-modules:
+        Shell
 
 test-suite lexer
-  type:                 exitcode-stdio-1.0
-  main-is:              Main.hs
-  hs-source-dirs:       lib, test/lexer, test/common
-  other-modules:        Language.Snobol4.Lexer
-                      , Language.Snobol4.Lexer.Tokens
-  build-depends:        base, HUnit, parsec
-  default-language:     Haskell2010
-
-
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends:
+        base -any,
+        HUnit -any,
+        parsec -any
+    default-language: Haskell2010
+    hs-source-dirs: lib test/lexer test/common
+    other-modules:
+        Language.Snobol4.Lexer
+        Language.Snobol4.Lexer.Tokens
 test-suite parser
-  type:                 exitcode-stdio-1.0
-  main-is:              Main.hs
-  hs-source-dirs:       lib, test/parser, test/common
-  other-modules:        Language.Snobol4.Lexer
-                      , Language.Snobol4.Lexer.Tokens
-                      , Language.Snobol4.Parser
-                      , Language.Snobol4.Syntax.AST
-  build-depends:        base, HUnit, parsec, mtl, transformers, containers, vector, array
-  default-language:     Haskell2010
-
-
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends:
+        base -any,
+        HUnit -any,
+        parsec -any,
+        mtl -any,
+        transformers -any,
+        containers -any,
+        vector -any,
+        array -any
+    default-language: Haskell2010
+    hs-source-dirs: lib test/parser test/common
+    other-modules:
+        Language.Snobol4.Lexer
+        Language.Snobol4.Lexer.Tokens
+        Language.Snobol4.Parser
+        Language.Snobol4.Syntax.AST
 test-suite expression
-  type:                 exitcode-stdio-1.0
-  main-is:              Main.hs
-  hs-source-dirs:       lib, test/expression, test/common
-  other-modules:        Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.Interpreter.Internal
-                      , Language.Snobol4.Interpreter.Internal.Types
-                      , Language.Snobol4.Interpreter.Shell
-  build-depends:        base, HUnit, vector, containers, mtl, transformers
-  default-language:     Haskell2010
-
-
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends:
+        base -any,
+        HUnit -any,
+        vector -any,
+        containers -any,
+        mtl -any,
+        transformers -any
+    default-language: Haskell2010
+    hs-source-dirs: lib test/expression test/common
+    other-modules:
+        Language.Snobol4.Syntax.AST
+        Language.Snobol4.Interpreter.Internal
+        Language.Snobol4.Interpreter.Internal.Types
+        Language.Snobol4.Interpreter.Shell
 test-suite scanner
-  type:                 exitcode-stdio-1.0
-  main-is:              Main.hs
-  hs-source-dirs:       lib, test/scanner, test/common
-  other-modules:        Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.Interpreter.Evaluator
-                      , Language.Snobol4.Interpreter.Internal
-                      , Language.Snobol4.Interpreter.Internal.Types
-                      , Language.Snobol4.Interpreter.Shell
-                      , Language.Snobol4.Interpreter.Scanner
-                      , Language.Snobol4.Interpreter.Scanner.Internal
-  build-depends:        base, HUnit, vector, containers, mtl, transformers, parsec
-  default-language:     Haskell2010
-
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends:
+        base -any,
+        HUnit -any,
+        vector -any,
+        containers -any,
+        mtl -any,
+        transformers -any,
+        parsec -any
+    default-language: Haskell2010
+    hs-source-dirs: lib test/scanner test/common
+    other-modules:
+        Language.Snobol4.Syntax.AST
+        Language.Snobol4.Interpreter.Evaluator
+        Language.Snobol4.Interpreter.Internal
+        Language.Snobol4.Interpreter.Internal.Types
+        Language.Snobol4.Interpreter.Shell
+        Language.Snobol4.Interpreter.Scanner
+        Language.Snobol4.Interpreter.Scanner.Internal
 test-suite primitive
-  type:                 exitcode-stdio-1.0
-  main-is:              Main.hs
-  hs-source-dirs:       lib, test/primitive, test/common
-  other-modules:        Language.Snobol4.Syntax.AST
-                      , Language.Snobol4.Interpreter.Evaluator
-                      , Language.Snobol4.Interpreter.Internal
-                      , Language.Snobol4.Interpreter.Internal.Types
-                      , Language.Snobol4.Interpreter.Shell
-                      , Language.Snobol4.Interpreter.Scanner
-                      , Language.Snobol4.Interpreter.Scanner.Internal
-                      , Language.Snobol4.Interpreter.Primitives
-  build-depends:        base, HUnit, vector, containers, mtl, transformers, parsec, array, time
-  default-language:     Haskell2010
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends:
+        base -any,
+        HUnit -any,
+        vector -any,
+        containers -any,
+        mtl -any,
+        transformers -any,
+        parsec -any,
+        array -any,
+        time -any
+    default-language: Haskell2010
+    hs-source-dirs: lib test/primitive test/common
+    other-modules:
+        Language.Snobol4.Syntax.AST
+        Language.Snobol4.Interpreter.Evaluator
+        Language.Snobol4.Interpreter.Internal
+        Language.Snobol4.Interpreter.Internal.Types
+        Language.Snobol4.Interpreter.Shell
+        Language.Snobol4.Interpreter.Scanner
+        Language.Snobol4.Interpreter.Scanner.Internal
+        Language.Snobol4.Interpreter.Primitives

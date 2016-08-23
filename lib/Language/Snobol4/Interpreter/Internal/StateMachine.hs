@@ -11,9 +11,13 @@ Portability     : Unknown
 {-# LANGUAGE ExplicitForAll #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine 
+    , Address (..)
+    , InterpreterGeneric (..)
     , Interpreter
+    , EvaluatorGeneric (..)
     , Evaluator
     , PausedInterpreter (..)
+    , Snobol4Machine (..)
     , programError
     , execLookup
     , liftEval
@@ -32,6 +36,18 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , fetch
     , ExecResult (..)
     , catchEval
+    , liftEval
+    , unliftEval
+    , getProgramCounter
+    , putProgramCounter
+    , labelLookup
+    , scanForLabels
+    , Statements (..)
+    , callFunction
+    , Label (..)
+    , modifyProgramCounter
+    , putProgram
+    , getProgramState
     ) where
 
 import Prelude hiding (toInteger)
@@ -68,7 +84,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 emptyState :: forall m . InterpreterShell m => ProgramState m
 emptyState = ProgramState
     noVariables
-    noStatements
+    emptyProgram
     noLabels
     initialProgramCounter
     noFunctions

@@ -26,51 +26,51 @@ noTables :: Tables
 noTables = M.empty
 
 -- | Get the tables known to the interpreter
-getTables :: InterpreterShell m => Interpreter m Tables
+getTables :: InterpreterShell m => InterpreterGeneric program instruction m Tables
 getTables = getsProgramState tables
 
 -- | Set the tables known to the interpreter
-putTables :: InterpreterShell m => Tables -> Interpreter m ()
+putTables :: InterpreterShell m => Tables -> InterpreterGeneric program instruction m ()
 putTables tbls = modifyProgramState $ \st -> st { tables = tbls }
 
 -- | Apply a function to the tables known to the interpreter
 modifyTables :: InterpreterShell m
              => (Tables -> Tables)
-             -> Interpreter m ()
+             -> InterpreterGeneric program instruction m ()
 modifyTables f = modifyProgramState $
     \st -> st { tables = f $ tables st }
 
 -- | Allocate an empty table
-tablesNew :: InterpreterShell m => Interpreter m TableKey
+tablesNew :: InterpreterShell m => InterpreterGeneric program instruction m TableKey
 tablesNew = tablesNew' emptyTable
 
 -- | Add a new table
-tablesNew' :: InterpreterShell m => Snobol4Table -> Interpreter m TableKey
+tablesNew' :: InterpreterShell m => Snobol4Table -> InterpreterGeneric program instruction m TableKey
 tablesNew' tab = do
     newKey <- (succ . fst . M.findMax) `liftM` getTables
     modifyTables $ M.insert newKey $ newRef tab
     return newKey
 
 -- | Lookup a table
-tablesLookup :: InterpreterShell m => TableKey -> Interpreter m (Maybe Snobol4Table)
+tablesLookup :: InterpreterShell m => TableKey -> InterpreterGeneric program instruction m (Maybe Snobol4Table)
 tablesLookup k = fmap getRefItem <$> M.lookup k <$> getTables
 
 -- | Apply a function to a table
-tablesUpdate :: InterpreterShell m => (Snobol4Table -> Snobol4Table) -> TableKey -> Interpreter m ()
+tablesUpdate :: InterpreterShell m => (Snobol4Table -> Snobol4Table) -> TableKey -> InterpreterGeneric program instruction m ()
 tablesUpdate f k = modifyTables $ M.adjust (fmap f) k
 
 -- | Get the value of a table with the given key
-tablesRead :: InterpreterShell m => Data -> TableKey -> Interpreter m (Maybe Data)
+tablesRead :: InterpreterShell m => Data -> TableKey -> InterpreterGeneric program instruction m (Maybe Data)
 tablesRead k1 k2 = tablesLookup k2 >>= \x -> return $ x >>= readTable k1
 
 -- | Set the value of a table with the given key
-tablesWrite :: InterpreterShell m => Data -> Data -> TableKey -> Interpreter m ()
+tablesWrite :: InterpreterShell m => Data -> Data -> TableKey -> InterpreterGeneric program instruction m ()
 tablesWrite k v = tablesUpdate $ writeTable k v
 
 -- | Increment the number of references to a table
-tablesIncRef :: InterpreterShell m => TableKey -> Interpreter m ()
+tablesIncRef :: InterpreterShell m => TableKey -> InterpreterGeneric program instruction m ()
 tablesIncRef k = modifyTables $ M.adjust incRefCount k
 
 -- | Decrement the number of refernces to a table
-tablesDecRef :: InterpreterShell m => TableKey -> Interpreter m ()
+tablesDecRef :: InterpreterShell m => TableKey -> InterpreterGeneric program instruction m ()
 tablesDecRef k = modifyTables $ M.update decRefCount k

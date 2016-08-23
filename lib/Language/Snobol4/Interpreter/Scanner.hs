@@ -21,10 +21,12 @@ import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Interpreter.Scanner.Internal
 
 -- | Match a string against a pattern
-scanPattern :: InterpreterShell m
+scanPattern :: ( InterpreterShell m
+               , Snobol4Machine program instruction
+               )
             => Snobol4String
             -> Pattern
-            -> Evaluator m ScanResult
+            -> EvaluatorGeneric program instruction m ScanResult
 scanPattern toScan pat = do
     result <- runExceptT 
             $ flip runStateT (startState toScan)

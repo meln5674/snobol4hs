@@ -25,26 +25,26 @@ noArrays :: Arrays
 noArrays = M.empty
 
 -- | Get the arrays known to the interpreter
-getArrays :: InterpreterShell m => Interpreter m Arrays
+getArrays :: InterpreterShell m => InterpreterGeneric program instruction m Arrays
 getArrays = getsProgramState arrays
 
 -- | Set the arrays known to the interpreter
-putArrays :: InterpreterShell m => Arrays -> Interpreter m ()
+putArrays :: InterpreterShell m => Arrays -> InterpreterGeneric program instruction m ()
 putArrays arrs = modifyProgramState $ \st -> st { arrays = arrs }
 
 -- | Apply a function to the arrays known to the interpreter
 modifyArrays :: InterpreterShell m 
              => (Arrays -> Arrays)
-             -> Interpreter m ()
+             -> InterpreterGeneric program instruction m ()
 modifyArrays f = modifyProgramState $
     \st -> st { arrays = f $ arrays st }
 
 -- | Allocate a new array with an upper and lower bound each set to an intital value
-arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> Interpreter m ArrayKey
+arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> InterpreterGeneric program instruction m ArrayKey
 arraysNew minIx maxIx v = arraysNew' $ newArray minIx maxIx v
 
 -- | Add a new array
-arraysNew' :: InterpreterShell m => Snobol4Array -> Interpreter m ArrayKey
+arraysNew' :: InterpreterShell m => Snobol4Array -> InterpreterGeneric program instruction m ArrayKey
 arraysNew' arr = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
     modifyArrays $ M.insert newKey $ newRef $ arr
@@ -54,7 +54,7 @@ arraysNew' arr = do
 arraysNew'' :: InterpreterShell m 
            => [(Snobol4Integer,Snobol4Integer)]
            -> Data
-           -> Interpreter m Data
+           -> InterpreterGeneric program instruction m Data
 arraysNew'' [] val = return val
 arraysNew'' ((minIx,maxIx):ds) val = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
@@ -65,7 +65,7 @@ arraysNew'' ((minIx,maxIx):ds) val = do
     return $ ArrayData newKey
 
 -- | Create a new array that is a copy of an existing one
-arraysCopy :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe ArrayKey)
+arraysCopy :: InterpreterShell m => ArrayKey -> InterpreterGeneric program instruction m (Maybe ArrayKey)
 arraysCopy k = do
     result <- arraysLookup k
     case result of
@@ -76,25 +76,25 @@ arraysCopy k = do
             return $ Just newKey
 
 -- | Lookup an array
-arraysLookup :: InterpreterShell m => ArrayKey -> Interpreter m (Maybe Snobol4Array)
+arraysLookup :: InterpreterShell m => ArrayKey -> InterpreterGeneric program instruction m (Maybe Snobol4Array)
 arraysLookup k = fmap getRefItem <$> M.lookup k <$> getArrays
 
 -- | Apply a function to an array
-arraysUpdate :: InterpreterShell m => (Snobol4Array -> Snobol4Array) -> ArrayKey -> Interpreter m ()
+arraysUpdate :: InterpreterShell m => (Snobol4Array -> Snobol4Array) -> ArrayKey -> InterpreterGeneric program instruction m ()
 arraysUpdate f k = modifyArrays $ M.adjust (fmap f) k
 
 -- | Get the value of an array with the given index
-arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> Interpreter m (Maybe Data)
+arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> InterpreterGeneric program instruction m (Maybe Data)
 arraysRead ix k = arraysLookup k >>= \x -> return $ x >>= readArray ix
 
 -- | Set the value of an array with the given index
-arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> Interpreter m ()
+arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> InterpreterGeneric program instruction m ()
 arraysWrite ix v = arraysUpdate $ writeArray ix v
 
 -- | Increment the reference counter for an array
-arraysIncRef :: InterpreterShell m => ArrayKey -> Interpreter m ()
+arraysIncRef :: InterpreterShell m => ArrayKey -> InterpreterGeneric program instruction m ()
 arraysIncRef k = modifyArrays $ M.adjust incRefCount k
 
 -- | Decrement the reference counter for an array
-arraysDecRef :: InterpreterShell m => ArrayKey -> Interpreter m ()
+arraysDecRef :: InterpreterShell m => ArrayKey -> InterpreterGeneric program instruction m ()
 arraysDecRef k = modifyArrays $ M.update decRefCount k

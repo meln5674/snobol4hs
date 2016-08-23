@@ -13,7 +13,7 @@ module Language.Snobol4.Interpreter.Internal.StateMachine.Statements where
 import qualified Data.Map as M
 import qualified Data.Vector as V
 
-import Language.Snobol4.Syntax.AST
+import Language.Snobol4.Syntax.AST hiding (getProgram)
 
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Data
@@ -22,25 +22,24 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
--- | Empty program
-noStatements :: Statements
-noStatements = V.empty
-
 -- | Get the loaded program
-getStatements :: InterpreterShell m => Interpreter m Statements
-getStatements = getsProgramState statements
+getProgram :: InterpreterShell m => InterpreterGeneric program instruction m program
+getProgram = getsProgramState program
 
 -- | Set the loaded program
-putStatements :: InterpreterShell m => Statements -> Interpreter m ()
-putStatements stmts = modifyProgramState $ \st -> st { statements = stmts }
+putProgram :: InterpreterShell m => program -> InterpreterGeneric program instruction m ()
+putProgram prog = modifyProgramState $ \st -> st { program = prog }
 
 -- | Apply a function to the loaded program
-modifyStatements :: InterpreterShell m => (Statements -> Statements) -> Interpreter m ()
+modifyStatements :: InterpreterShell m 
+                 => (program -> program) 
+                 -> InterpreterGeneric program instruction m ()
 modifyStatements f = modifyProgramState $
-    \st -> st { statements = f $ statements st }
+    \st -> st { program = f $ program st }
 
 -- | Fetch the next statement to execute
-fetch :: InterpreterShell m => Interpreter m Stmt
-fetch = (V.!) <$> getStatements <*> (unmkInteger . getAddress <$> getProgramCounter)
+fetch :: ( InterpreterShell m, ProgramClass program instruction ) 
+      => InterpreterGeneric program instruction m instruction
+fetch = getInstruction <$> getProgramCounter <*> getProgram
 
 

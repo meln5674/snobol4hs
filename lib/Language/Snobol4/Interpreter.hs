@@ -47,7 +47,7 @@ import Language.Snobol4.Interpreter.State
 import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal (emptyState)
 import qualified Language.Snobol4.Interpreter.Internal as I
-import Language.Snobol4.Interpreter.Internal.StateMachine.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types hiding (eval)
 
 -- | Monad transformer wrapper around the interpreter operations
 newtype InterpreterT m a = InterpreterT
