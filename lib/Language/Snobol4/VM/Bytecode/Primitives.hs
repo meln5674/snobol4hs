@@ -21,7 +21,7 @@ data PrimitiveOp
     | I' (SystemLabel -> Instruction) String
     | L String Instruction
 
-type Primitive = [PrimitiveOp]
+data Primitive = Primitive String [PrimitiveOp]
 
 allPrimitives :: [Primitive]
 allPrimitives =
@@ -30,11 +30,11 @@ allPrimitives =
     , array
     ]
 
-addPrimitives :: Compiler m => m ()
-addPrimitives = mapM_ mkPrimitive allPrimitives
+addPrimitiveCode :: Compiler m => m ()
+addPrimitiveCode = mapM_ mkPrimitive allPrimitives
 
 mkPrimitive :: Compiler m => Primitive -> m ()
-mkPrimitive ps = do
+mkPrimitive (Primitive _ ps) = do
     labelMap <- mkLabelMap
     forM_ ps $ \case
         I inst -> addInstruction inst
@@ -53,7 +53,7 @@ mkPrimitive ps = do
         return $ M.insert l sym m
 
 any :: Primitive
-any =
+any = Primitive "any"
     [ I $ GetArgCount
     , I $ Push $ IntegerData 1
     , I $ Equal
@@ -64,14 +64,14 @@ any =
     ]
 
 apply :: Primitive
-apply = 
+apply = Primitive "apply"
     [ I $ GetArgCount
     , I $ CallDynamic
     , I $ Return
     ]
 
 array :: Primitive
-array = 
+array = Primitive "array"
     -- Get the number of args
     [ I $ GetArgCount
     -- Push two copies, we need to do 3 checks on it
@@ -88,13 +88,11 @@ array =
     , I' JumpStaticIf "array.2"
     
     -- If there are more than 2 arguments, we panic
-    , I $ SetError IncorrectNumberOfArguments
-    , I $ Panic
+    , I $ Panic IncorrectNumberOfArguments
     
     -- If there are no arguments, we panic
     , L   "array.0" 
-        $ SetError NullStringInIllegalContext
-    , I $ Panic
+        $ Panic NullStringInIllegalContext
     
     -- If there is only 1 arg, we push a null string to act as the initial value
     -- of the array before calling the array allocator.

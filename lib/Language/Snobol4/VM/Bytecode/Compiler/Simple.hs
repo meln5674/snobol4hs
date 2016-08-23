@@ -16,6 +16,7 @@ import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.VM.Bytecode
 import Language.Snobol4.VM.Bytecode.Compiler
+import Language.Snobol4.VM.Bytecode.Primitives
 
 data CompilerResult
     = CompileFailed [(Address, CompilerError)]
@@ -64,7 +65,11 @@ simpleCompiler prog
         ( CompiledProgram $ V.toList $ instructions finalState )
         ( symbolTable finalState )
     | otherwise = CompileFailed $ V.toList $ compilerErrors finalState
-  where finalState = execState (runSimpleCompilerInternal $ compile prog) emptyCompilerState 
+  where
+    finalState = flip execState emptyCompilerState $ do
+        runSimpleCompilerInternal $ do
+            compile prog
+            
     
     
 maxKey :: Ord k => Map k a -> Maybe k
