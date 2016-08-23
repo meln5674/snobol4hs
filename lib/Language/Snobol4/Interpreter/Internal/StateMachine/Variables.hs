@@ -12,6 +12,7 @@ Portability     : Unknown
 module Language.Snobol4.Interpreter.Internal.StateMachine.Variables where
 
 import qualified Data.Map as M
+import qualified Data.Vector as V
 
 import Control.Monad
 import Control.Monad.Trans
@@ -33,7 +34,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 -- | Empty collection of variables
 noVariables :: Variables
-noVariables = M.empty
+noVariables = Variables V.empty M.empty
 
 -- | Get the variables known to the interpreter
 getVariables :: InterpreterShell m => InterpreterGeneric program instruction m Variables
@@ -48,9 +49,17 @@ modifyVariables :: InterpreterShell m => (Variables -> Variables) -> Interpreter
 modifyVariables f = modifyProgramState $
         \st -> st { variables = f $ variables st }
 
+modifyStaticVars :: InterpreterShell m => (StaticVars -> StaticVars) -> InterpreterGeneric program instruction m ()
+modifyStaticVars f = modifyVariables $ \v -> v{ staticVars = f $ staticVars v }
+
+modifyDynamicVars :: InterpreterShell m => (DynamicVars -> DynamicVars) -> InterpreterGeneric program instruction m ()
+modifyDynamicVars f = modifyVariables $ \v -> v{ dynamicVars = f $ dynamicVars v }
+
 -- | Retreive the value of a global variable
 globalLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Data)
-globalLookup name = M.lookup name <$> getVariables
+globalLookup name = do
+    vars <- getVariables
+    return $ liftM ((staticVars vars) V.!) $ (M.lookup name $ dynamicVars vars)
 
 -- | Retreive the value of a local variable
 localLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Data)
@@ -85,7 +94,14 @@ varLookup' name = varLookup name >>= \case
 
 -- | Write the value of a global variable
 globalWrite :: InterpreterShell m => Snobol4String -> Data -> InterpreterGeneric program instruction m ()
-globalWrite name = modifyVariables . M.insert name
+globalWrite name val = do 
+    vars <- getVariables
+    case M.lookup name $ dynamicVars vars of
+        Nothing -> do
+            modifyStaticVars $ flip V.snoc val
+            modifyDynamicVars $ M.insert name $ V.length $ staticVars vars
+        Just ix -> do
+            modifyStaticVars $ (V.// [(ix,val)])
 
 -- | Write the value of a local variable
 localWrite :: InterpreterShell m => Snobol4String -> Data -> InterpreterGeneric program instruction m ()
@@ -112,16 +128,16 @@ clearVar n = do
     case result of
         Just (_,d) -> do
             decRef d
-            modifyVariables $ M.delete n
+            modifyDynamicVars $ M.delete n -- TODO: Cleanup
         Nothing -> return ()
 
 -- | Erase all variables
 wipeVariables :: InterpreterShell m => InterpreterGeneric program instruction m ()
-wipeVariables = putVariables $ M.empty
+wipeVariables = putVariables $ noVariables
 
 -- | Get the names of the natural variables
 naturalVarNames :: InterpreterShell m => InterpreterGeneric program instruction m [Snobol4String]
-naturalVarNames = liftM M.keys getVariables
+naturalVarNames = liftM (M.keys . dynamicVars) getVariables
 
 -- | Take a value, if it is a reference to data maintained by the GC, increment
 -- the number of references to it

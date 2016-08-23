@@ -108,8 +108,15 @@ data Label
     | CodeLabel CodeKey Address
   deriving Show
 
+type StaticVars = Vector Data
+type DynamicVars = Map Snobol4String Int
+
 -- | Collection of variables
-type Variables = Map Snobol4String Data
+data Variables = Variables
+    { staticVars :: StaticVars
+    , dynamicVars :: DynamicVars
+    }
+  deriving Show
 
 -- | A loaded program
 newtype Statements = Statements { getStatements :: Vector Stmt }
