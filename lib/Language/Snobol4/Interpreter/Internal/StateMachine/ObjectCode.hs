@@ -26,35 +26,35 @@ noCodes :: Codes
 noCodes = M.empty
 
 -- | Get the object code known to the interpreter
-getCodes :: InterpreterShell m => InterpreterGeneric program instruction m Codes
+getCodes :: InterpreterShell m => InterpreterGeneric program m Codes
 getCodes = getsProgramState codes
 
 -- | Apply a function to the object code known to the interpreter
 modifyCodes :: InterpreterShell m
             => (Codes -> Codes)
-            -> InterpreterGeneric program instruction m ()
+            -> InterpreterGeneric program m ()
 modifyCodes f = modifyProgramState $
     \st -> st { codes = f $ codes st }
 
 -- | Create a new object code
-codesNew :: InterpreterShell m => Snobol4Code -> InterpreterGeneric program instruction m CodeKey
+codesNew :: InterpreterShell m => Snobol4Code -> InterpreterGeneric program m CodeKey
 codesNew code = do
     newKey <- (succ . fst . M.findMax) `liftM` getCodes
     modifyCodes $ M.insert newKey $ newRef code
     return newKey
 
 -- | Lookup an object code
-codesLookup :: InterpreterShell m => CodeKey -> InterpreterGeneric program instruction m (Maybe Snobol4Code)
+codesLookup :: InterpreterShell m => CodeKey -> InterpreterGeneric program m (Maybe Snobol4Code)
 codesLookup k = fmap getRefItem <$> M.lookup k <$> getCodes
 
 -- | Apply a function to an object code
-codesUpdate :: InterpreterShell m => (Snobol4Code -> Snobol4Code) -> CodeKey -> InterpreterGeneric program instruction m ()
+codesUpdate :: InterpreterShell m => (Snobol4Code -> Snobol4Code) -> CodeKey -> InterpreterGeneric program m ()
 codesUpdate f k = modifyCodes $ M.adjust (fmap f) k
 
 -- | Increment the number of references to an object code
-codesIncRef :: InterpreterShell m => CodeKey -> InterpreterGeneric program instruction m ()
+codesIncRef :: InterpreterShell m => CodeKey -> InterpreterGeneric program m ()
 codesIncRef k = modifyCodes $ M.adjust incRefCount k
 
 -- | Decrement the number of references to an object code
-codesDecRef :: InterpreterShell m => CodeKey -> InterpreterGeneric program instruction m ()
+codesDecRef :: InterpreterShell m => CodeKey -> InterpreterGeneric program m ()
 codesDecRef k = modifyCodes $ M.update decRefCount k

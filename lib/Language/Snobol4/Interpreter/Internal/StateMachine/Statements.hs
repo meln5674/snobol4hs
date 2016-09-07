@@ -23,23 +23,23 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
 -- | Get the loaded program
-getProgram :: InterpreterShell m => InterpreterGeneric program instruction m program
+getProgram :: InterpreterShell m => InterpreterGeneric program m program
 getProgram = getsProgramState program
 
 -- | Set the loaded program
-putProgram :: InterpreterShell m => program -> InterpreterGeneric program instruction m ()
+putProgram :: InterpreterShell m => program -> InterpreterGeneric program m ()
 putProgram prog = modifyProgramState $ \st -> st { program = prog }
 
 -- | Apply a function to the loaded program
 modifyStatements :: InterpreterShell m 
                  => (program -> program) 
-                 -> InterpreterGeneric program instruction m ()
+                 -> InterpreterGeneric program m ()
 modifyStatements f = modifyProgramState $
     \st -> st { program = f $ program st }
 
 -- | Fetch the next statement to execute
-fetch :: ( InterpreterShell m, ProgramClass program instruction ) 
-      => InterpreterGeneric program instruction m instruction
+fetch :: ( InterpreterShell m, ProgramClass program ) 
+      => InterpreterGeneric program m (InstructionType program) 
 fetch = getInstruction <$> getProgramCounter <*> getProgram
 
 

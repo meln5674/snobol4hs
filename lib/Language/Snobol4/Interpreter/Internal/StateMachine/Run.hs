@@ -19,14 +19,14 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 
 -- | Lift an operation from non-evaluation stack into evaluation stack
 liftEval :: InterpreterShell m 
-         => InterpreterGeneric program instruction m a 
-         -> EvaluatorGeneric program instruction m a
+         => InterpreterGeneric program m a 
+         -> EvaluatorGeneric program error m a
 liftEval = Evaluator . ExceptT . lift . runExceptT . runInterpreter
 
 -- | Lift an evaluation stack result back into the non-evaluation stack
 unliftEval :: InterpreterShell m 
-           => EvaluatorGeneric program instruction m a 
-           -> InterpreterGeneric program instruction m (Either EvalStop a)
+           => EvaluatorGeneric program error m a 
+           -> InterpreterGeneric program m (Either error a)
 unliftEval (Evaluator m) = do
     x <- Interpreter $ lift $ runExceptT $ runExceptT m
     case x of
@@ -37,9 +37,9 @@ unliftEval (Evaluator m) = do
 -- | Take an evaluation and return it to the interpreter stack, with a handler 
 -- for a failed evaluation
 catchEval :: InterpreterShell m 
-          => EvaluatorGeneric program instruction m a 
-          -> (EvalStop -> InterpreterGeneric program instruction m a)
-          -> InterpreterGeneric program instruction m a
+          => EvaluatorGeneric program error m a 
+          -> (error -> InterpreterGeneric program m a)
+          -> InterpreterGeneric program m a
 catchEval m h = do
     result <- unliftEval m
     case result of

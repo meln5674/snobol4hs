@@ -14,6 +14,7 @@ expressed in the source language.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Snobol4.Interpreter.Primitives where
 
 import Prelude hiding ( span, break, any, toInteger )
@@ -29,7 +30,7 @@ import Language.Snobol4.Parser
 import Language.Snobol4.Interpreter.Shell (InterpreterShell)
 import qualified Language.Snobol4.Interpreter.Shell as Shell
 import Language.Snobol4.Interpreter.Error
-import Language.Snobol4.Interpreter.Types
+--import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Data
 
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types hiding ( call, eval, code)
@@ -64,9 +65,9 @@ primitiveVars =
 
 -- | The names and actions of the primitive functions
 primitiveFunctions
-    :: ( Snobol4Machine program instruction
-       , InterpreterShell m
-       ) => [Function program instruction m]
+    :: ( InterpreterShell m
+       , Snobol4Machine program
+       ) => [Function program m]
 primitiveFunctions =
     [ PrimitiveFunction "ANY"       any
     , PrimitiveFunction "APPLY"     apply
@@ -125,24 +126,24 @@ primitiveFunctions =
 
 -- | Add the primitive variables and functions to the current interpreter state
 addPrimitives :: forall program instruction m 
-               . ( InterpreterShell m 
-                 , Snobol4Machine program instruction
+               . ( InterpreterShell m
+                 , Snobol4Machine program 
                  )
-              => InterpreterGeneric program instruction m ()
+              => InterpreterGeneric program m ()
 addPrimitives = do
-    let funcs :: [Function program instruction m]
+    let funcs :: [Function program m]
         funcs = primitiveFunctions
-        funcMap :: M.Map Snobol4String (Function program instruction m)
-        funcMap = M.fromList $ zip (map funcName funcs) funcs 
+        funcMap :: M.Map Snobol4String (Function program m)
+        funcMap = M.fromList $ zip (map primName funcs) funcs 
     mapM_ (uncurry varWrite) primitiveVars
     putFunctions funcMap
 
 
 -- | Generalization for lt, le, eq, ne, ge, and gt
-numericalPredicate :: (InterpreterShell m) 
+numericalPredicate :: (( InterpreterShell m, Snobol4Machine program )) 
                   => (forall a . (Eq a, Ord a, Num a) => a -> a -> Bool)
                   -> [Data] 
-                  -> EvaluatorGeneric program instruction m (Maybe Data)
+                  -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 numericalPredicate pred [a,b] = do
     (a',b') <- raiseArgs a b
     (a'',b'') <- case a' of
@@ -160,7 +161,7 @@ numericalPredicate _ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The any function, returns a pattern which matches any one of the provided
 -- characters
-any :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+any :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 any (a:_) = do
     cs <- toString a
     liftEval $ case cs of
@@ -170,17 +171,17 @@ any [] = any [StringData ""]
 
 
 -- | The apply function, calls a function by name with arguments
-apply :: ( Snobol4Machine program instruction
-         , InterpreterShell m 
+apply :: ( InterpreterShell m
+         , Snobol4Machine program
          )
-      => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+      => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 apply (nameArg:args) = do
     name <- toString nameArg
     StMch.call name args
 apply _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The array function, creates an array with the provided dimensions and initial value
-array :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+array :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 array [dimStr,val] = do
     str <- toString dimStr
     parseResult <- parseT $ unmkString str
@@ -193,32 +194,33 @@ array _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The arbno function, returns a pattern which matches an arbitrary number of
 -- repetitions of the provided pattern
-arbno :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+arbno :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 arbno (a:_) = do
     p <- toPattern a
     return $ Just $ TempPatternData $ ArbNoPattern p
 arbno [] = arbno [StringData ""]
 
 -- | The arg function, returns the name of the nth argument of a function
-arg :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+arg :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 arg [fname,n] = do
     fname' <- toString fname
     n' <- toInteger n
     funcResult <- liftEval $ funcLookup fname'
     case funcResult of
         Nothing -> liftEval $ programError UndefinedFunctionOrOperation
-        Just func -> case drop (unmkInteger n') $ formalArgs func of
+        Just (UserFunction func) -> case drop (unmkInteger n') $ formalArgs func of
             [] -> liftEval $ programError IncorrectNumberOfArguments
             (arg:_) -> return $ Just $ StringData arg
+        Just _ -> liftEval $ programError IllegalArgumentToPrimitiveFunction
 arg _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
-backspace :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+backspace :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 backspace = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The break function, returns a pattern which matches the longest string
 -- containing none of the provided characters
-break :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+break :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 break (a:_) = do
     s <- toString a
     liftEval $ case s of
@@ -227,7 +229,7 @@ break (a:_) = do
 break [] = break [StringData ""]
 
 -- | The clear function, resets the values of all natural variables
-clear :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+clear :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 clear [] = liftEval $ do
     ns <- naturalVarNames
     forM ns clearVar
@@ -236,7 +238,7 @@ clear _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The code function, parses a string containing source code and creates a
 -- code object
-code :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+code :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 code [src] = do
     src' <- toString src
     result <- parseT $ unmkString src'
@@ -248,12 +250,12 @@ code [src] = do
 code _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
-collect :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+collect :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 collect = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The convert function, attempts to convert the first argument to the type
 -- specified by the second as a string
-convert :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+convert :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 convert [toConvert,resultType] = do
     resultType' <- toString resultType
     case toConvert of
@@ -345,7 +347,7 @@ convert [toConvert,resultType] = do
 convert _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The copy function, creates a new instance of the given array
-copy :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+copy :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 copy [arg] = do
     case arg of
         ArrayData k -> do
@@ -358,7 +360,7 @@ copy _ = liftEval $ programError ErrorInSnobol4System
 
 -- | The data function, parses a data prototype to create a user-defined
 -- datatype
-data_ :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+data_ :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 data_ [arg] = do
     protoStr <- toString arg
     parseResult <- parseT $ unmkString protoStr
@@ -372,7 +374,7 @@ data_ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The datatype function, returns the string representation of the type of
 -- the argument
-datatype :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+datatype :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 datatype [arg] = do
     case arg of
         UserData k -> do
@@ -398,12 +400,12 @@ datatype [arg] = do
 datatype _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The date function, returns the current date in mm/dd/yyyy format
-date :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+date :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 date [] = Just . StringData . mkString <$> (liftEval $ lift Shell.date)
 date _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The define function, creates a user-defined function
-define :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+define :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 define [arg,labelArg] = do
     protoStr <- toString arg
     labelStr <- toString labelArg
@@ -415,18 +417,18 @@ define [arg,labelArg] = do
     Label addr <- case labelResult of
         Just l -> return l
         Nothing -> liftEval $ programError EntryPointOfFunctionNotLabel
-    let func = UserFunction funcName argNames localNames addr
+    let func = Function funcName argNames localNames addr
     liftEval $ functionsNew func
     return $ Just $ StringData nullString
 define _ = liftEval $ programError ErrorInSnobol4System
 
 -- | TODO
-detach :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+detach :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 detach = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The differ function, returns the null string if the two arguments are not
 -- the same
-differ :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+differ :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 differ [a,b] = do
     if a /= b
         then return $ Just $ StringData ""
@@ -434,11 +436,11 @@ differ [a,b] = do
 differ _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
-dump :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+dump :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 dump = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The dupl function, creates a string by repeating a sub-string
-dupl :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+dupl :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 dupl [a,b] = do
     a' <- toString a
     b' <- toInteger b
@@ -446,18 +448,18 @@ dupl [a,b] = do
 dupl _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
-endfile :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+endfile :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 endfile = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | Equality predicate
-eq :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+eq :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 eq = numericalPredicate (==)
 
 -- | The eval function, evaluates an unevaluated expression
-eval :: ( Snobol4Machine program instruction
-        , InterpreterShell m
+eval :: ( InterpreterShell m
+        , Snobol4Machine program
         )  
-     => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+     => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 eval [a] = do
     expr <- case a of
         (PatternData _) -> do
@@ -476,7 +478,7 @@ eval _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The field function, returns the name of the nth field of a user-defined
 -- data type
-field :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+field :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 field [dname,n] = do
     dname' <- toString dname
     n' <- toInteger n
@@ -489,16 +491,16 @@ field [dname,n] = do
 field _ = liftEval $ programError ErrorInSnobol4System
 
 -- | Greater than or equal predicate
-ge :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+ge :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 ge = numericalPredicate (>=)
 
 -- | Greater than predicate
-gt :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+gt :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 gt = numericalPredicate (>)
 
 -- | The ident function, returns the null string if the two arguments are the
 -- same
-ident :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+ident :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 ident [a,b] = do
     if a == b
         then return $ Just $ StringData ""
@@ -506,26 +508,26 @@ ident [a,b] = do
 ident _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | Integer predicate
-integer :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+integer :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 integer [a] = do
     result <- toInteger a
     return $ Just $ StringData ""
 integer [] = return $ Just $ StringData ""
 
 -- | The item function, indexes an array or table
-item :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+item :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 item (name:keys) = do
     name' <- toString name
     liftEval $ execLookup $ LookupAggregate name' keys
 item _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | Less than or equal predicate
-le :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+le :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 le = numericalPredicate (<=)
 
 -- | The length function, returns a pattern with matches the provided number
 -- of characters
-len :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+len :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 len (a:_) = do
     i <- toInteger a
     liftEval $ if i >= 0
@@ -535,7 +537,7 @@ len [] = len [StringData ""]
 
 -- | The lgt function, returns the null string if the first argument comes after
 -- the second, lexically
-lgt :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+lgt :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 lgt [a,b] = do
     a' <- toString a
     b' <- toString b
@@ -545,29 +547,30 @@ lgt [a,b] = do
 lgt _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The local function, returns the name of the nth local variable of a user-defined function
-local :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+local :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 local [fname,n] = do
     fname' <- toString fname
     n' <- toInteger n
     funcResult <- liftEval $ funcLookup fname'
     case funcResult of
         Nothing -> liftEval $ programError UndefinedFunctionOrOperation
-        Just func -> case drop (unmkInteger n') $ localNames func of
+        Just (UserFunction func) -> case drop (unmkInteger n') $ localNames func of
             [] -> liftEval $ programError IncorrectNumberOfArguments
             (arg:_) -> return $ Just $ StringData arg
+        Just _ -> liftEval $ programError IllegalArgumentToPrimitiveFunction
 local _ = liftEval $ programError ErrorInSnobol4System
 
 -- | Less than predicate
-lt :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+lt :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 lt = numericalPredicate (<)
 
 -- | Inequality predicate
-ne :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+ne :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 ne = numericalPredicate (/=)
 
 -- | The notany function, returns a pattern which matches one character not
 -- provided
-notany :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+notany :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 notany (a:_) = do
     cs <- toString a
     liftEval $ case cs of
@@ -576,24 +579,24 @@ notany (a:_) = do
 notany [] = notany [StringData ""]
 
 -- | TODO
-opsyn :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+opsyn :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 opsyn = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The pos function, returns a pattern that succeeds if the cursor is at the
 -- given column
-pos :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+pos :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 pos [a] = do
     result <- toInteger a
     return $ Just $ TempPatternData $ PosPattern result
 pos _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
-prototype :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+prototype :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 prototype = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The remainder primitive, returns the the remainder of the second argument
 -- divided by the first
-remdr :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+remdr :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 remdr [a,b] = do
     a' <- toInteger a
     b' <- toInteger b
@@ -602,7 +605,7 @@ remdr _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The replace function, returns a string formed by replacing instances of a
 -- substring with another
-replace :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+replace :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 replace [x,y,z] = do
     x' <- toString x
     y' <- toString y
@@ -613,12 +616,12 @@ replace [x,y,z] = do
 replace _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
-rewind :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+rewind :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 rewind = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The rpos function, creates a pattern which succeeds if the cursor is the
 -- current position from the right
-rpos :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+rpos :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 rpos [a] = do
     result <- toInteger a
     return $ Just $ TempPatternData $ RPosPattern result
@@ -626,7 +629,7 @@ rpos _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The rtab function, returns a pattern which matches the null string if the
 -- cursor is after the provided column, measured from the right
-rtab :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+rtab :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 rtab (a:_) = do
     i <- toInteger a
     liftEval $ if i >= 0
@@ -635,13 +638,13 @@ rtab (a:_) = do
 rtab [] = rtab [StringData ""]
 
 -- | The size function, returns the length of the argument
-size :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+size :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 size [arg] = Just . IntegerData . snobol4Length <$> toString arg
 size _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | The span function, returns a pattern which matches the longest string
 -- containing only the provided characters
-span :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+span :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 span (a:_) = do
     s <- toString a
     liftEval $ case s of
@@ -650,12 +653,12 @@ span (a:_) = do
 span [] = span [StringData ""]
 
 -- | TODO 
-stoptr :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+stoptr :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 stoptr = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The tab function, returns a pattern which matches the null string if the
 -- cursor is before the provided column, measured from the left
-tab :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+tab :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 tab (a:_) = do
     i <- toInteger a
     liftEval $ if i >= 0
@@ -664,7 +667,7 @@ tab (a:_) = do
 tab [] = tab [StringData ""]
 
 -- | The table function, returns an empty table
-table :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+table :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 table (a:_) = do
     i <- toInteger a
     if i >= 0
@@ -674,27 +677,27 @@ table _ = Just . TableData <$> liftEval tablesNew
 
 -- | The time primitive, returns the number of seconds ellapsed since the
 -- beginning of the program
-time :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+time :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 time [] = Just . IntegerData . mkInteger <$> (liftEval $ lift Shell.time)
 time _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO 
-trace :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+trace :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 trace = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The trim function, removes whitespace from a string
-trim :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+trim :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 trim [a] = do
     a' <- toString a
     return $ Just $ StringData $ snobol4Trim a' 
 trim _ = liftEval $ programError IncorrectNumberOfArguments
 
 -- | TODO
-unload :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+unload :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 unload = const $ liftEval $ programError ErrorInSnobol4System
 
 -- | The value function, looks up a variable by name
-value :: InterpreterShell m => [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+value :: ( InterpreterShell m, Snobol4Machine program ) => [Data] -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
 value [arg] = do
     name <- toString arg
     return $ Just $ Name $ LookupId name

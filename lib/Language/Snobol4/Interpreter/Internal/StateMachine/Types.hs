@@ -8,9 +8,15 @@ Portability     : Unknown
 
 -}
 
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Types 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine.Types 
     , module Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types 
@@ -46,11 +52,14 @@ newtype Address = Address { getAddress :: Snobol4Integer }
   deriving (Show, Eq, Ord, Bounded, Enum, Num)
 
 -- | A node of the call stack
-data CallStackNode
-    = Node
+data CallStackFrame
+    = Frame
     { 
-    -- | Local variables
-      locals :: Map Snobol4String Data
+    -- | Static local variables at the current frame
+      locals :: StaticVars
+    -- | References held by the return value, arguments, and local variable names
+    -- before calling
+    , oldReferences :: [(Snobol4String,Maybe VarType)]
     -- | The index of the statement that called this function
     , returnAddr :: Address
     -- | The name of the function called
@@ -58,8 +67,9 @@ data CallStackNode
     }
   deriving Show
 
+{-
 -- | Information for calling a function
-data Function program instruction m
+data Function program instruction evaluationError m
     -- A user defined function
     = UserFunction
     { 
@@ -77,27 +87,57 @@ data Function program instruction m
     -- | Name of the function
        funcName :: Snobol4String
     -- | The primitive function to call
-    ,  funcPrim :: [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
+    ,  funcPrim :: [Data] ->  EvaluatorGeneric program evaluationError m (Maybe Data)
     }
+-}
+
+data UserFunction 
+    = Function
+    { 
+    -- | Name of the function
+      funcName :: Snobol4String
+    -- | The names of the formal arguments of the function
+    , formalArgs :: [Snobol4String]
+    -- | The names of the local variables of the function
+    , localNames :: [Snobol4String]
+    -- | Index of the statement to start this function
+    , entryPoint :: Address
+    }
+  deriving (Show, Eq)
+
+-- | Information for calling a function
+data Function program (m :: * -> *) where
+    UserFunction :: ( InterpreterShell m
+                    , Snobol4Machine program
+                    , ProgramClass program
+                   )
+         => UserFunction
+         -> Function program m
+    PrimitiveFunction :: ( InterpreterShell m
+             , Snobol4Machine program
+             , ProgramClass program
+             )
+          => 
+        {
+        -- | Name of the function
+           primName :: Snobol4String
+        -- | The primitive function to call
+        ,  funcPrim :: [Data] 
+                    -> EvaluatorGeneric program 
+                                        (EvaluationError program) 
+                                        m (Maybe Data)
+        } -> Function program m
 
 -- | 
-instance Show (Function program instruction m) where
-    show (UserFunction a b c d) = "(UserFunction " 
-                                ++ show a 
-                                ++ " " 
-                                ++ show b 
-                                ++ " " 
-                                ++ show c 
-                                ++ " " 
-                                ++ show d 
-                                ++ ")"
+instance Show (Function program m) where
+    show (UserFunction f) = show f
     show (PrimitiveFunction a _) = "(PrimitiveFunction " ++ show a ++ ")"
 
 -- |
-instance Eq (Function program instruction m) where
+instance Eq (Function program m) where
     PrimitiveFunction{} == _ = False
     _ == PrimitiveFunction{} = False
-    (UserFunction a b c d) == (UserFunction a' b' c' d') = a == a' && b == b' && c == c' && d == d'
+    (UserFunction f) == (UserFunction f') = f == f;
 
 -- | A label that can be jumped to
 data Label
@@ -109,7 +149,10 @@ data Label
   deriving Show
 
 type StaticVars = Vector Data
-type DynamicVars = Map Snobol4String Int
+type DynamicVars = Map Snobol4String VarType
+
+-- | Flag for variables as local or global
+data VarType = LocalVar Int | GlobalVar Int deriving Show
 
 -- | Collection of variables
 data Variables = Variables
@@ -126,7 +169,7 @@ newtype Statements = Statements { getStatements :: Vector Stmt }
 type Labels = Map Snobol4String Label
 
 -- | Collection of functions
-type Functions program instruction m = Map Snobol4String (Function program instruction m)
+type Functions program m = Map Snobol4String (Function program m)
 
 -- | Collection of arrays
 type Arrays = Map ArrayKey (RefCounted Snobol4Array)
@@ -150,15 +193,12 @@ type UserDatas = Map UserKey Snobol4UserData
 class EmptyProgramClass program where
     emptyProgram :: program
     
-class ProgramClass program instruction | program -> instruction where
-    getInstruction :: Address -> program -> instruction
+class ProgramClass program where
+    type InstructionType program
+    getInstruction :: Address -> program -> InstructionType program
 
-instance EmptyProgramClass Statements where
-    emptyProgram = Statements V.empty
-
-instance ProgramClass Statements Stmt where
-    getInstruction (Address ix) (Statements v) = v V.! unmkInteger ix
-
+{-
+-- | State of the interpreter
 data ProgramStateGeneric program instruction m
     = ProgramState
     { 
@@ -171,7 +211,7 @@ data ProgramStateGeneric program instruction m
     -- | The index of the current statement
     , programCounter :: Address
     -- | The functions known to the interpreter
-    , functions :: Functions program instruction m
+    , functions :: Functions program m
     -- | The call stack
     , callStack :: [CallStackNode]
     -- | The arrays known to the interpreter
@@ -188,31 +228,61 @@ data ProgramStateGeneric program instruction m
     , userDatas :: UserDatas
     }
   deriving Show
+-}
 
 -- | State of the interpreter
-type ProgramState = ProgramStateGeneric Statements Stmt
+data ProgramStateGeneric program m where
+    ProgramState :: ( InterpreterShell m, Snobol4Machine program )
+                 => 
+        { 
+        -- | A map of names to variables bound
+          variables :: Variables
+        -- | The statements in the current program
+        , program :: program
+        -- | A map of label names to the index =of their statement
+        , labels :: Labels
+        -- | The index of the current statement
+        , programCounter :: Address
+        -- | The functions known to the interpreter
+        , functions :: Functions program m
+        -- | The call stack
+        , callStack :: [CallStackFrame]
+        -- | The arrays known to the interpreter
+        , arrays :: Arrays
+        -- | The tables known to the interpreter
+        , tables :: Tables
+        -- | The patterns known to the interpreter
+        , patterns :: Patterns
+        -- | Object code values known to the interpreter
+        , codes :: Codes
+        -- | User-defined datatype known to the interpreter
+        , datatypes :: Datatypes
+        -- | User define datatype values known to the interpreter
+        , userDatas :: UserDatas
+        } -> ProgramStateGeneric program m
+
+deriving instance (Show program, Show (Function program m)) => Show (ProgramStateGeneric program m)
 
 -- | Transformer stack which represents the actions of the interpreter
-newtype InterpreterGeneric program instruction m a
+newtype InterpreterGeneric program m a
     = Interpreter
     { runInterpreter
-        :: ExceptT ProgramError (StateT (ProgramStateGeneric program instruction m) m) a
+        :: ExceptT ProgramError (StateT (ProgramStateGeneric program m) m) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
-type Interpreter = InterpreterGeneric Statements Stmt
 
 -- |
-instance MonadTrans (InterpreterGeneric a b) where
+instance MonadTrans (InterpreterGeneric a) where
     lift = Interpreter . lift . lift
 
 -- | Transformer stack for when the interpreter is evaluating a statement
-newtype EvaluatorGeneric program instruction m a 
+newtype EvaluatorGeneric program error (m :: * -> *) a
     = Evaluator
     { runEvaluator
         :: ExceptT ProgramError 
-          (ExceptT EvalStop 
-          (StateT (ProgramStateGeneric program instruction m) 
+          (ExceptT error
+          (StateT (ProgramStateGeneric program m)
            m
           )
           ) a
@@ -220,21 +290,27 @@ newtype EvaluatorGeneric program instruction m a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
-type Evaluator = EvaluatorGeneric Statements Stmt
-
-class Snobol4Machine program instruction | program -> instruction where
-    call :: InterpreterShell m => Snobol4String -> [Data] -> EvaluatorGeneric program instruction m (Maybe Data)
-    eval :: InterpreterShell m => Expr -> EvaluatorGeneric program instruction m Data
+class (ProgramClass program) => Snobol4Machine (program :: *) where
+    type EvaluationError program
+    call :: InterpreterShell m 
+         => Snobol4String 
+         -> [Data] 
+         -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
+    eval :: InterpreterShell m 
+         => Expr 
+         -> EvaluatorGeneric program (EvaluationError program) m Data
+    failEval :: InterpreterShell m
+             => EvaluatorGeneric program (EvaluationError program) m a
 
 -- |
 instance MonadTrans (EvaluatorGeneric a b) where
     lift = Evaluator . lift . lift . lift
 
 -- | A paused interpreter
-data PausedInterpreter m
+data PausedInterpreterGeneric program m
     =
     -- | An interpreter that has been paused
-      Paused (ProgramState m)
+      Paused (ProgramStateGeneric program m)
     -- | An interpreter that has been terminated
     | Terminated ProgramResult
   deriving Show

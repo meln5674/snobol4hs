@@ -55,7 +55,7 @@ mkPrimitive (Primitive _ ps) = do
 any :: Primitive
 any = Primitive "any"
     [ I $ GetArgCount
-    , I $ Push $ IntegerData 1
+    , I $ PushInteger 1
     , I $ Equal
     , I $ JumpToFailureLabelElse
     , I $ ConvertToPattern
@@ -77,13 +77,13 @@ array = Primitive "array"
     -- Push two copies, we need to do 3 checks on it
     , I $ Copy 2
     -- Branch on if there are 0, 1 or 2, or more args
-    , I $ Push $ IntegerData 0
+    , I $ PushInteger 0
     , I $ Equal
     , I'  JumpStaticIf "array.0"
-    , I $ Push $ IntegerData 1
+    , I $ PushInteger 1
     , I $ Equal
     , I'  JumpStaticIf "array.1"
-    , I $ Push $ IntegerData 2
+    , I $ PushInteger 2
     , I $ Equal
     , I' JumpStaticIf "array.2"
     
@@ -99,7 +99,7 @@ array = Primitive "array"
     -- Before this, we pop off the remaining copy of the argument counter
     , L   "array.1"
         $ Pop
-    , I $ Push $ StringData $ nullString
+    , I $ PushString nullString
     , I $ AllocArray
     , I $ Return
 

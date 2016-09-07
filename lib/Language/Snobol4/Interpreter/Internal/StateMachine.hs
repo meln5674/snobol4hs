@@ -12,17 +12,16 @@ Portability     : Unknown
 module Language.Snobol4.Interpreter.Internal.StateMachine 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine 
     , Address (..)
+    , ProgramStateGeneric
     , InterpreterGeneric (..)
-    , Interpreter
     , EvaluatorGeneric (..)
-    , Evaluator
-    , PausedInterpreter (..)
+    , ProgramClass (..)
+    , EmptyProgramClass (..)
+    , PausedInterpreterGeneric (..)
     , Snobol4Machine (..)
     , programError
     , execLookup
     , liftEval
-    , failEvaluation
-    , finishEvaluation
     , EvalStop (..)
     , toString
     , toInteger
@@ -81,7 +80,11 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 -- | A ProgramState no functions or variables, no program
 -- loaded, an empty call stack, and pointing at the first statement
-emptyState :: forall m . InterpreterShell m => ProgramState m
+emptyState :: ( EmptyProgramClass program
+              , Snobol4Machine program
+              , InterpreterShell m 
+              )
+           => ProgramStateGeneric program m
 emptyState = ProgramState
     noVariables
     emptyProgram
@@ -97,9 +100,11 @@ emptyState = ProgramState
     noUserData
 
 -- | Execute an interpreter action
-interpret :: InterpreterShell m 
-          => ProgramState m
-          -> Interpreter m a 
+interpret :: ( InterpreterShell m 
+             , EmptyProgramClass program
+             )
+          => ProgramStateGeneric program m
+          -> InterpreterGeneric program m a 
           -> m (Either ProgramError a)
 interpret st m = flip evalStateT st
         $ runExceptT 

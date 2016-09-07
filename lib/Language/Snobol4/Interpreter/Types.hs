@@ -8,4 +8,8 @@ Portability     : Unknown
 
 -}
 
-module Language.Snobol4.Interpreter.Types where
+module Language.Snobol4.Interpreter.Types 
+    ( Address (..)
+    ) where
+
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types

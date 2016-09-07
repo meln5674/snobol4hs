@@ -8,23 +8,57 @@ Portability     : Unknown
 
 TODO
 -}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.VM.Bytecode where
 
+import Control.Monad
+
+import Data.Serialize
+import GHC.Generics
+
+import Data.Map (Map)
+import qualified Data.Map as M
+
+import Data.Vector (Vector)
+import qualified Data.Vector as V 
+
 import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Error
+import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Syntax.AST
 
 data LabeledInstruction = LabeledInstruction Snobol4String Instruction
 
-newtype CompiledProgram = CompiledProgram { getCompiledProgram :: [Instruction] }
+newtype CompiledProgram = CompiledProgram { getCompiledProgram :: Vector Instruction }
   deriving Show
 
-newtype Symbol = Symbol Snobol4Integer
-  deriving (Show, Eq, Ord, Enum, Num)
+newtype Symbol = Symbol { getSymbol :: Snobol4String }
+  deriving (Show, Eq, Ord)
 
 newtype SystemLabel = SystemLabel Snobol4Integer
   deriving (Show, Eq, Ord, Enum, Num)
+
+
+data SymbolTable
+    = SymbolTable
+    { userLabels :: Map Snobol4String Address
+    , systemLabels :: Map SystemLabel (Maybe Address)
+    , varSymbols :: Map Snobol4String Symbol
+    , funcSymbols :: Map Snobol4String Symbol
+    }
+  deriving Show
+
+emptySymbolTable :: SymbolTable
+emptySymbolTable
+    = SymbolTable
+      M.empty
+      M.empty
+      M.empty
+      M.empty
+
 
 -- | A bytecode instruction.
 -- Constructors are documented using the following format:
@@ -38,7 +72,9 @@ newtype SystemLabel = SystemLabel Snobol4Integer
 data Instruction
     = 
     -- | Push a value onto the stack
-      Push Data
+      PushString Snobol4String
+    | PushInteger Snobol4Integer
+    | PushReal Snobol4Real
     -- | Pop the top value off of the stack
     | Pop
     -- | Make N copies of the top value of the stack
@@ -98,19 +134,14 @@ data Instruction
     | AssignStatic Symbol
     -- | v(!2 + 1); !1<$1, $2, ... $(!2)> := $(!2 + 1)
     | AssignRefStatic Symbol Int
-    -- | v2; $2 := $1
+    -- | v2; $1 := $2
     | AssignDynamic
 
     -- | v2; Create a new function using $1 as the entry label and $2 as the prototype
     | Define
     -- | ???
     | CallDynamic
-    -- | Push null for each local in !1; 
-    --   Push null for return value
-    --   Set the arg counter to !2;
-    --   Set the local counter to the number of locals for !1
-    --   ^(current address);
-    --   Jump to label for !1
+    -- | 
     | CallStatic Symbol Int
     -- | ^(arg count)
     | GetArgCount
@@ -152,10 +183,10 @@ data Instruction
     | UnOp Operator
     
     -- | v2; Invoke the scanner, using $1 as the pattern value and $2 as the
-    -- lookup for the subject
+    -- value to scan; ^(end index); ^(start index)
     | InvokeScanner
-    -- | v4; Invoke the replacer, assigning $4 to the segment between indices $2
-    -- and $3 in $1
+    -- | v4; Invoke the replacer, replacing the segment between indices $2
+    -- and $3 in $4 with $1; ^(new value)
     | InvokeReplacer
     
     -- | v1; $1 is stringable ? ^(string $1) : ^failure
@@ -175,5 +206,49 @@ data Instruction
 
     -- | Panic with the given error
     | Panic ProgramError
-    
+    -- | Terminate the program successfully
+    | Finish
+
+    -- | v1; write $1 to the terminal
+    | Output
+    -- | read X from the terminal; ^X
+    | Input
+    | Punch
+  
+    | LastOutput
+    | LastPunch
   deriving (Show)
+
+deriving instance Serialize Address
+deriving instance Generic SymbolTable
+deriving instance Generic Operator
+deriving instance Generic ProgramError
+deriving instance Generic SystemLabel
+deriving instance Generic Symbol
+deriving instance Generic Instruction
+
+instance Serialize a => Serialize (Vector a) where
+    get = liftM V.fromList get
+    put = put . V.toList
+
+instance Serialize Snobol4String where
+    put = put . (unmkString :: Snobol4String -> String)
+    get = liftM mkString (get :: Get String)
+
+instance Serialize Snobol4Integer where
+    put = put . (unmkInteger :: Snobol4Integer -> Int)
+    get = liftM mkInteger (get :: Get Int)
+
+instance Serialize Snobol4Real where
+    put = put . (unmkReal :: Snobol4Real -> Float)
+    get = liftM mkReal (get :: Get Float)
+
+instance Serialize Operator
+instance Serialize ProgramError
+instance Serialize SystemLabel
+instance Serialize Symbol
+instance Serialize Instruction where
+instance Serialize SymbolTable
+
+deriving instance Serialize CompiledProgram
+

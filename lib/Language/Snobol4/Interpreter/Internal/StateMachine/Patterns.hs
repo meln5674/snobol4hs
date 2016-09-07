@@ -26,39 +26,39 @@ noPatterns :: Patterns
 noPatterns = M.empty
 
 -- | Get the patterns known to the interpreter
-getPatterns :: InterpreterShell m => InterpreterGeneric program instruction m Patterns
+getPatterns :: InterpreterShell m => InterpreterGeneric program m Patterns
 getPatterns = getsProgramState patterns
 
 -- | Set the patterns known to the interpreter
-putPatterns :: InterpreterShell m => Patterns -> InterpreterGeneric program instruction m ()
+putPatterns :: InterpreterShell m => Patterns -> InterpreterGeneric program m ()
 putPatterns pats = modifyProgramState $ \st -> st { patterns = pats }
 
 -- | Apply a function to the patterns known to the interpreter
 modifyPatterns :: InterpreterShell m
                => (Patterns -> Patterns)
-               -> InterpreterGeneric program instruction m ()
+               -> InterpreterGeneric program m ()
 modifyPatterns f = modifyProgramState $
     \st -> st { patterns = f $ patterns st }
 
 -- | Create a new pattern
-patternsNew :: InterpreterShell m => Pattern -> InterpreterGeneric program instruction m PatternKey
+patternsNew :: InterpreterShell m => Pattern -> InterpreterGeneric program m PatternKey
 patternsNew pat = do
     newKey <- (succ . fst . M.findMax) `liftM` getPatterns
     modifyPatterns $ M.insert newKey $ newRef pat
     return newKey
 
 -- | Lookup a pattern
-patternsLookup :: InterpreterShell m => PatternKey -> InterpreterGeneric program instruction m (Maybe Pattern)
+patternsLookup :: InterpreterShell m => PatternKey -> InterpreterGeneric program m (Maybe Pattern)
 patternsLookup k = fmap getRefItem <$> M.lookup k <$> getPatterns
 
 -- | Apply a function to a pattern
-patternsUpdate :: InterpreterShell m => (Pattern -> Pattern) -> PatternKey -> InterpreterGeneric program instruction m ()
+patternsUpdate :: InterpreterShell m => (Pattern -> Pattern) -> PatternKey -> InterpreterGeneric program m ()
 patternsUpdate f k = modifyPatterns $ M.adjust (fmap f) k
 
 -- | Increment the number of references to a pattern
-patternsIncRef :: InterpreterShell m => PatternKey -> InterpreterGeneric program instruction m ()
+patternsIncRef :: InterpreterShell m => PatternKey -> InterpreterGeneric program m ()
 patternsIncRef k = modifyPatterns $ M.adjust incRefCount k
 
 -- | Decrement the number of references to a pattern
-patternsDecRef :: InterpreterShell m => PatternKey -> InterpreterGeneric program instruction m ()
+patternsDecRef :: InterpreterShell m => PatternKey -> InterpreterGeneric program m ()
 patternsDecRef k = modifyPatterns $ M.update decRefCount k

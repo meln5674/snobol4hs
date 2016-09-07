@@ -26,28 +26,28 @@ noUserData :: UserDatas
 noUserData = M.empty
 
 -- | Get the user-defined datatypes known to the interpreter
-getDatatypes :: InterpreterShell m => InterpreterGeneric program instruction m Datatypes
+getDatatypes :: InterpreterShell m => InterpreterGeneric program m Datatypes
 getDatatypes = getsProgramState datatypes
 
 -- | Get the values of user-defined datatypes known to the interpreter
-getUserDatas :: InterpreterShell m => InterpreterGeneric program instruction m UserDatas
+getUserDatas :: InterpreterShell m => InterpreterGeneric program m UserDatas
 getUserDatas = getsProgramState userDatas
 
 -- | Apply a function to the the user-defined datatypes known to the interpreter
-modifyDatatypes :: InterpreterShell m => (Datatypes -> Datatypes) -> InterpreterGeneric program instruction m ()
+modifyDatatypes :: InterpreterShell m => (Datatypes -> Datatypes) -> InterpreterGeneric program m ()
 modifyDatatypes f = modifyProgramState $
     \st -> st { datatypes = f $ datatypes st }
 
 -- | Lookup a user-defined datatype
-datatypesLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Snobol4Datatype)
+datatypesLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program m (Maybe Snobol4Datatype)
 datatypesLookup k = M.lookup k <$> getDatatypes
 
 -- | Lookup a value of a user-defined datatype
-userDataLookup :: InterpreterShell m => UserKey -> InterpreterGeneric program instruction m (Maybe Snobol4UserData)
+userDataLookup :: InterpreterShell m => UserKey -> InterpreterGeneric program m (Maybe Snobol4UserData)
 userDataLookup k = M.lookup k <$> getUserDatas
 
 -- | Create a new user-defined datatype
-datatypesNew :: InterpreterShell m => Snobol4Datatype -> InterpreterGeneric program instruction m ()
+datatypesNew :: InterpreterShell m => Snobol4Datatype -> InterpreterGeneric program m ()
 datatypesNew datatype = modifyDatatypes $ M.insert (datatypeName datatype) datatype
 
 

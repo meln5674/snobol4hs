@@ -5,7 +5,10 @@ import Control.Monad
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.VM.Bytecode
 
-import Language.Snobol4.Interpreter.Data
+import Language.Snobol4.Interpreter.Data (Data(StringData,IntegerData,RealData))
+import Language.Snobol4.Interpreter.Data.String
+import Language.Snobol4.Interpreter.Data.Integer
+import Language.Snobol4.Interpreter.Data.Real
 
 data CompilerError
     = LiteralAsLValue
@@ -25,9 +28,14 @@ data LValue
     = StaticLValue Symbol
     | StaticRefLValue Symbol Int
     | DynamicLValue
+    | InputLValue
+    | OutputLValue
+    | PunchLValue
 
 compile :: Compiler m => Program -> m ()
-compile = mapM_ compileStatement . getProgram
+compile prog = do
+    mapM_ compileStatement $ getProgram prog
+    addInstruction Finish
 
 compileStatement :: Compiler m => Stmt -> m ()
 compileStatement (EndStmt _) = return ()
@@ -47,9 +55,20 @@ compileStatementBody (Stmt _ Nothing _ _ _) = return ()
 compileStatementBody (Stmt _ (Just sub) Nothing Nothing _) = do
     lvalue <- compileSubject sub
     case lvalue of
-        StaticLValue _ -> return ()
+        StaticLValue sym -> do
+            addInstruction $ LookupStatic sym
+            addInstruction $ Pop
         StaticRefLValue _ argCount -> replicateM_ argCount $ addInstruction Pop
         DynamicLValue -> addInstruction Pop
+        InputLValue -> do
+            addInstruction Input
+            addInstruction Pop
+        OutputLValue -> do
+            addInstruction LastOutput
+            addInstruction Pop
+        PunchLValue -> do
+            addInstruction LastPunch
+            addInstruction Pop
 compileStatementBody (Stmt _ (Just sub) (Just pat) Nothing _) = do
     lvalue <- compileSubject sub
     case lvalue of
@@ -58,10 +77,13 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) Nothing _) = do
         StaticRefLValue sym argCount -> do
             addInstruction $ RefStatic sym argCount
         DynamicLValue -> return ()
+        InputLValue -> addInstruction $ Input
+        OutputLValue -> addInstruction $ LastOutput
+        PunchLValue -> addInstruction $ LastPunch
     compilePattern pat
     addInstruction $ InvokeScanner
-    addInstruction $ Pop    
-    addInstruction $ Pop    
+    addInstruction $ Pop
+    addInstruction $ Pop
 compileStatementBody (Stmt _ (Just sub) Nothing (Just obj) _) = do
     lvalue <- compileSubject sub
     compileObject obj
@@ -69,22 +91,37 @@ compileStatementBody (Stmt _ (Just sub) Nothing (Just obj) _) = do
         StaticLValue sym -> addInstruction $ AssignStatic sym
         StaticRefLValue sym argCount -> addInstruction $ AssignRefStatic sym argCount
         DynamicLValue -> addInstruction AssignDynamic
+        InputLValue -> addInstruction Pop
+        OutputLValue -> addInstruction Output
+        PunchLValue -> addInstruction Punch
 compileStatementBody (Stmt _ (Just sub) (Just pat) (Just obj) _) = do
     lvalue <- compileSubject sub
     case lvalue of
         StaticLValue sym -> do
-            addInstruction $ Copy 1
             addInstruction $ LookupStatic sym
         StaticRefLValue sym argCount -> do
             addInstruction $ Copy argCount
             addInstruction $ RefStatic sym argCount
-        DynamicLValue -> return ()
+        DynamicLValue -> addInstruction $ Copy 1
+        InputLValue -> addInstruction Input
+        OutputLValue -> addInstruction LastOutput
+        PunchLValue -> addInstruction LastPunch
     compilePattern pat
     addInstruction $ InvokeScanner
+    compileObject obj
     addInstruction $ InvokeReplacer
-
+    case lvalue of
+        StaticLValue sym -> addInstruction $ AssignStatic sym
+        StaticRefLValue sym argCount -> addInstruction $ AssignRefStatic sym argCount
+        DynamicLValue -> addInstruction AssignDynamic
+        InputLValue -> addInstruction Pop
+        OutputLValue -> addInstruction Output
+        PunchLValue -> addInstruction Punch
+    
 
 compileGotoPart :: Compiler m => GotoPart -> m ()
+compileGotoPart (GotoPart (IdExpr "RETURN")) = addInstruction Return
+compileGotoPart (GotoPart (IdExpr "FRETURN")) = addInstruction FReturn
 compileGotoPart (GotoPart expr) = do
     compileGotoValue expr
     addInstruction $ JumpDynamic
@@ -133,15 +170,18 @@ compileRValue :: Compiler m => Expr -> m ()
 compileRValue (PrefixExpr op expr) = do
     compileRValue expr
     addInstruction $ UnOp op
+compileRValue (IdExpr "INPUT") = addInstruction Input
+compileRValue (IdExpr "OUTPUT") = addInstruction LastOutput
+compileRValue (IdExpr "PUNCH") = addInstruction LastPunch
 compileRValue (IdExpr name) = do
     sym <- getVarSymbol $ mkString name
     addInstruction $ LookupStatic sym
 compileRValue (LitExpr (Int i)) = do
-    addInstruction $ Push $ IntegerData $ mkInteger i
+    addInstruction $ PushInteger $ mkInteger i
 compileRValue (LitExpr (Real r)) = do
-    addInstruction $ Push $ RealData $ mkReal r
+    addInstruction $ PushReal $ mkReal r
 compileRValue (LitExpr (String s)) = do
-    addInstruction $ Push $ StringData $ mkString s
+    addInstruction $ PushString $ mkString s
 compileRValue (CallExpr name argExprs) = do
     sym <- getFuncSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
@@ -156,7 +196,7 @@ compileRValue (BinaryExpr expr1 op expr2) = do
     compileRValue expr2
     addInstruction $ BinOp op
 compileRValue NullExpr = do
-    addInstruction $ Push $ StringData $ nullString
+    addInstruction $ PushString nullString
 
 
 
@@ -165,6 +205,9 @@ compileLValue (PrefixExpr op expr) = do
     compileRValue expr
     addInstruction $ UnOp op
     return DynamicLValue
+compileLValue (IdExpr "INPUT") = return InputLValue
+compileLValue (IdExpr "OUTPUT") = return OutputLValue
+compileLValue (IdExpr "PUNCH") = return PunchLValue
 compileLValue (IdExpr name) = do
     sym <- getVarSymbol $ mkString name
     return $ StaticLValue sym
@@ -189,5 +232,5 @@ compileLValue NullExpr = do
     return DynamicLValue
 
 compileGotoValue :: Compiler m => Expr -> m ()
-compileGotoValue (IdExpr name) = addInstruction $ Push $ StringData $ mkString name
+compileGotoValue (IdExpr name) = addInstruction $ PushString $ mkString name
 compileGotoValue expr = compileRValue expr

@@ -24,6 +24,7 @@ process for each remaining alternative.
 -}
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Snobol4.Interpreter.Scanner.Internal where
 
 import Control.Monad.Trans
@@ -33,6 +34,7 @@ import Control.Monad.Trans.Except
 
 import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Shell
+import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine
 
 -- | The state of the scanner
@@ -50,10 +52,10 @@ data ScannerState
     }
 
 -- | The scanner type
-newtype ScannerGeneric program instruction m a
+newtype ScannerGeneric program error m a
     = Scanner
     { runScanner
-        :: StateT ScannerState (ExceptT FailType (EvaluatorGeneric program instruction m)) a
+        :: StateT ScannerState (ExceptT FailType (EvaluatorGeneric program error m)) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
@@ -65,21 +67,21 @@ data FailType
     | Abort
 
 -- | Cause the scanner to fail, jumping back to the most recent call to catchScan
-throwScan :: Monad m => FailType -> ScannerGeneric program instruction m a
+throwScan :: Monad m => FailType -> ScannerGeneric program error m a
 throwScan = Scanner . lift . throwE
 
 -- | Cause the scanner to fail, jumping back to the most recent call to
 -- catchScan, and continue with the next path
-backtrack :: Monad m => ScannerGeneric program instruction m a
+backtrack :: Monad m => ScannerGeneric program error m a
 backtrack = throwScan BackTrack
 
 -- | Cause the scanner to fail completely
-abort :: Monad m => ScannerGeneric program instruction m a
+abort :: Monad m => ScannerGeneric program error m a
 abort = throwScan Abort
 
 -- | Perform a scanner action, catching a failure and resetting the state and
 -- performing the seconc action instead
-catchScan :: Monad m => ScannerGeneric program instruction m a -> ScannerGeneric program instruction m a -> ScannerGeneric program instruction m a
+catchScan :: Monad m => ScannerGeneric program error m a -> ScannerGeneric program error m a -> ScannerGeneric program error m a
 catchScan try catch = do
     st <- Scanner get
     result <- Scanner 
@@ -99,40 +101,40 @@ catchScan try catch = do
         Left Abort -> abort
 
 -- | Get the input yet to be scanned
-getInput :: Monad m => ScannerGeneric program instruction m Snobol4String
+getInput :: Monad m => ScannerGeneric program error m Snobol4String
 getInput = Scanner $ gets inputStr
 
 -- | Peek at the next character to be scanned
-nextChar :: Monad m => ScannerGeneric program instruction m Snobol4String
+nextChar :: Monad m => ScannerGeneric program error m Snobol4String
 nextChar = Scanner $ gets $ snobol4Head . inputStr
 
 -- | Set the input yet to be scanned
-setInput :: Monad m => Snobol4String -> ScannerGeneric program instruction m ()
+setInput :: Monad m => Snobol4String -> ScannerGeneric program error m ()
 setInput s = Scanner $ modify $ \st -> st{inputStr = s}
 
 -- | Increment the number of characters scanned
-incEndPos :: Monad m => Snobol4Integer -> ScannerGeneric program instruction m ()
+incEndPos :: Monad m => Snobol4Integer -> ScannerGeneric program error m ()
 incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + mkInteger len}
 
 -- | Get the position of the cursor
-getCursorPos :: Monad m => ScannerGeneric program instruction m Snobol4Integer
+getCursorPos :: Monad m => ScannerGeneric program error m Snobol4Integer
 getCursorPos = Scanner $ gets endPos
 
 -- | Get the distance of the cursor from the end of input
-getRCursorPos :: Monad m => ScannerGeneric program instruction m Snobol4Integer
+getRCursorPos :: Monad m => ScannerGeneric program error m Snobol4Integer
 getRCursorPos = snobol4Length <$> getInput
 
 -- | Add an assignment to be performed after success
-addAssignment :: Monad m => Lookup -> Data -> ScannerGeneric program instruction m ()
+addAssignment :: Monad m => Lookup -> Data -> ScannerGeneric program error m ()
 addAssignment l d = Scanner $ modify $ \st -> st{ assignments = (l,d):assignments st}
 
 -- | Immediately assign a value
-immediateAssignment :: InterpreterShell m => Lookup -> Data -> ScannerGeneric program instruction m ()
+immediateAssignment :: ( InterpreterShell m, Snobol4Machine program ) => Lookup -> Data -> ScannerGeneric program (EvaluationError program) m ()
 immediateAssignment l = Scanner . lift . lift . assign l
 
 -- | Attempt to consume a string from input, failing if the start of the input
 -- does not match thet provided string
-consume :: Monad m => Snobol4String -> ScannerGeneric program instruction m Snobol4String
+consume :: Monad m => Snobol4String -> ScannerGeneric program (EvaluationError program) m Snobol4String
 consume s = do
     str <- getInput
     let prefix = snobol4Take (snobol4Length s) str
@@ -144,7 +146,7 @@ consume s = do
     else backtrack
 
 -- | Consume the first N characters, failing if that many characters are not present
-consumeN :: Monad m => Snobol4Integer -> ScannerGeneric program instruction m Snobol4String
+consumeN :: Monad m => Snobol4Integer -> ScannerGeneric program (EvaluationError program) m Snobol4String
 consumeN len = do
     str <- getInput
     let prefix = snobol4Take len str
@@ -156,7 +158,7 @@ consumeN len = do
         else backtrack
 
 -- | Consume the rest of the string
-consumeAll :: Monad m => ScannerGeneric program instruction m Snobol4String
+consumeAll :: Monad m => ScannerGeneric program (EvaluationError program) m Snobol4String
 consumeAll = do
     str <- getInput
     setInput nullString
@@ -164,7 +166,7 @@ consumeAll = do
     return str
 
 -- | Consume any of the characters in the given string, otherwise fail
-consumeAny :: Monad m => Snobol4String -> ScannerGeneric program instruction m Snobol4String
+consumeAny :: Monad m => Snobol4String -> ScannerGeneric program (EvaluationError program) m Snobol4String
 consumeAny cs = do
     c <- nextChar
     if c `snobol4Elem` cs
@@ -172,7 +174,7 @@ consumeAny cs = do
         else backtrack
 
 -- | Consume any of the characters not in the given string, otherwise fail
-consumeNotAny :: Monad m => Snobol4String -> ScannerGeneric program instruction m Snobol4String
+consumeNotAny :: Monad m => Snobol4String -> ScannerGeneric program (EvaluationError program) m Snobol4String
 consumeNotAny cs = do
     c <- nextChar
     if c `snobol4NotElem` cs
@@ -190,13 +192,13 @@ startState s = ScannerState
 
 -- | I haven't thought up a name for this yet
 func :: Monad m 
-     => ScannerGeneric program instruction m Snobol4String 
-     -> (Snobol4String -> ScannerGeneric program instruction m a) 
-     -> (Snobol4String -> ScannerGeneric program instruction m a)
+     => ScannerGeneric program (EvaluationError program) m Snobol4String 
+     -> (Snobol4String -> ScannerGeneric program (EvaluationError program) m a) 
+     -> (Snobol4String -> ScannerGeneric program (EvaluationError program) m a)
 func f next = \s1 -> f >>= \s2 -> next (s1 <> s2)
 
 -- | I haven't thought up a name for this either
-bar :: Monad m => (a -> ScannerGeneric program instruction m b) -> a -> ScannerGeneric program instruction m a
+bar :: Monad m => (a -> ScannerGeneric program (EvaluationError program) m b) -> a -> ScannerGeneric program (EvaluationError program) m a
 bar f v = f v >> return v
 
 -- | Main scanner function
@@ -206,11 +208,11 @@ bar f v = f v >> return v
 -- scanned so far.
 -- The top level call of this function should be called with the empty string.
 match :: ( InterpreterShell m 
-         , Snobol4Machine program instruction
+         , Snobol4Machine program
          )
       => Pattern 
-      -> (Snobol4String -> ScannerGeneric program instruction m Snobol4String)
-      -> (Snobol4String -> ScannerGeneric program instruction m Snobol4String)
+      -> (Snobol4String -> ScannerGeneric program (EvaluationError program) m Snobol4String)
+      -> (Snobol4String -> ScannerGeneric program (EvaluationError program) m Snobol4String)
 match (AssignmentPattern p l) next = match p $ \s -> do
     addAssignment l $ StringData s
     next s

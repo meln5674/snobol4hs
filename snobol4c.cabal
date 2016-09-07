@@ -17,6 +17,7 @@ library
     exposed-modules:
         Language.Snobol4
         Language.Snobol4.Interpreter
+        Language.Snobol4.Interpreter.Types
         Language.Snobol4.Interpreter.Data
         Language.Snobol4.Interpreter.Error
         Language.Snobol4.Interpreter.Shell
@@ -28,6 +29,7 @@ library
         --Language.Snobol4.Intermediate
         Language.Snobol4.VM
         Language.Snobol4.VM.Bytecode
+        Language.Snobol4.VM.Bytecode.Interpreter
         Language.Snobol4.VM.Bytecode.Primitives
         Language.Snobol4.VM.Bytecode.Compiler
         Language.Snobol4.VM.Bytecode.Compiler.Simple
@@ -47,7 +49,9 @@ library
         vector -any,
         mtl -any,
         array -any,
-        time -any
+        time -any,
+        cereal,
+        bytestring
     default-language: Haskell2010
     hs-source-dirs: lib
     other-modules:
@@ -66,6 +70,7 @@ library
         Language.Snobol4.Interpreter.Primitives
         Language.Snobol4.Interpreter.Primitives.Prototypes
         Language.Snobol4.Interpreter.Scanner.Internal
+        Language.Snobol4.Interpreter.Internal.Types
         Language.Snobol4.Interpreter.Internal.StateMachine
         Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
         Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
@@ -85,6 +90,7 @@ library
         Language.Snobol4.Interpreter.Internal.StateMachine.Types
         Language.Snobol4.Interpreter.Internal.StateMachine.UserData
         Language.Snobol4.Interpreter.Internal.StateMachine.Variables
+        Language.Snobol4.VM.Bytecode.Interpreter.StackMachine
         Language.Snobol4.Parser.Types
         Language.Snobol4.Parser.Internal
 
@@ -110,6 +116,32 @@ executable snobol4ci
     other-modules:
         Shell
 
+executable snobol4c
+    main-is: Main.hs
+    build-depends:
+        base,
+        snobol4c, 
+        mtl,
+        transformers, 
+        vector,
+        bytestring,
+        cereal
+    default-language: Haskell2010
+    hs-source-dirs: src/snobol4c
+
+executable snobol4
+    main-is: Main.hs
+    build-depends:
+        base,
+        snobol4c, 
+        mtl,
+        transformers, 
+        vector,
+        bytestring,
+        cereal
+    default-language: Haskell2010
+    hs-source-dirs: src/snobol4
+    
 test-suite lexer
     type: exitcode-stdio-1.0
     main-is: Main.hs
@@ -156,7 +188,6 @@ test-suite expression
     other-modules:
         Language.Snobol4.Syntax.AST
         Language.Snobol4.Interpreter.Internal
-        Language.Snobol4.Interpreter.Internal.Types
         Language.Snobol4.Interpreter.Shell
 test-suite scanner
     type: exitcode-stdio-1.0
@@ -175,7 +206,6 @@ test-suite scanner
         Language.Snobol4.Syntax.AST
         Language.Snobol4.Interpreter.Evaluator
         Language.Snobol4.Interpreter.Internal
-        Language.Snobol4.Interpreter.Internal.Types
         Language.Snobol4.Interpreter.Shell
         Language.Snobol4.Interpreter.Scanner
         Language.Snobol4.Interpreter.Scanner.Internal
@@ -198,7 +228,6 @@ test-suite primitive
         Language.Snobol4.Syntax.AST
         Language.Snobol4.Interpreter.Evaluator
         Language.Snobol4.Interpreter.Internal
-        Language.Snobol4.Interpreter.Internal.Types
         Language.Snobol4.Interpreter.Shell
         Language.Snobol4.Interpreter.Scanner
         Language.Snobol4.Interpreter.Scanner.Internal

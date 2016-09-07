@@ -13,11 +13,13 @@ evaluation fails.
 -}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Language.Snobol4.Interpreter.Evaluator where
 
 import Prelude hiding (toInteger)
 
 import Control.Monad.Trans
+import Control.Monad.Trans.Except
 
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.Interpreter.Data
@@ -27,13 +29,16 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine
 
+
+
+
 -- | Evaluate an arithmetic operation
-arithmetic :: InterpreterShell m 
+arithmetic :: ( InterpreterShell m, Snobol4Machine program ) 
            => (Snobol4Integer -> Snobol4Integer -> Snobol4Integer) -- ^ Integer version 
            -> (Snobol4Real -> Snobol4Real -> Snobol4Real) -- ^ Real version
            -> Data -- ^ Left argument
            -> Data -- ^ Right argument
-           -> EvaluatorGeneric program instruction m Data
+           -> EvaluatorGeneric program (EvaluationError program) m Data
 arithmetic f_int f_real a b = do
     (a',b') <- raiseArgs a b
     case (a',b') of
@@ -42,22 +47,22 @@ arithmetic f_int f_real a b = do
         _ -> liftEval $ programError IllegalDataType
 
 -- | Evaluate a pattern operation
-pattern :: InterpreterShell m 
+pattern :: ( InterpreterShell m, Snobol4Machine program ) 
         => (Pattern -> Pattern -> Pattern)
         -> Data 
         -> Data 
-        -> EvaluatorGeneric program instruction m Data
+        -> EvaluatorGeneric program (EvaluationError program) m Data
 pattern f a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ TempPatternData $ f a' b'
 
 -- | Evaluate a binary operation on data
-evalOp :: InterpreterShell m 
+evalOp :: ( InterpreterShell m, Snobol4Machine program ) 
        => Operator 
        -> Data 
        -> Data 
-       -> EvaluatorGeneric program instruction m Data
+       -> EvaluatorGeneric program (EvaluationError program) m Data
 evalOp Plus = arithmetic (+) (+)
 evalOp Minus = arithmetic (-) (-)
 evalOp Star = arithmetic (*) (*)
@@ -70,13 +75,13 @@ evalOp _ = \_ _ -> liftEval $ programError ErrorInSnobol4System
 
 
 -- | Evaluate an expression, then choose one of two actions/values to use
-checkSuccess :: ( Snobol4Machine program instruction
+checkSuccess :: ( Snobol4Machine program
                 , InterpreterShell m 
                 )
              => Expr -- ^ Expression to evaluate
-             -> EvaluatorGeneric program instruction m Data -- ^ Action on success
-             -> EvaluatorGeneric program instruction m Data -- ^ Action on failure
-             -> EvaluatorGeneric program instruction m Data
+             -> EvaluatorGeneric program (EvaluationError program) m Data -- ^ Action on success
+             -> EvaluatorGeneric program (EvaluationError program) m Data -- ^ Action on failure
+             -> EvaluatorGeneric program (EvaluationError program) m Data
 checkSuccess expr success failure = do
     result <- liftEval $ unliftEval $ evalExpr expr
     case result of
@@ -84,10 +89,10 @@ checkSuccess expr success failure = do
         Left _ -> failure
 
 -- | Evaluate an expression as if it were an L-Value
-evalLookup :: ( Snobol4Machine program instruction
+evalLookup :: ( Snobol4Machine program
               , InterpreterShell m
               ) 
-           => Expr -> EvaluatorGeneric program instruction m Lookup
+           => Expr -> EvaluatorGeneric program (EvaluationError program) m Lookup
 evalLookup expr@(LitExpr _) = LookupLiteral <$> evalExpr expr
 evalLookup (IdExpr "INPUT") = return $ Input
 evalLookup (IdExpr "OUTPUT") = return $ Output
@@ -102,18 +107,18 @@ evalLookup (ParenExpr expr) = evalLookup expr
 evalLookup expr = LookupLiteral <$> evalExpr expr
 
 -- | Evaluate an expression as if it were an R-value
-evalExpr :: ( Snobol4Machine program instruction
+evalExpr :: ( Snobol4Machine program
             , InterpreterShell m 
             )
-         => Expr -> EvaluatorGeneric program instruction m Data
+         => Expr -> EvaluatorGeneric program (EvaluationError program) m Data
 evalExpr (PrefixExpr Not expr) = checkSuccess 
     expr 
-    failEvaluation 
+    failEval 
     (return $ StringData nullString)
 evalExpr (PrefixExpr Question expr) = checkSuccess 
     expr 
     (return $ StringData nullString)
-    failEvaluation
+    failEval
 evalExpr (PrefixExpr Minus expr) = do
     data_ <- evalExpr expr
     case data_ of
@@ -131,7 +136,7 @@ evalExpr (PrefixExpr Dollar expr) = do
     result <- liftEval $ execLookup $ LookupId s
     case result of
         Just d -> return d
-        Nothing -> failEvaluation
+        Nothing -> failEval
 evalExpr (PrefixExpr And (IdExpr "")) = liftEval $ programError ErrorInSnobol4System
 evalExpr (IdExpr "INPUT") = StringData <$> (lift $ mkString <$> input)
 evalExpr (IdExpr "OUTPUT") = StringData <$> (lift $ mkString <$> lastOutput)
@@ -140,7 +145,7 @@ evalExpr (IdExpr name) = do
     lookupResult <- liftEval $ execLookup $ LookupId $ mkString name
     case lookupResult of
         Just val -> return val
-        Nothing -> failEvaluation
+        Nothing -> failEval
 evalExpr (LitExpr (Int i)) = return $ IntegerData $ mkInteger i
 evalExpr (LitExpr (Real r)) = return $ RealData $ mkReal r
 evalExpr (LitExpr (String s)) = return $ StringData $ mkString s
@@ -149,7 +154,7 @@ evalExpr (CallExpr name args) = do
     callResult <- call (mkString name) args'
     case callResult of
         Just val -> return val
-        Nothing -> failEvaluation
+        Nothing -> failEval
 evalExpr (RefExpr name args) = do
     args' <- mapM evalExpr args
     lookupResult <- liftEval $ execLookup $ LookupAggregate (mkString name) args'

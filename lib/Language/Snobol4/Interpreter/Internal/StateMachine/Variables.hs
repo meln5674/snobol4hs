@@ -37,43 +37,60 @@ noVariables :: Variables
 noVariables = Variables V.empty M.empty
 
 -- | Get the variables known to the interpreter
-getVariables :: InterpreterShell m => InterpreterGeneric program instruction m Variables
+getVariables :: ( InterpreterShell m, Snobol4Machine program ) => InterpreterGeneric program m Variables
 getVariables = getsProgramState variables
 
+getDynamics :: ( InterpreterShell m, Snobol4Machine program ) => InterpreterGeneric program m DynamicVars
+getDynamics = liftM dynamicVars getVariables
+
 -- | Set the variables known to the interpreter
-putVariables :: InterpreterShell m => Variables -> InterpreterGeneric program instruction m ()
+putVariables :: ( InterpreterShell m, Snobol4Machine program ) => Variables -> InterpreterGeneric program m ()
 putVariables vars = modifyProgramState $ \st -> st { variables = vars }
 
 -- | Apply a function to the variables known to the interpreter
-modifyVariables :: InterpreterShell m => (Variables -> Variables) -> InterpreterGeneric program instruction m ()
+modifyVariables :: ( InterpreterShell m, Snobol4Machine program ) => (Variables -> Variables) -> InterpreterGeneric program m ()
 modifyVariables f = modifyProgramState $
         \st -> st { variables = f $ variables st }
 
-modifyStaticVars :: InterpreterShell m => (StaticVars -> StaticVars) -> InterpreterGeneric program instruction m ()
+modifyStaticVars :: ( InterpreterShell m, Snobol4Machine program ) => (StaticVars -> StaticVars) -> InterpreterGeneric program m ()
 modifyStaticVars f = modifyVariables $ \v -> v{ staticVars = f $ staticVars v }
 
-modifyDynamicVars :: InterpreterShell m => (DynamicVars -> DynamicVars) -> InterpreterGeneric program instruction m ()
+modifyDynamicVars :: ( InterpreterShell m, Snobol4Machine program ) => (DynamicVars -> DynamicVars) -> InterpreterGeneric program m ()
 modifyDynamicVars f = modifyVariables $ \v -> v{ dynamicVars = f $ dynamicVars v }
 
--- | Retreive the value of a global variable
-globalLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Data)
-globalLookup name = do
+globalLookup :: ( InterpreterShell m, Snobol4Machine program ) => Int -> InterpreterGeneric program m Data
+globalLookup ix = do
     vars <- getVariables
-    return $ liftM ((staticVars vars) V.!) $ (M.lookup name $ dynamicVars vars)
+    return $ staticVars vars V.! ix
 
+localLookup :: ( InterpreterShell m, Snobol4Machine program ) => Int -> InterpreterGeneric program m Data
+localLookup ix = do
+    stk <- getCallStack
+    case stk of
+        [] -> programError $ ErrorInSnobol4System
+        (n:_) -> return $ locals n V.! ix
+
+-- | Dereference a variable reference
+varDeref :: ( InterpreterShell m, Snobol4Machine program ) 
+         => VarType 
+         -> InterpreterGeneric program m Data
+varDeref (LocalVar ix) = localLookup ix
+varDeref (GlobalVar ix) = globalLookup ix
+
+
+{-
 -- | Retreive the value of a local variable
-localLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Data)
+localLookup :: ( InterpreterShell m, Snobol4Machine program ) => Snobol4String -> InterpreterGeneric program m (Maybe Data)
 localLookup name = do
     stk <- getCallStack
     case stk of
         [] -> return Nothing
         (n:_) -> return $ M.lookup name $ locals n
+-}
 
--- | Flag for variables as local or global
-data VarType = LocalVar | GlobalVar
-
+{-
 -- | Retreive the value of a variable, first checking locals, then globals
-varLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe (VarType,Data))
+varLookup :: ( InterpreterShell m, Snobol4Machine program ) => Snobol4String -> InterpreterGeneric program m (Maybe (VarType,Data))
 varLookup name = do
     localResult <- localLookup name
     case localResult of
@@ -83,65 +100,104 @@ varLookup name = do
             case globalResult of
                 Just globalVal -> return $ Just (GlobalVar, globalVal)
                 Nothing -> return Nothing
-
--- | Retreive the value of a variable, first checking locals, then globals,
--- then discard the flag stating which it is
-varLookup' :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Data)
-varLookup' name = varLookup name >>= \case
-    Nothing -> return Nothing
-    Just (_,val) -> return $ Just val    
+-}
+-- | Retreive the value of a variable
+varLookup :: ( InterpreterShell m, Snobol4Machine program ) 
+          => Snobol4String 
+          -> InterpreterGeneric program m (Maybe Data)
+varLookup name = do
+    maybeReference <- getReference name
+    mapM varDeref maybeReference
     
 
+{-
 -- | Write the value of a global variable
-globalWrite :: InterpreterShell m => Snobol4String -> Data -> InterpreterGeneric program instruction m ()
+globalWrite :: ( InterpreterShell m, Snobol4Machine program ) => Snobol4String -> Data -> InterpreterGeneric program m ()
 globalWrite name val = do 
     vars <- getVariables
-    case M.lookup name $ dynamicVars vars of
+    ix <- case M.lookup name $ dynamicVars vars of
         Nothing -> do
-            modifyStaticVars $ flip V.snoc val
-            modifyDynamicVars $ M.insert name $ V.length $ staticVars vars
-        Just ix -> do
-            modifyStaticVars $ (V.// [(ix,val)])
+            let ix = V.length $ staticVars vars
+            modifyStaticVars $ flip V.snoc $ StringData nullString
+            modifyDynamicVars $ M.insert name $ GlobalVar ix
+            return ix
+        Just (GlobalVar ix) -> return ix
+        Just (LocalVar ix) -> 
+    globalWrite' ix val
+-}
+
+globalWrite :: ( InterpreterShell m, Snobol4Machine program ) => Int -> Data -> InterpreterGeneric program m ()
+globalWrite ix val = modifyStaticVars $ (V.// [(ix,val)])
+
+-- | Create a new global variable
+globalAppend :: ( InterpreterShell m, Snobol4Machine program )
+             => Snobol4String
+             -> Data
+             -> InterpreterGeneric program m ()
+globalAppend name val = do
+    vars <- getVariables
+    let ix = V.length $ staticVars vars
+    modifyStaticVars $ flip V.snoc val
+    modifyDynamicVars $ M.insert name $ GlobalVar ix
 
 -- | Write the value of a local variable
-localWrite :: InterpreterShell m => Snobol4String -> Data -> InterpreterGeneric program instruction m ()
+localWrite :: ( InterpreterShell m, Snobol4Machine program ) => Int -> Data -> InterpreterGeneric program m ()
 localWrite = writeCallStackLocal
 
--- | Write the value of a variable, first checking if there are any locals with
--- that name, then writing as a global if there isn't
-varWrite :: InterpreterShell m => Snobol4String -> Data -> InterpreterGeneric program instruction m ()
+
+getReference :: ( InterpreterShell m, Snobol4Machine program ) => Snobol4String -> InterpreterGeneric program m (Maybe VarType)
+getReference name = do
+    vars <- getVariables
+    return $ M.lookup name $ dynamicVars vars
+
+
+-- | Set a variable to reference a local or global variable
+setReference :: ( InterpreterShell m, Snobol4Machine program) => Snobol4String -> VarType -> InterpreterGeneric program m ()
+setReference name ref = modifyDynamicVars $ M.insert name ref
+
+-- | Update the value of a variable, creating a new global if needed
+varWrite :: ( InterpreterShell m, Snobol4Machine program ) 
+         => Snobol4String 
+         -> Data 
+         -> InterpreterGeneric program m ()
 varWrite name val = do
     val' <- case val of
         (TempPatternData p) -> PatternData <$> patternsNew p
         x -> return x
-    result <- varLookup name
+    result <- getReference name
     case result of
-        Just (LocalVar,old) -> decRef old >> localWrite name val'
-        Just (GlobalVar,old) -> decRef old >> globalWrite name val'
-        Nothing -> globalWrite name val'
+        Just (LocalVar ix) -> do
+            old <- localLookup ix
+            decRef old
+            localWrite ix val'
+        Just (GlobalVar ix) -> do
+            old <- globalLookup ix
+            decRef old
+            globalWrite ix val'
+        Nothing -> globalAppend name val'
     incRef val'
 
 -- | Delete a variable
-clearVar :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m ()
+clearVar :: ( InterpreterShell m, Snobol4Machine program ) => Snobol4String -> InterpreterGeneric program m ()
 clearVar n = do
     result <- varLookup n
     case result of
-        Just (_,d) -> do
-            decRef d
+        Just val -> do
+            decRef val
             modifyDynamicVars $ M.delete n -- TODO: Cleanup
         Nothing -> return ()
 
 -- | Erase all variables
-wipeVariables :: InterpreterShell m => InterpreterGeneric program instruction m ()
+wipeVariables :: ( InterpreterShell m, Snobol4Machine program ) => InterpreterGeneric program m ()
 wipeVariables = putVariables $ noVariables
 
 -- | Get the names of the natural variables
-naturalVarNames :: InterpreterShell m => InterpreterGeneric program instruction m [Snobol4String]
+naturalVarNames :: ( InterpreterShell m, Snobol4Machine program ) => InterpreterGeneric program m [Snobol4String]
 naturalVarNames = liftM (M.keys . dynamicVars) getVariables
 
 -- | Take a value, if it is a reference to data maintained by the GC, increment
 -- the number of references to it
-incRef :: InterpreterShell m => Data -> InterpreterGeneric program instruction m ()
+incRef :: ( InterpreterShell m, Snobol4Machine program ) => Data -> InterpreterGeneric program m ()
 incRef (PatternData k) = patternsIncRef k
 incRef (ArrayData k) = arraysIncRef k
 incRef (TableData k) = tablesIncRef k
@@ -149,14 +205,14 @@ incRef _ = return ()
 
 -- | Take a value, if it is a reference to data maintained by the GC, decrement
 -- the number of references to it
-decRef :: InterpreterShell m => Data -> InterpreterGeneric program instruction m ()
+decRef :: ( InterpreterShell m, Snobol4Machine program ) => Data -> InterpreterGeneric program m ()
 decRef (PatternData k) = patternsDecRef k
 decRef (ArrayData k) = arraysDecRef k
 decRef (TableData k) = tablesDecRef k
 decRef _ = return ()
 
 -- | Assign a value to the location pointed to by a lookup
-assign :: InterpreterShell m => Lookup -> Data -> EvaluatorGeneric program instruction m ()
+assign :: ( InterpreterShell m, Snobol4Machine program ) => Lookup -> Data -> EvaluatorGeneric program (EvaluationError program) m ()
 assign (LookupId s) val = liftEval $ varWrite s val
 assign (LookupAggregate name args) val = do
     let loop (ArrayData k) [IntegerData ix] = arraysWrite ix val k
@@ -176,21 +232,28 @@ assign (LookupAggregate name args) val = do
         loop _ _ = programError ErroneousArrayOrTableReference
     base <- liftEval $ varLookup name
     liftEval $ case base of
-        Just (_,baseVal) -> loop baseVal args
+        Just baseVal -> loop baseVal args
         Nothing -> programError ErroneousArrayOrTableReference
 assign Output val = toString val >>= lift . output . unmkString
 assign Punch val = toString val >>= lift . punch . unmkString
 assign _ _ = liftEval $ programError VariableNotPresentWhereRequired
 
+lookup :: ( InterpreterShell m, Snobol4Machine program) => Lookup -> EvaluatorGeneric program (EvaluationError program) m Data
+lookup l = do
+    result <- liftEval $ execLookup l
+    case result of
+        Just val -> return val
+        Nothing -> failEval
+
 -- | Get the data pointed to by a lookup
-execLookup :: InterpreterShell m => Lookup -> InterpreterGeneric program instruction m (Maybe Data) 
+execLookup :: ( InterpreterShell m, Snobol4Machine program ) => Lookup -> InterpreterGeneric program m (Maybe Data) 
 execLookup Input = (Just . StringData . mkString) <$> lift input 
 execLookup Output = (Just . StringData . mkString) <$> lift lastOutput 
 execLookup Punch = (Just . StringData . mkString) <$> lift lastPunch 
 execLookup (LookupLiteral x) = return $ Just x 
-execLookup (LookupId i) = varLookup' i
+execLookup (LookupId i) = varLookup i
 execLookup (LookupAggregate name args) = do
-    base <- varLookup' name
+    base <- varLookup name
     case base of
         Nothing -> return Nothing
         Just val -> do

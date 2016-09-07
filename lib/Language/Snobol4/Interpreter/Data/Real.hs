@@ -39,3 +39,7 @@ instance Snobol4StringClass Snobol4Real where
 -- |
 instance Snobol4Read Snobol4Real where
     snobol4Read (Snobol4String s) = liftM Snobol4Real $ readMaybe s
+
+instance Snobol4IntegerClass Snobol4Real where
+    mkInteger = Snobol4Integer . round . getReal
+    unmkInteger = Snobol4Real . fromIntegral . getInteger

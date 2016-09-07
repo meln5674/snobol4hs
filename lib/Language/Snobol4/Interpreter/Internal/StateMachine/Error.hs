@@ -20,21 +20,6 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 
 -- | Terminate the program with an error
-programError :: InterpreterShell m => ProgramError -> InterpreterGeneric program instruction m a
+programError :: Monad m => ProgramError -> InterpreterGeneric program m a
 programError = Interpreter . throwE
-
--- | Mark the current evaluation as failed and prohibit additional evaluation
-failEvaluation :: InterpreterShell m => EvaluatorGeneric program instruction m a
-failEvaluation = Evaluator
-               $ lift 
-               $ throwE 
-                 EvalFailed
-
--- | Mark the current evaluation as successful and prohibit additional evaluation
-finishEvaluation :: InterpreterShell m => Maybe Data -> EvaluatorGeneric program instruction m a
-finishEvaluation = Evaluator
-                 . lift 
-                 . throwE
-                 . EvalSuccess
-
 

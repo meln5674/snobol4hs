@@ -39,3 +39,7 @@ instance Snobol4IntegerClass Snobol4Integer where
 instance Snobol4IntegerClass Int where
     mkInteger = Snobol4Integer
     unmkInteger = getInteger
+
+instance Snobol4RealClass Snobol4Integer where
+    mkReal = Snobol4Real . fromIntegral . getInteger
+    unmkReal = Snobol4Integer . round . getReal

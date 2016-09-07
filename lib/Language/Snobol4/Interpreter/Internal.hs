@@ -33,6 +33,7 @@ are to be used. The 'Evaluator' can throw program termination exceptions just as
 control is transfered back to the 'Interpreter' stack.
 -}
 
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -75,8 +76,24 @@ import Language.Snobol4.Interpreter.Evaluator
 import Language.Snobol4.Interpreter.Scanner
 import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Primitives (addPrimitives)
+import Language.Snobol4.Interpreter.Internal.Types 
 import Language.Snobol4.Interpreter.Internal.StateMachine hiding (call, eval)
 import qualified Language.Snobol4.Interpreter.Internal.StateMachine as StMch
+
+-- | Mark the current evaluation as failed and prohibit additional evaluation
+failEvaluation :: Monad m => Evaluator m a
+failEvaluation = Evaluator
+               $ lift 
+               $ throwE 
+                 EvalFailed
+
+-- | Mark the current evaluation as successful and prohibit additional evaluation
+finishEvaluation :: Monad m => Maybe Data -> Evaluator m a
+finishEvaluation = Evaluator
+                 . lift 
+                 . throwE
+                 . EvalSuccess
+
 
 -- | Call a function by name with arguments
 call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
@@ -267,9 +284,12 @@ eval expr = do
             Address pc <- getProgramCounter
             return (ErrorTermination err $ unmkInteger pc, Nothing)
 
-instance Snobol4Machine Statements Stmt where
+instance Snobol4Machine Statements where
+    type EvaluationError Statements = EvalStop
     call n args = liftEval $ call n args
     eval = evalExpr
+    failEval = failEvaluation
+
 
 -- | Load a program into the interpreter
 load :: InterpreterShell m => Program -> Interpreter m ()

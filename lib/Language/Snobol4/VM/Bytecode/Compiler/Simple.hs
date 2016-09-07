@@ -23,24 +23,6 @@ data CompilerResult
     | CompileSucceeded CompiledProgram SymbolTable
   deriving Show
 
-data SymbolTable
-    = SymbolTable
-    { userLabels :: Map Snobol4String Address
-    , systemLabels :: Map SystemLabel (Maybe Address)
-    , varSymbols :: Map Snobol4String Symbol
-    , funcSymbols :: Map Snobol4String Symbol
-    }
-  deriving Show
-
-emptySymbolTable :: SymbolTable
-emptySymbolTable
-    = SymbolTable
-      M.empty
-      M.empty
-      M.empty
-      M.empty
-
-
 data SimpleCompilerState
     = SimpleCompilerState
     { instructions :: Vector Instruction
@@ -62,7 +44,7 @@ simpleCompiler :: Program -> CompilerResult
 simpleCompiler prog
     | V.null $ compilerErrors finalState
         = CompileSucceeded
-        ( CompiledProgram $ V.toList $ instructions finalState )
+        ( CompiledProgram $ instructions finalState )
         ( symbolTable finalState )
     | otherwise = CompileFailed $ V.toList $ compilerErrors finalState
   where
@@ -95,17 +77,21 @@ nextAvailibleSystemLabel
     $ liftM (maybe 0 succ . maxKey) 
     $ gets (systemLabels . symbolTable)
 
+{-
 nextAvailibleVarSymbol :: SimpleCompiler Symbol
 nextAvailibleVarSymbol
     = SimpleCompiler 
     $ liftM (maybe 0 succ . maxElem)
     $ gets (varSymbols . symbolTable)
+-}
 
+{-
 nextAvailibleFuncSymbol :: SimpleCompiler Symbol
 nextAvailibleFuncSymbol
     = SimpleCompiler 
     $ liftM (maybe 0 succ . maxElem) 
     $ gets (funcSymbols . symbolTable)
+-}
 
 modifyCompilerState :: (SimpleCompilerState -> SimpleCompilerState) -> SimpleCompiler ()
 modifyCompilerState = SimpleCompiler . modify
@@ -150,7 +136,8 @@ instance Compiler SimpleCompiler where
         result <- SimpleCompiler $ liftM (M.lookup ident) $ gets $ (varSymbols . symbolTable)
         case result of
             Nothing -> do
-                sym <- nextAvailibleVarSymbol
+                --sym <- nextAvailibleVarSymbol
+                let sym = Symbol ident
                 modifyVarSymbols $ M.insert ident sym
                 return sym
             Just sym -> return sym
@@ -158,7 +145,8 @@ instance Compiler SimpleCompiler where
         result <- SimpleCompiler $ liftM (M.lookup ident) $ gets $ (funcSymbols . symbolTable)
         case result of
             Nothing -> do
-                sym <- nextAvailibleFuncSymbol
+                --sym <- nextAvailibleFuncSymbol
+                let sym = Symbol ident
                 modifyFuncSymbols $ M.insert ident sym
                 return sym
             Just sym -> return sym

@@ -28,23 +28,23 @@ noLabels :: Labels
 noLabels = M.empty
  
 -- | Get the labels known to the interpreter
-getLabels :: InterpreterShell m => InterpreterGeneric program instruction m Labels
+getLabels :: InterpreterShell m => InterpreterGeneric program m Labels
 getLabels = getsProgramState labels
 
 -- | Set the labels known to the interpreter
-putLabels :: InterpreterShell m => Labels -> InterpreterGeneric program instruction m ()
+putLabels :: InterpreterShell m => Labels -> InterpreterGeneric program m ()
 putLabels lbls = modifyProgramState $ \st -> st { labels = lbls }
 
 -- | Apply a function to the labels known to the interpreter
 modifyLabels :: InterpreterShell m 
              => (Labels -> Labels)
-             -> InterpreterGeneric program instruction m ()
+             -> InterpreterGeneric program m ()
 modifyLabels f = modifyProgramState $
     \st -> st { labels = f $ labels st }
 
 -- | Scan the loaded program for labels, and then add them
 scanForLabels :: InterpreterShell m
-              => InterpreterGeneric Statements Stmt m ()
+              => InterpreterGeneric Statements m ()
 scanForLabels = do
     stmts <- getProgram
     let lbls = flip V.imap (getStatements stmts) $ \ix stmt -> case stmt of
@@ -56,7 +56,7 @@ scanForLabels = do
     modifyLabels $ M.union lblMap
 
 -- | Find the index of the statement with a label
-labelLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program instruction m (Maybe Label)
+labelLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program m (Maybe Label)
 labelLookup lbl = M.lookup lbl <$> getLabels
 
 
