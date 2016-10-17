@@ -1,0 +1,19 @@
+********************************************************************************
+*                                                                              *
+*         THIS PROGRAM COUNTS THE NUMBER OF TIMES EACH                         *
+*         LETTER IS USED IN INPUT TEXT.                                        *
+*                                                                              *
+********************************************************************************
+          &TRIM     = 1
+          CHAR      = LEN(1) . CH
+          LETTERS   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'    
+          COUNT     = TABLE(30)
+READ      OUTPUT    = INPUT                       :F(DISPLAY)
+          TEXT      = OUTPUT
+NEXT      TEXT      CHAR  =                       :F(READ)
+          COUNT<CH> =  COUNT<CH>  +  1            :(NEXT)
+DISPLAY   OUTPUT    =
+LOOP      LETTERS   CHAR  =                       :F(END)
+          OUTPUT    = NE(COUNT<CH>)  CH  ' OCCURS ' COUNT<CH> ' TIMES'
++                                                 :(LOOP)
+END

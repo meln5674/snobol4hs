@@ -48,6 +48,7 @@ data SymbolTable
     , systemLabels :: Map SystemLabel (Maybe Address)
     , varSymbols :: Map Snobol4String Symbol
     , funcSymbols :: Map Snobol4String Symbol
+    , programEntryPoint :: Address
     }
   deriving Show
 
@@ -58,6 +59,7 @@ emptySymbolTable
       M.empty
       M.empty
       M.empty
+      (Address 0)
 
 
 -- | A bytecode instruction.

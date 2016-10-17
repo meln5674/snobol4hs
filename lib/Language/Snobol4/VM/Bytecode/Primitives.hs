@@ -22,17 +22,27 @@ data PrimitiveOp
     | L String Instruction
 
 data Primitive = Primitive String [PrimitiveOp]
-
+{-
+data PrimOp = PrimOp Operator [PrimitiveOp]
+-}
 allPrimitives :: [Primitive]
 allPrimitives =
     [ any
     , apply
     , array
     ]
-
+{-
+allPrimOps :: [PrimiOp]
+allPrimOps =
+    [ primOp_plus
+    ]
+-}
 addPrimitiveCode :: Compiler m => m ()
 addPrimitiveCode = mapM_ mkPrimitive allPrimitives
-
+{-
+addPrimOpCode :: Compiler m => m ()
+addPrimOpCode = mapM_ 
+-}
 mkPrimitive :: Compiler m => Primitive -> m ()
 mkPrimitive (Primitive _ ps) = do
     labelMap <- mkLabelMap
@@ -51,7 +61,11 @@ mkPrimitive (Primitive _ ps) = do
     registerLabel m l = do
         sym <- allocSystemLabel
         return $ M.insert l sym m
-
+{-
+primOp_plus :: PrimOp
+primOp_plus = PrimOp Plus
+    [ I $ Add ]
+-}
 any :: Primitive
 any = Primitive "any"
     [ I $ GetArgCount

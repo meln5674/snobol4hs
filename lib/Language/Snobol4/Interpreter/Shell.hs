@@ -20,6 +20,7 @@ See "Language.Snobol4.Interpreter.Shell.Console" for an example.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
 module Language.Snobol4.Interpreter.Shell where
 
 -- | Class of monads which can do input, output, and punching, as well as
@@ -43,8 +44,9 @@ class Monad m => InterpreterShell m where
 
 -- | Class of a pair monads, the first is an instance of 'InterpreterShell', and
 -- the second is a monad which the first can be run inside
-class InterpreterShell m => InterpreterShellRun m base | m -> base where
+class InterpreterShell m => InterpreterShellRun m where
+    type BaseMonad m :: * -> *
     -- | Perform any initial actions
     start :: m ()
     -- | Run the shell monad inside the base monad
-    shell :: m a -> base a
+    shell :: m a -> (BaseMonad m) a

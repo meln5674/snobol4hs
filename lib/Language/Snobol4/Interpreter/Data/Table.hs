@@ -21,18 +21,18 @@ import Language.Snobol4.Interpreter.Data.Types
 
 
 -- | An empty table
-emptyTable :: Snobol4Table
+emptyTable :: (Snobol4Table expr)
 emptyTable = Snobol4Table M.empty
 
 -- | Get the value of a table
-readTable :: Data -> Snobol4Table -> Maybe Data
+readTable :: (Ord expr) => (Data expr) -> (Snobol4Table expr) -> Maybe (Data expr)
 readTable k (Snobol4Table tbl) = M.lookup k tbl
 
 -- | Set the value of a table
-writeTable :: Data -> Data -> Snobol4Table -> Snobol4Table
+writeTable :: (Ord expr) => (Data expr) -> (Data expr) -> (Snobol4Table expr) -> (Snobol4Table expr)
 writeTable k v (Snobol4Table tbl) = Snobol4Table $ M.insert k v tbl
 
 -- | Get the formal identification of a table
 -- TODO
-tableFormalIdent :: Snobol4Table -> Snobol4String
+tableFormalIdent :: (Snobol4Table expr) -> Snobol4String
 tableFormalIdent tab = undefined

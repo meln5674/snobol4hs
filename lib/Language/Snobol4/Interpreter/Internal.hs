@@ -40,6 +40,7 @@ control is transfered back to the 'Interpreter' stack.
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Language.Snobol4.Interpreter.Internal
     ( module Language.Snobol4.Interpreter.Scanner
     , module Language.Snobol4.Interpreter.Evaluator
@@ -77,18 +78,135 @@ import Language.Snobol4.Interpreter.Scanner
 import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Primitives (addPrimitives)
 import Language.Snobol4.Interpreter.Internal.Types 
+import Language.Snobol4.Interpreter.Internal.CallStack
+import Language.Snobol4.Interpreter.Internal.StackMachine
 import Language.Snobol4.Interpreter.Internal.StateMachine hiding (call, eval)
+import Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
 import qualified Language.Snobol4.Interpreter.Internal.StateMachine as StMch
 
+callUnOp :: ( InterpreterShell m
+            {-, Snobol4Machine program-}
+            , LocalVariablesClass m
+            ) 
+         => Operator
+         -> ArgType m
+         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+callUnOp op args = do
+    lookupResult <- lookupUnOpSyn op
+    case lookupResult of
+        Nothing -> programError UndefinedFunctionOrOperation
+        Just (PrimitiveOperator action) -> action args
+        Just (OperatorOperatorSynonym op') -> callUnOp op' args
+        Just (OperatorFunctionSynonym func) -> call func args
+
+
+
+callBinOp :: ( InterpreterShell m
+             {-, Snobol4Machine program-}
+             , LocalVariablesClass m
+             ) 
+         => Operator
+         -> [Data]
+         -> InterpreterGeneric program m (Maybe Data)
+callBinOp op args = do
+    lookupResult <- lookupBinOpSyn op
+    case lookupResult of
+        Nothing -> programError UndefinedFunctionOrOperation
+        Just (PrimitiveOperator action) ->
+            catchEval (liftM Just $ action args) $ const $ return Nothing
+        Just (OperatorOperatorSynonym op') -> callBinOp op' args
+        Just (OperatorFunctionSynonym func) -> 
+            catchEval (call (getFuncName func) args) $ const $ return Nothing
+
+
+callJump :: ( InterpreterShell m, LocalVariablesClass m, CallStackClass m )
+         => UserFunction -- ^ Name of the function
+         -> [Data] -- ^ Arguments to pass
+         -> InterpreterGeneric Statements m ()
+callJump func@Function{funcName, formalArgs, localNames} evaldArgs = do
+    -- Push current state onto the stack and create blank spots for
+    --  args and locals
+    pushFuncFrame func
+
+    let allLocalNames = funcName : formalArgs ++ localNames
+
+    -- Capture the references held by the names of the return variable,
+    --  locals, and args
+    oldReferences <- forM allLocalNames $ \name -> do
+        ref <- getReference name
+        return (name, ref)
+    modifyCallStackHead $ \n -> n{ oldReferences }
+    -- Set the function name, arguments, and local variables to
+    --  reference the appropriate spot in the new stack frame
+    mapM_ (uncurry setReference) $ zip allLocalNames $ map (Just . LocalVar) [0..]
+    mapM_ (uncurry varWrite) $ zip formalArgs evaldArgs
+    -- Jump to the entry point of the function and execute the passed function
+    putProgramCounter $ entryPoint func
+
+
+
+returnJump :: ( InterpreterShell m, LocalVariablesClass m, CallStackClass m )
+           => ExecResult
+           -> InterpreterGeneric Statements m (Maybe Data)
+returnJump result = do
+    -- Get the return value, and if the the function failed or not
+    toReturn <- case result of
+        Return -> liftM Just $ localLookup 0
+        FReturn -> return Nothing
+    Frame{oldReferences} <- popCallStack
+    -- Reset the references captured earlier
+    forM_ oldReferences $ uncurry setReference
+    return toReturn
+
+callFunction' :: ( InterpreterShell m
+                 , LocalVariablesClass m
+                 , CallStackClass m
+                 )
+              => Function Statements m
+              -> [Data]
+              -> InterpreterGeneric Statements m ExecResult
+              -> InterpreterGeneric Statements m (Maybe Data)
+callFunction' PrimitiveFunction{funcPrim=action} evaldArgs _ = do
+    catchEval (action evaldArgs) $ const $ return Nothing
+callFunction' (FunctionUnOperatorSynonym _ op) evaldArgs _ = callUnOp op evaldArgs
+callFunction' (FunctionBinOperatorSynonym _ op) evaldArgs _ = callBinOp op evaldArgs
+callFunction' (UserFunction func) evaldArgs f = do
+    callJump func evaldArgs
+    result <- f
+    returnJump result
+
+-- | Call a function
+callFunction :: ( InterpreterShell m
+                , LocalVariablesClass m
+                , CallStackClass m
+                ) 
+             => Snobol4String -- ^ Name of the function
+             -> [Data] -- ^ Arguments to pass
+             -> InterpreterGeneric Statements m ExecResult -- ^ Action to be performed between
+                                         -- pushing arguments and popping result
+             -> InterpreterGeneric Statements m (Maybe Data)
+callFunction name evaldArgs f = do
+    lookupResult <- funcLookup name
+    case lookupResult of
+        Nothing -> programError UndefinedFunctionOrOperation
+        Just func -> callFunction' func evaldArgs f
+        
+
+
+
 -- | Mark the current evaluation as failed and prohibit additional evaluation
-failEvaluation :: Monad m => Evaluator m a
+--failEvaluation :: Monad m => Evaluator m a
+failEvaluation :: Monad m => EvaluatorGeneric program EvalStop m a
 failEvaluation = Evaluator
                $ lift 
                $ throwE 
                  EvalFailed
 
 -- | Mark the current evaluation as successful and prohibit additional evaluation
-finishEvaluation :: Monad m => Maybe Data -> Evaluator m a
+--finishEvaluation :: Monad m => Maybe Data -> Evaluator m a
+finishEvaluation :: Monad m => Maybe Data -> EvaluatorGeneric program EvalStop m a
 finishEvaluation = Evaluator
                  . lift 
                  . throwE
@@ -96,7 +214,13 @@ finishEvaluation = Evaluator
 
 
 -- | Call a function by name with arguments
-call :: InterpreterShell m => Snobol4String -> [Data] -> Interpreter m (Maybe Data)
+call :: ( InterpreterShell m
+        , LocalVariablesClass m
+        , CallStackClass m
+        ) 
+     => Snobol4String 
+     -> [Data] 
+     -> InterpreterGeneric Statements m (Maybe Data)
 call n args = callFunction n args loop
   where
     loop = stepStmt >>= \case
@@ -104,15 +228,35 @@ call n args = callFunction n args loop
         returnResult -> return returnResult
 
 -- | Execute a subject and return the lookup for it
-execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
+--execSub :: InterpreterShell m => Expr -> Evaluator m Lookup
+execSub :: ( InterpreterShell m 
+           , CallStackClass m
+           , LocalVariablesClass m
+           )
+        => Expr 
+        -> EvaluatorGeneric Statements EvalStop m Lookup
 execSub = evalLookup
 
 -- | Execute a pattern, and return the pattern structure for it
-execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
+--execPat :: InterpreterShell m => Expr -> Evaluator m Pattern
+execPat :: ( InterpreterShell m 
+           , CallStackClass m
+           , LocalVariablesClass m
+           )
+        => Expr 
+        -> EvaluatorGeneric Statements EvalStop m Pattern
 execPat = evalExpr >=> toPattern
 
 -- | Execute a replacement on a subject and pattern with an object
-execRepl :: InterpreterShell m => Lookup -> Pattern -> Expr -> Evaluator m ()
+--execRepl :: InterpreterShell m => Lookup -> Pattern -> Expr -> Evaluator m ()
+execRepl :: ( InterpreterShell m 
+            , CallStackClass m
+            , LocalVariablesClass m
+            )
+         => Lookup 
+         -> Pattern 
+         -> Expr 
+         -> EvaluatorGeneric Statements EvalStop m ()
 execRepl lookup pattern expr = do
     repl <- evalExpr expr
     case pattern of
@@ -135,7 +279,13 @@ execRepl lookup pattern expr = do
                     finishEvaluation $ Nothing
 
 -- | Evaluate a goto and jump to the appropriate address
-goto :: InterpreterShell m => Expr -> Evaluator m GotoResult
+--goto :: InterpreterShell m => Expr -> Evaluator m GotoResult
+goto :: ( InterpreterShell m 
+        , LocalVariablesClass m
+        , CallStackClass m
+        )
+     => Expr 
+     -> EvaluatorGeneric Statements EvalStop m GotoResult
 goto (IdExpr "RETURN") = return GotoReturn
 goto (IdExpr "FRETURN") = return GotoFReturn
 goto (IdExpr label) = liftEval $ do
@@ -164,19 +314,36 @@ data GotoResult
 
 -- | Evaluate an expression and to a direct jump to object code specified by
 -- the result
-directGoto :: InterpreterShell m => Expr -> Evaluator m GotoResult
+--directGoto :: InterpreterShell m => Expr -> Evaluator m GotoResult
+directGoto :: ( InterpreterShell m 
+              , CallStackClass m
+              , LocalVariablesClass m
+              )
+           => Expr 
+           -> EvaluatorGeneric Statements EvalStop m GotoResult
 directGoto expr = do
     result <- evalExpr expr
     code <- toCode result
     undefined
 
 -- | Execute either a normal or direct goto
-execGotoPart :: InterpreterShell m => GotoPart -> Evaluator m GotoResult
+--execGotoPart :: InterpreterShell m => GotoPart -> Evaluator m GotoResult
+execGotoPart :: ( InterpreterShell m 
+                , CallStackClass m
+                , LocalVariablesClass m
+                )
+             => GotoPart 
+             -> EvaluatorGeneric Statements EvalStop m GotoResult
 execGotoPart (GotoPart expr) = goto expr
 execGotoPart (DirectGotoPart expr) = directGoto expr
 
 -- | Execute a goto
-execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m GotoResult
+--execGoto :: InterpreterShell m => EvalStop -> Goto -> Evaluator m GotoResult
+execGoto :: ( InterpreterShell m 
+            , CallStackClass m
+            , LocalVariablesClass m
+            )
+         => EvalStop -> Goto -> EvaluatorGeneric Statements EvalStop m GotoResult
 execGoto _ (Goto g) = execGotoPart g
 execGoto (EvalSuccess _) (SuccessGoto g) = execGotoPart g
 execGoto EvalFailed (FailGoto g) = execGotoPart g
@@ -195,7 +362,13 @@ execMaybe f (Just x) = Just <$> f x
 execMaybe _ _ = return Nothing
 
 -- | Execute a statement in the interpreter
-execStmt :: InterpreterShell m => Stmt -> Interpreter m ExecResult
+--execStmt :: InterpreterShell m => Stmt -> Interpreter m ExecResult
+execStmt :: ( InterpreterShell m
+            , LocalVariablesClass m
+            , CallStackClass m
+            )
+         => Stmt
+         -> InterpreterGeneric Statements m ExecResult
 execStmt (EndStmt _) = return EndOfProgram
 execStmt (Stmt _ sub pat obj go) = flip catchEval handler $ do
     subResult <- execMaybe execSub sub
@@ -223,7 +396,13 @@ execStmt (Stmt _ sub pat obj go) = flip catchEval handler $ do
                     mapM_ (uncurry assign) assignments
                     finishEvaluation $ Just match
   where
-    handler :: InterpreterShell m => EvalStop -> Interpreter m ExecResult
+    --handler :: InterpreterShell m => EvalStop -> Interpreter m ExecResult
+    handler :: ( InterpreterShell m 
+               , LocalVariablesClass m
+               , CallStackClass m
+               ) 
+            => EvalStop 
+            -> InterpreterGeneric Statements m ExecResult
     handler r = do
         gotoResult <- catchEval (execMaybe (execGoto r) go) 
                    $ \_ -> programError FailureDuringGotoEvaluation
@@ -261,7 +440,12 @@ foo (Left err) = do
     return $ ErrorTermination err $ unmkInteger pc
 
 -- | Execute the next statement pointed to by the program counter
-stepStmt :: InterpreterShell m => Interpreter m ExecResult
+--stepStmt :: InterpreterShell m => Interpreter m ExecResult
+stepStmt :: ( InterpreterShell m
+            , LocalVariablesClass m
+            , CallStackClass m
+            )
+         => InterpreterGeneric Statements m ExecResult
 stepStmt = fetch >>= execStmt
 
 -- | Execute the next statement in the program
@@ -286,7 +470,7 @@ eval expr = do
 
 instance Snobol4Machine Statements where
     type EvaluationError Statements = EvalStop
-    call n args = liftEval $ call n args
+    call n args = liftEval $ Language.Snobol4.Interpreter.Internal.call n args
     eval = evalExpr
     failEval = failEvaluation
 

@@ -15,9 +15,10 @@ PUNCH. It also uses a StateT transformer to hold the last values of each.
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-
+{-# LANGUAGE TypeFamilies #-}
 module Language.Snobol4.Interpreter.Shell.Console 
-    ( ConsoleShell
+    ( ConsoleShell(..)
+    , mkConsoleShell
     ) where
 
 import System.IO
@@ -26,7 +27,7 @@ import Data.Time
 
 import Control.Monad
 import Control.Monad.Trans
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State.Strict
 
 import Language.Snobol4.Interpreter.Shell
     ( InterpreterShell
@@ -103,6 +104,9 @@ newtype ConsoleShell a
     }
     deriving (Functor, Applicative, Monad, MonadIO)
 
+mkConsoleShell :: IO a -> ConsoleShell a
+mkConsoleShell = liftIO
+
 -- |
 instance InterpreterShell ConsoleShell where
     input = do
@@ -124,7 +128,8 @@ instance InterpreterShell ConsoleShell where
         return $ consoleShellDateDiff t2 t1
 
 -- |
-instance InterpreterShellRun ConsoleShell IO where
+instance InterpreterShellRun ConsoleShell where
+    type BaseMonad ConsoleShell = IO
     start = do
         currentTime <- getCurrentConsoleShellTime
         ConsoleShell $ modify $ \s -> s{ startTime = currentTime }

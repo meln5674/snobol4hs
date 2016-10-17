@@ -21,30 +21,30 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
 -- | Empty collection of arrays
-noArrays :: Arrays
+noArrays :: (Arrays expr)
 noArrays = M.empty
 
 -- | Get the arrays known to the interpreter
-getArrays :: InterpreterShell m => InterpreterGeneric program m Arrays
+getArrays :: InterpreterShell m => InterpreterGeneric program m (Arrays (ExprType m))
 getArrays = getsProgramState arrays
 
 -- | Set the arrays known to the interpreter
-putArrays :: InterpreterShell m => Arrays -> InterpreterGeneric program m ()
+putArrays :: InterpreterShell m => (Arrays (ExprType m)) -> InterpreterGeneric program m ()
 putArrays arrs = modifyProgramState $ \st -> st { arrays = arrs }
 
 -- | Apply a function to the arrays known to the interpreter
 modifyArrays :: InterpreterShell m 
-             => (Arrays -> Arrays)
+             => ((Arrays (ExprType m)) -> (Arrays (ExprType m)))
              -> InterpreterGeneric program m ()
 modifyArrays f = modifyProgramState $
     \st -> st { arrays = f $ arrays st }
 
 -- | Allocate a new array with an upper and lower bound each set to an intital value
-arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> Data -> InterpreterGeneric program m ArrayKey
+arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> (Data (ExprType m)) -> InterpreterGeneric program m ArrayKey
 arraysNew minIx maxIx v = arraysNew' $ newArray minIx maxIx v
 
 -- | Add a new array
-arraysNew' :: InterpreterShell m => Snobol4Array -> InterpreterGeneric program m ArrayKey
+arraysNew' :: InterpreterShell m => (Snobol4Array (ExprType m)) -> InterpreterGeneric program m ArrayKey
 arraysNew' arr = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
     modifyArrays $ M.insert newKey $ newRef $ arr
@@ -53,8 +53,8 @@ arraysNew' arr = do
 -- | Allocate a new array with the provided dimensions and initial value
 arraysNew'' :: InterpreterShell m 
            => [(Snobol4Integer,Snobol4Integer)]
-           -> Data
-           -> InterpreterGeneric program m Data
+           -> (Data (ExprType m))
+           -> InterpreterGeneric program m (Data (ExprType m))
 arraysNew'' [] val = return val
 arraysNew'' ((minIx,maxIx):ds) val = do
     newKey <- (succ . fst . M.findMax) `liftM` getArrays
@@ -76,19 +76,19 @@ arraysCopy k = do
             return $ Just newKey
 
 -- | Lookup an array
-arraysLookup :: InterpreterShell m => ArrayKey -> InterpreterGeneric program m (Maybe Snobol4Array)
+arraysLookup :: InterpreterShell m => ArrayKey -> InterpreterGeneric program m (Maybe (Snobol4Array (ExprType m)))
 arraysLookup k = fmap getRefItem <$> M.lookup k <$> getArrays
 
 -- | Apply a function to an array
-arraysUpdate :: InterpreterShell m => (Snobol4Array -> Snobol4Array) -> ArrayKey -> InterpreterGeneric program m ()
+arraysUpdate :: InterpreterShell m => ((Snobol4Array (ExprType m)) -> (Snobol4Array (ExprType m))) -> ArrayKey -> InterpreterGeneric program m ()
 arraysUpdate f k = modifyArrays $ M.adjust (fmap f) k
 
 -- | Get the value of an array with the given index
-arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> InterpreterGeneric program m (Maybe Data)
+arraysRead :: InterpreterShell m => Snobol4Integer -> ArrayKey -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 arraysRead ix k = arraysLookup k >>= \x -> return $ x >>= readArray ix
 
 -- | Set the value of an array with the given index
-arraysWrite :: InterpreterShell m => Snobol4Integer -> Data -> ArrayKey -> InterpreterGeneric program m ()
+arraysWrite :: InterpreterShell m => Snobol4Integer -> (Data (ExprType m)) -> ArrayKey -> InterpreterGeneric program m ()
 arraysWrite ix v = arraysUpdate $ writeArray ix v
 
 -- | Increment the reference counter for an array

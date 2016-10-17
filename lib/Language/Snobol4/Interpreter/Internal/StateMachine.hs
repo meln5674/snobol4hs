@@ -14,14 +14,16 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , Address (..)
     , ProgramStateGeneric
     , InterpreterGeneric (..)
-    , EvaluatorGeneric (..)
+    --, EvaluatorGeneric (..)
     , ProgramClass (..)
     , EmptyProgramClass (..)
     , PausedInterpreterGeneric (..)
-    , Snobol4Machine (..)
+    --, Snobol4Machine (..)
+    , NewSnobol4Machine (..)
+    , LocalVariablesClass (..)
     , programError
     , execLookup
-    , liftEval
+    --, liftEval
     , EvalStop (..)
     , toString
     , toInteger
@@ -34,15 +36,14 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , ScanResult (..)
     , fetch
     , ExecResult (..)
-    , catchEval
-    , liftEval
-    , unliftEval
+    --, catchEval
+    --, liftEval
+    --, unliftEval
     , getProgramCounter
     , putProgramCounter
     , labelLookup
     , scanForLabels
     , Statements (..)
-    , callFunction
     , Label (..)
     , modifyProgramCounter
     , putProgram
@@ -70,19 +71,19 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
 import Language.Snobol4.Interpreter.Internal.StateMachine.Tables
 import Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
 import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
-import Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
 import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
-import Language.Snobol4.Interpreter.Internal.StateMachine.Run
+--import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 
 -- | A ProgramState no functions or variables, no program
 -- loaded, an empty call stack, and pointing at the first statement
 emptyState :: ( EmptyProgramClass program
-              , Snobol4Machine program
+--              {-, Snobol4Machine program-}
               , InterpreterShell m 
+              , NewSnobol4Machine m
               )
            => ProgramStateGeneric program m
 emptyState = ProgramState
@@ -91,13 +92,14 @@ emptyState = ProgramState
     noLabels
     initialProgramCounter
     noFunctions
-    emptyCallStack
     noArrays
     noTables
     noPatterns
     noCodes
     noDatatypes
     noUserData
+    noBinOpSyns
+    noUnOpSyns
 
 -- | Execute an interpreter action
 interpret :: ( InterpreterShell m 

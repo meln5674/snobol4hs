@@ -22,37 +22,37 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 
 -- | Empty collection of patterns
-noPatterns :: Patterns
+noPatterns :: (Patterns expr)
 noPatterns = M.empty
 
 -- | Get the patterns known to the interpreter
-getPatterns :: InterpreterShell m => InterpreterGeneric program m Patterns
+getPatterns :: InterpreterShell m => InterpreterGeneric program m (Patterns (ExprType m))
 getPatterns = getsProgramState patterns
 
 -- | Set the patterns known to the interpreter
-putPatterns :: InterpreterShell m => Patterns -> InterpreterGeneric program m ()
+putPatterns :: InterpreterShell m => (Patterns (ExprType m)) -> InterpreterGeneric program m ()
 putPatterns pats = modifyProgramState $ \st -> st { patterns = pats }
 
 -- | Apply a function to the patterns known to the interpreter
 modifyPatterns :: InterpreterShell m
-               => (Patterns -> Patterns)
+               => ((Patterns (ExprType m)) -> (Patterns (ExprType m)))
                -> InterpreterGeneric program m ()
 modifyPatterns f = modifyProgramState $
     \st -> st { patterns = f $ patterns st }
 
 -- | Create a new pattern
-patternsNew :: InterpreterShell m => Pattern -> InterpreterGeneric program m PatternKey
+patternsNew :: InterpreterShell m => (Pattern (ExprType m)) -> InterpreterGeneric program m PatternKey
 patternsNew pat = do
     newKey <- (succ . fst . M.findMax) `liftM` getPatterns
     modifyPatterns $ M.insert newKey $ newRef pat
     return newKey
 
 -- | Lookup a pattern
-patternsLookup :: InterpreterShell m => PatternKey -> InterpreterGeneric program m (Maybe Pattern)
+patternsLookup :: InterpreterShell m => PatternKey -> InterpreterGeneric program m (Maybe (Pattern (ExprType m)))
 patternsLookup k = fmap getRefItem <$> M.lookup k <$> getPatterns
 
 -- | Apply a function to a pattern
-patternsUpdate :: InterpreterShell m => (Pattern -> Pattern) -> PatternKey -> InterpreterGeneric program m ()
+patternsUpdate :: InterpreterShell m => ((Pattern (ExprType m)) -> (Pattern (ExprType m))) -> PatternKey -> InterpreterGeneric program m ()
 patternsUpdate f k = modifyPatterns $ M.adjust (fmap f) k
 
 -- | Increment the number of references to a pattern

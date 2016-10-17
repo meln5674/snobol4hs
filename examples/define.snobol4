@@ -1,0 +1,4 @@
+PRINT.INIT  OUTPUT = MSG                        :(RETURN)
+INIT        DEFINE('PRINT(MSG)','PRINT.INIT')
+            PRINT('HELLO, WORLD')
+END INIT

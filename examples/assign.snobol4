@@ -1,0 +1,7 @@
+    A = "AAAB"
+    P = "AAA"
+    A P             :S(YES)F(NO)
+YES OUTPUT = "YES"  :(DONE)
+NO  OUTPUT = "NO"   :(DONE)
+DONE
+END

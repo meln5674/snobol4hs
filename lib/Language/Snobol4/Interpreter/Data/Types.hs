@@ -23,7 +23,7 @@ import Data.String
 import Language.Snobol4.Syntax.AST
 
 -- | A SNOBOL4 Array
-newtype Snobol4Array = Snobol4Array { getArray :: Array Snobol4Integer Data }
+newtype Snobol4Array expr = Snobol4Array { getArray :: Array Snobol4Integer (Data expr) }
     deriving (Show)
 
 -- | A SNOBOL4 String
@@ -39,28 +39,28 @@ newtype Snobol4Real = Snobol4Real { getReal :: Float }
     deriving (Read, Eq, Ord, Num, Enum, RealFrac, Real, Fractional, Floating, RealFloat)
 
 -- | A SNOBOL4 Pattern
-data Pattern
+data Pattern expr
     -- | A pattern which records the matched value in the provided lookup on 
     -- success
-    = AssignmentPattern Pattern Lookup
+    = AssignmentPattern (Pattern expr) (Lookup expr)
     -- | A pattern which records the matched value in the provided lookup 
     -- immediately after matching
-    | ImmediateAssignmentPattern Pattern Lookup
+    | ImmediateAssignmentPattern (Pattern expr) (Lookup expr)
     -- | A pattern to match a literal string
     | LiteralPattern Snobol4String
     -- | An alternative between two ore more patterns
-    | AlternativePattern Pattern Pattern
+    | AlternativePattern (Pattern expr) (Pattern expr)
     -- | A concatination of two or more patterns
-    | ConcatPattern Pattern Pattern
+    | ConcatPattern (Pattern expr) (Pattern expr)
     -- | A pattern which matches any string of N characters
     | LengthPattern Snobol4Integer
     -- | A pattern which matches anything
     | EverythingPattern
     -- | A pattern which contains an unevaluated expression
-    | UnevaluatedExprPattern Expr
+    | UnevaluatedExprPattern expr
     -- | A pattern which assigns the cursor position to a variable and matches
     -- the null string
-    | HeadPattern Lookup
+    | HeadPattern (Lookup expr)
     -- | A pattern which matches the longest string containing only certain
     -- characters
     | SpanPattern Snobol4String
@@ -92,7 +92,7 @@ data Pattern
     -- | A pattern which matches any string
     | ArbPattern
     -- | A pattern which matches any number of repetitions of another pattern
-    | ArbNoPattern Pattern
+    | ArbNoPattern (Pattern expr)
     -- | A pattern wihch maches any nonnull string with balanced parenthesis
     | BalPattern
     -- | A pattern which matches the null string and prevents backtracking
@@ -100,7 +100,7 @@ data Pattern
   deriving (Show, Eq, Ord)
 
 -- | A SNOBOL4 Table
-newtype Snobol4Table = Snobol4Table { getTable :: Map Data Data } deriving (Show)
+newtype Snobol4Table expr = Snobol4Table { getTable :: Map (Data expr) (Data expr) } deriving (Show)
 
 -- | A SNOBOL4 Object Code Value
 newtype Snobol4Code = Snobol4Code { getCode :: Program } deriving (Show)
@@ -114,10 +114,10 @@ data Snobol4Datatype
   deriving (Show)
 
 -- | An instance of a user-defined type
-data Snobol4UserData
+data Snobol4UserData expr
     = Snobol4UserData
     { datatypeNameUser :: Snobol4String
-    , userDataFields :: [Data]
+    , userDataFields :: [Data expr]
     }
   deriving (Show)
 
@@ -141,11 +141,11 @@ newtype ArrayKey = ArrayKey Int deriving (Eq,Ord,Enum,Show)
 
 
 -- | A lookup request
-data Lookup 
+data Lookup expr
     -- | Lookup a variable by name
     = LookupId Snobol4String
     -- | Lookup an element in an array by index or a table by key
-    | LookupAggregate Snobol4String [Data]
+    | LookupAggregate Snobol4String [Data expr]
     -- | The output varaible
     | Output
     -- | The input variable
@@ -153,17 +153,19 @@ data Lookup
     -- | The output variable
     | Punch
     -- | A lookup which returns a value
-    | LookupLiteral Data
+    | LookupLiteral (Data expr)
+    -- | A lookup which returns the vale of the specified keyword
+    | LookupKeyword Snobol4String
   deriving (Show, Eq, Ord)
 
 -- | A SNOBOL4 Value
-data Data
+data Data expr
     -- | A string
     = StringData Snobol4String
     -- | A pattern reference
     | PatternData PatternKey
     -- | A pattern
-    | TempPatternData Pattern
+    | TempPatternData (Pattern expr)
     -- | An integer
     | IntegerData Snobol4Integer
     -- | A real number
@@ -173,7 +175,9 @@ data Data
     -- | A table
     | TableData TableKey
     -- | Passing an expression by name
-    | Name Lookup
+    | Name (Lookup expr)
+    -- | A refernence to a variable
+    | Reference (Lookup expr)
     -- | Object code created using the CODE primitive
     | CodeData CodeKey
     -- | Data of a user-defined type
@@ -194,7 +198,7 @@ instance Show Snobol4Real where
     show = show . getReal
 
 -- | 
-instance Show Data where
+instance Show (Data expr) where
     show (StringData s) = show s
     show (PatternData _) = "[PATTERN]"
     show (IntegerData i) = show i

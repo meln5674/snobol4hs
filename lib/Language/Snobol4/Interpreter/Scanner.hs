@@ -11,6 +11,7 @@ Interface to the SNOBOL4 pattern scanner
 -}
 
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Language.Snobol4.Interpreter.Scanner ( scanPattern ) where
 
 import Control.Monad.Trans.State
@@ -23,11 +24,13 @@ import Language.Snobol4.Interpreter.Scanner.Internal
 
 -- | Match a string against a pattern
 scanPattern :: ( InterpreterShell m
-               , Snobol4Machine program
+               {-, Snobol4Machine program-}
+               , LocalVariablesClass m
+               , Ord (ExprType m)
                )
             => Snobol4String
-            -> Pattern
-            -> EvaluatorGeneric program (EvaluationError program) m ScanResult
+            -> Pattern (ExprType m)
+            -> InterpreterGeneric (ProgramType m) m (ScanResult (ExprType m))
 scanPattern toScan pat = do
     result <- runExceptT 
             $ flip runStateT (startState toScan)

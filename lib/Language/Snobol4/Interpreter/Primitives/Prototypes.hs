@@ -31,8 +31,10 @@ data FunctionPrototype
         Snobol4String
         [Snobol4String]
         [Snobol4String]
+  deriving Show
 
 data DataPrototype
     = DataPrototype
         Snobol4String
         [Snobol4String]
+  deriving Show

@@ -16,10 +16,11 @@ author: Andrew Melnick
 library
     exposed-modules:
         Language.Snobol4
-        Language.Snobol4.Interpreter
+        --Language.Snobol4.Interpreter
         Language.Snobol4.Interpreter.Types
         Language.Snobol4.Interpreter.Data
         Language.Snobol4.Interpreter.Error
+        Language.Snobol4.Interpreter.External
         Language.Snobol4.Interpreter.Shell
         Language.Snobol4.Interpreter.Shell.Console
         Language.Snobol4.Lexer
@@ -41,6 +42,8 @@ library
         --Language.Snobol4.VM.Data
         --Language.Snobol4.VM.Stack
         --Language.Snobol4.VM.Stack.State
+        Language.Snobol4.VM.Bytecode.Interpreter.StackMachine
+        Language.Snobol4.VM.Bytecode.Interpreter.StackMachine.Internal
     build-depends:
         base -any,
         parsec -any,
@@ -55,7 +58,9 @@ library
     default-language: Haskell2010
     hs-source-dirs: lib
     other-modules:
-        Language.Snobol4.Interpreter.Internal
+        Data.Stack
+        --Language.Snobol4.Interpreter.Internal
+        --Language.Snobol4.Interpreter.Internal.CallStack
         Language.Snobol4.Interpreter.Data.Array
         Language.Snobol4.Interpreter.Data.Integer
         Language.Snobol4.Interpreter.Data.ObjectCode
@@ -73,48 +78,47 @@ library
         Language.Snobol4.Interpreter.Internal.Types
         Language.Snobol4.Interpreter.Internal.StateMachine
         Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
-        Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
         Language.Snobol4.Interpreter.Internal.StateMachine.Convert
         Language.Snobol4.Interpreter.Internal.StateMachine.Error
         Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
         Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+        Language.Snobol4.Interpreter.Internal.StateMachine.FuncOps
         Language.Snobol4.Interpreter.Internal.StateMachine.GC
         Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types
         Language.Snobol4.Interpreter.Internal.StateMachine.Labels
         Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
         Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
         Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
-        Language.Snobol4.Interpreter.Internal.StateMachine.Run
+        --Language.Snobol4.Interpreter.Internal.StateMachine.Run
         Language.Snobol4.Interpreter.Internal.StateMachine.Statements
         Language.Snobol4.Interpreter.Internal.StateMachine.Tables
         Language.Snobol4.Interpreter.Internal.StateMachine.Types
         Language.Snobol4.Interpreter.Internal.StateMachine.UserData
         Language.Snobol4.Interpreter.Internal.StateMachine.Variables
-        Language.Snobol4.VM.Bytecode.Interpreter.StackMachine
         Language.Snobol4.Parser.Types
         Language.Snobol4.Parser.Internal
 
-executable runsnobol4
-    main-is: Main.hs
-    build-depends:
-        base >=4.7 && <5,
-        snobol4c -any
-    default-language: Haskell2010
-    hs-source-dirs: src/runsnobol4
+--executable runsnobol4
+--    main-is: Main.hs
+--    build-depends:
+--        base >=4.7 && <5,
+--        snobol4c -any
+--    default-language: Haskell2010
+--    hs-source-dirs: src/runsnobol4
 
-executable snobol4ci
-    main-is: Main.hs
-    build-depends:
-        base >=4.7 && <5,
-        snobol4c -any,
-        haskeline -any,
-        transformers -any,
-        mtl -any,
-        time -any
-    default-language: Haskell2010
-    hs-source-dirs: src/snobol4ci
-    other-modules:
-        Shell
+--executable snobol4ci
+--    main-is: Main.hs
+--    build-depends:
+--        base >=4.7 && <5,
+--        snobol4c -any,
+--        haskeline -any,
+--        transformers -any,
+--        mtl -any,
+--        time -any
+--    default-language: Haskell2010
+--    hs-source-dirs: src/snobol4ci
+--    other-modules:
+--        Shell
 
 executable snobol4c
     main-is: Main.hs
@@ -141,7 +145,35 @@ executable snobol4
         cereal
     default-language: Haskell2010
     hs-source-dirs: src/snobol4
-    
+
+executable snobol4cat
+    main-is: Main.hs
+    build-depends:
+        base,
+        snobol4c, 
+        mtl,
+        transformers, 
+        vector,
+        bytestring,
+        cereal
+    default-language: Haskell2010
+    hs-source-dirs: src/snobol4cat
+
+executable snobol4db
+    main-is: Main.hs
+    build-depends:
+        base,
+        snobol4c, 
+        mtl,
+        transformers, 
+        vector,
+        bytestring,
+        cereal,
+        haskeline
+    default-language: Haskell2010
+    hs-source-dirs: src/snobol4db
+
+
 test-suite lexer
     type: exitcode-stdio-1.0
     main-is: Main.hs
@@ -173,43 +205,66 @@ test-suite parser
         Language.Snobol4.Lexer.Tokens
         Language.Snobol4.Parser
         Language.Snobol4.Syntax.AST
-test-suite expression
-    type: exitcode-stdio-1.0
-    main-is: Main.hs
-    build-depends:
-        base -any,
-        HUnit -any,
-        vector -any,
-        containers -any,
-        mtl -any,
-        transformers -any
-    default-language: Haskell2010
-    hs-source-dirs: lib test/expression test/common
-    other-modules:
-        Language.Snobol4.Syntax.AST
-        Language.Snobol4.Interpreter.Internal
-        Language.Snobol4.Interpreter.Shell
-test-suite scanner
-    type: exitcode-stdio-1.0
-    main-is: Main.hs
-    build-depends:
-        base -any,
-        HUnit -any,
-        vector -any,
-        containers -any,
-        mtl -any,
-        transformers -any,
-        parsec -any
-    default-language: Haskell2010
-    hs-source-dirs: lib test/scanner test/common
-    other-modules:
-        Language.Snobol4.Syntax.AST
-        Language.Snobol4.Interpreter.Evaluator
-        Language.Snobol4.Interpreter.Internal
-        Language.Snobol4.Interpreter.Shell
-        Language.Snobol4.Interpreter.Scanner
-        Language.Snobol4.Interpreter.Scanner.Internal
-test-suite primitive
+--test-suite expression
+--    type: exitcode-stdio-1.0
+--    main-is: Main.hs
+--    build-depends:
+--        base -any,
+--        HUnit -any,
+--        vector -any,
+--        containers -any,
+--        mtl -any,
+--        transformers -any
+--    default-language: Haskell2010
+--    hs-source-dirs: lib test/expression test/common
+--    other-modules:
+--        Language.Snobol4.Syntax.AST
+--        Language.Snobol4.Interpreter.Internal
+--        Language.Snobol4.Interpreter.Shell
+--test-suite scanner
+--    type: exitcode-stdio-1.0
+--    main-is: Main.hs
+--    build-depends:
+--        base -any,
+--        HUnit -any,
+--        vector -any,
+--        containers -any,
+--        mtl -any,
+--        transformers -any,
+--        parsec -any
+--    default-language: Haskell2010
+--    hs-source-dirs: lib test/scanner test/common
+--    other-modules:
+--        Language.Snobol4.Syntax.AST
+--        Language.Snobol4.Interpreter.Evaluator
+--        Language.Snobol4.Interpreter.Internal
+--        Language.Snobol4.Interpreter.Shell
+--        Language.Snobol4.Interpreter.Scanner
+--        Language.Snobol4.Interpreter.Scanner.Internal
+--test-suite primitive
+--    type: exitcode-stdio-1.0
+--    main-is: Main.hs
+--    build-depends:
+--        base -any,
+--        HUnit -any,
+--        vector -any,
+--        containers -any,
+--        mtl -any,
+--        transformers -any,
+--        parsec -any,
+--        array -any,
+--        time -any
+--    default-language: Haskell2010
+--    hs-source-dirs: lib test/primitive test/common
+--    other-modules:
+--        Language.Snobol4.Syntax.AST
+--        Language.Snobol4.Interpreter.Evaluator
+--        Language.Snobol4.Interpreter.Internal
+--        Language.Snobol4.Interpreter.Shell
+--        Language.Snobol4.Interpreter.Scanner
+--        Language.Snobol4.Interpreter.Scanner.Internal
+--        Language.Snobol4.Interpreter.Primitives
+test-suite stack
     type: exitcode-stdio-1.0
     main-is: Main.hs
     build-depends:
@@ -221,14 +276,9 @@ test-suite primitive
         transformers -any,
         parsec -any,
         array -any,
-        time -any
+        time -any,
+        cereal -any
     default-language: Haskell2010
-    hs-source-dirs: lib test/primitive test/common
+    hs-source-dirs: lib test/stack
     other-modules:
-        Language.Snobol4.Syntax.AST
-        Language.Snobol4.Interpreter.Evaluator
-        Language.Snobol4.Interpreter.Internal
-        Language.Snobol4.Interpreter.Shell
-        Language.Snobol4.Interpreter.Scanner
-        Language.Snobol4.Interpreter.Scanner.Internal
-        Language.Snobol4.Interpreter.Primitives
+        Language.Snobol4.VM.Bytecode.Interpreter.StackMachine.Internal

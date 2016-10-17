@@ -12,6 +12,7 @@ import Language.Snobol4.Interpreter.Data.Real
 
 data CompilerError
     = LiteralAsLValue
+    | BadEndLabel
   deriving Show
 
 class Monad m => Compiler m where
@@ -23,6 +24,7 @@ class Monad m => Compiler m where
     getFuncSymbol :: Snobol4String -> m Symbol
     compileError :: CompilerError -> m ()
     getPanicLabel :: m SystemLabel
+    setEntryPoint :: Snobol4String -> m ()
 
 data LValue
     = StaticLValue Symbol
@@ -38,7 +40,8 @@ compile prog = do
     addInstruction Finish
 
 compileStatement :: Compiler m => Stmt -> m ()
-compileStatement (EndStmt _) = return ()
+compileStatement (EndStmt Nothing) = return ()
+compileStatement (EndStmt (Just lbl)) = setEntryPoint $ mkString lbl
 compileStatement stmt = do
     lbl <- allocSystemLabel
     compileStatementLabel stmt
@@ -82,6 +85,7 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) Nothing _) = do
         PunchLValue -> addInstruction $ LastPunch
     compilePattern pat
     addInstruction $ InvokeScanner
+    addInstruction $ Pop
     addInstruction $ Pop
     addInstruction $ Pop
 compileStatementBody (Stmt _ (Just sub) Nothing (Just obj) _) = do

@@ -29,7 +29,7 @@ arr `arrayGet` ix
     (minB,maxB) = A.bounds arr 
 
 -- | Create a new array with upper and lower bounds with an initial value for each index
-newArray :: Snobol4Integer -> Snobol4Integer -> Data -> Snobol4Array
+newArray :: Snobol4Integer -> Snobol4Integer -> (Data expr) -> (Snobol4Array expr)
 newArray minIx maxIx v
     = Snobol4Array 
     $ A.array (minIx,maxIx) 
@@ -37,14 +37,14 @@ newArray minIx maxIx v
 
 -- | Create a new array from a list of pairs of indices and values, the indices
 -- are assumed to be contiguous
-newArray' :: [(Snobol4Integer,Data)] -> Snobol4Array
+newArray' :: [(Snobol4Integer,(Data expr))] -> (Snobol4Array expr)
 newArray' xs = Snobol4Array $ A.array (minIx,maxIx) xs
   where
     minIx = fst $ head xs
     maxIx = fst $ last xs
 
 -- | Get the value of an array at an index
-readArray :: Snobol4Integer -> Snobol4Array -> Maybe Data
+readArray :: Snobol4Integer -> (Snobol4Array expr) -> Maybe (Data expr)
 readArray ix (Snobol4Array arr)
     | minIx <= ix && ix <= maxIx = Just $ arr A.! ix
     | otherwise = Nothing
@@ -52,10 +52,10 @@ readArray ix (Snobol4Array arr)
     (minIx,maxIx) = A.bounds arr
 
 -- | Se the value of an array at an index
-writeArray :: Snobol4Integer -> Data -> Snobol4Array -> Snobol4Array
+writeArray :: Snobol4Integer -> (Data expr) -> (Snobol4Array expr) -> (Snobol4Array expr)
 writeArray ix v (Snobol4Array arr) = Snobol4Array $ arr A.// [(ix,v)]
 
 -- | Get the formal identification of an array
 -- TODO
-arrayFormalIdent :: Snobol4Array -> Snobol4String
+arrayFormalIdent :: (Snobol4Array expr) -> Snobol4String
 arrayFormalIdent arr = undefined

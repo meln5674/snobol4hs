@@ -51,21 +51,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types
 newtype Address = Address { getAddress :: Snobol4Integer }
   deriving (Show, Eq, Ord, Bounded, Enum, Num)
 
--- | A node of the call stack
-data CallStackFrame
-    = Frame
-    { 
-    -- | Static local variables at the current frame
-      locals :: StaticVars
-    -- | References held by the return value, arguments, and local variable names
-    -- before calling
-    , oldReferences :: [(Snobol4String,Maybe VarType)]
-    -- | The index of the statement that called this function
-    , returnAddr :: Address
-    -- | The name of the function called
-    , callName :: Snobol4String
-    }
-  deriving Show
+
 
 {-
 -- | Information for calling a function
@@ -108,13 +94,14 @@ data UserFunction
 -- | Information for calling a function
 data Function program (m :: * -> *) where
     UserFunction :: ( InterpreterShell m
-                    , Snobol4Machine program
-                    , ProgramClass program
+                    {-, Snobol4Machine program-}
+                    --, ProgramClass program
                    )
          => UserFunction
          -> Function program m
     PrimitiveFunction :: ( InterpreterShell m
-             , Snobol4Machine program
+             {-, Snobol4Machine program-}
+             , NewSnobol4Machine m
              , ProgramClass program
              )
           => 
@@ -122,11 +109,20 @@ data Function program (m :: * -> *) where
         -- | Name of the function
            primName :: Snobol4String
         -- | The primitive function to call
-        ,  funcPrim :: [Data] 
-                    -> EvaluatorGeneric program 
-                                        (EvaluationError program) 
-                                        m (Maybe Data)
+        ,  funcPrim :: [Data (ExprType m)]
+                    -> InterpreterGeneric program
+                                        m (Maybe (Data (ExprType m)))
         } -> Function program m
+    FunctionUnOperatorSynonym :: Snobol4String -> Operator -> Function program m
+    FunctionBinOperatorSynonym :: Snobol4String -> Operator -> Function program m
+    FunctionFunctionSynonym :: Snobol4String -> Function program m -> Function program m
+
+getFuncName :: Function program m -> Snobol4String
+getFuncName (UserFunction func) = funcName func
+getFuncName (PrimitiveFunction name _) = name
+getFuncName (FunctionUnOperatorSynonym name _) = name
+getFuncName (FunctionBinOperatorSynonym name _) = name
+getFuncName (FunctionFunctionSynonym name _) = name
 
 -- | 
 instance Show (Function program m) where
@@ -148,18 +144,41 @@ data Label
     | CodeLabel CodeKey Address
   deriving Show
 
-type StaticVars = Vector Data
+type StaticVars expr = Vector (Data expr)
 type DynamicVars = Map Snobol4String VarType
 
 -- | Flag for variables as local or global
-data VarType = LocalVar Int | GlobalVar Int deriving Show
+data VarType 
+    = LocalVar Int
+    | GlobalVar Int
+  deriving Show
 
 -- | Collection of variables
-data Variables = Variables
-    { staticVars :: StaticVars
+data Variables expr = Variables
+    { staticVars :: StaticVars expr
     , dynamicVars :: DynamicVars
     }
   deriving Show
+
+data OpSyn program m where
+    NoOperator :: OpSyn program m
+    PrimitiveOperator :: ( NewSnobol4Machine m
+                         )
+                      => ( [Data (ExprType m)]
+                         -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+                         ) 
+                      -> OpSyn program m
+    OperatorOperatorSynonym :: Operator -> OpSyn program m
+    OperatorFunctionSynonym :: NewSnobol4Machine m => FuncType m -> OpSyn program m
+
+
+instance (Show (FuncType m)) => Show (OpSyn program m) where
+    show NoOperator = "NoOperator"
+    show (PrimitiveOperator _) = "PrimitiveOperator"
+    show (OperatorOperatorSynonym op) = "OperatorOperatorSynonym " ++ show op
+    show (OperatorFunctionSynonym func) = "OperatorFunctionSynonym " ++ show func
+
+type OpSyns program m = Map Operator (OpSyn program m)
 
 -- | A loaded program
 newtype Statements = Statements { getStatements :: Vector Stmt }
@@ -172,13 +191,13 @@ type Labels = Map Snobol4String Label
 type Functions program m = Map Snobol4String (Function program m)
 
 -- | Collection of arrays
-type Arrays = Map ArrayKey (RefCounted Snobol4Array)
+type Arrays expr = Map ArrayKey (RefCounted (Snobol4Array expr))
 
 -- | Collection of tables
-type Tables = Map TableKey (RefCounted Snobol4Table)
+type Tables expr = Map TableKey (RefCounted (Snobol4Table expr))
 
 -- | Collection of patterns
-type Patterns = Map PatternKey (RefCounted Pattern)
+type Patterns expr = Map PatternKey (RefCounted (Pattern expr))
 
 -- | Collection of object code
 type Codes = Map CodeKey (RefCounted Snobol4Code)
@@ -187,7 +206,7 @@ type Codes = Map CodeKey (RefCounted Snobol4Code)
 type Datatypes = Map Snobol4String Snobol4Datatype
 
 -- | Collection of values of user-defined datatypes
-type UserDatas = Map UserKey Snobol4UserData
+type UserDatas expr = Map UserKey (Snobol4UserData expr)
 
 
 class EmptyProgramClass program where
@@ -232,36 +251,45 @@ data ProgramStateGeneric program instruction m
 
 -- | State of the interpreter
 data ProgramStateGeneric program m where
-    ProgramState :: ( InterpreterShell m, Snobol4Machine program )
+    ProgramState :: ( InterpreterShell m
+--                    {-, Snobol4Machine program-}
+                    , NewSnobol4Machine m
+                    )
                  => 
         { 
         -- | A map of names to variables bound
-          variables :: Variables
+          variables :: Variables (ExprType m)
         -- | The statements in the current program
         , program :: program
-        -- | A map of label names to the index =of their statement
+        -- | A map of label names to the index of their statement
         , labels :: Labels
         -- | The index of the current statement
         , programCounter :: Address
         -- | The functions known to the interpreter
         , functions :: Functions program m
-        -- | The call stack
-        , callStack :: [CallStackFrame]
         -- | The arrays known to the interpreter
-        , arrays :: Arrays
+        , arrays :: Arrays (ExprType m)
         -- | The tables known to the interpreter
-        , tables :: Tables
+        , tables :: Tables (ExprType m)
         -- | The patterns known to the interpreter
-        , patterns :: Patterns
+        , patterns :: Patterns (ExprType m)
         -- | Object code values known to the interpreter
         , codes :: Codes
         -- | User-defined datatype known to the interpreter
         , datatypes :: Datatypes
         -- | User define datatype values known to the interpreter
-        , userDatas :: UserDatas
+        , userDatas :: UserDatas (ExprType m)
+        -- | Map of binary operators to their functions
+        , binOpSyns :: OpSyns program m
+        -- | Map of unary operators to their functions
+        , unOpSyns :: OpSyns program m 
         } -> ProgramStateGeneric program m
 
-deriving instance (Show program, Show (Function program m)) => Show (ProgramStateGeneric program m)
+deriving instance ( Show program
+                  , Show (Function program m)
+                  , Show (ExprType m)
+                  , Show (FuncType m)
+                  ) => Show (ProgramStateGeneric program m)
 
 -- | Transformer stack which represents the actions of the interpreter
 newtype InterpreterGeneric program m a
@@ -276,6 +304,7 @@ newtype InterpreterGeneric program m a
 instance MonadTrans (InterpreterGeneric a) where
     lift = Interpreter . lift . lift
 
+{-
 -- | Transformer stack for when the interpreter is evaluating a statement
 newtype EvaluatorGeneric program error (m :: * -> *) a
     = Evaluator
@@ -289,22 +318,47 @@ newtype EvaluatorGeneric program error (m :: * -> *) a
     
     }
   deriving (Functor, Applicative, Monad, MonadIO)
+-}
 
+{-
 class (ProgramClass program) => Snobol4Machine (program :: *) where
     type EvaluationError program
-    call :: InterpreterShell m 
+    --type CallStackFrame program
+    call :: ( InterpreterShell m 
+            , LocalVariablesClass m
+            )
          => Snobol4String 
          -> [Data] 
          -> EvaluatorGeneric program (EvaluationError program) m (Maybe Data)
-    eval :: InterpreterShell m 
+    eval :: ( InterpreterShell m 
+            , LocalVariablesClass m
+            )
          => Expr 
          -> EvaluatorGeneric program (EvaluationError program) m Data
-    failEval :: InterpreterShell m
+    failEval :: ( InterpreterShell m
+                , LocalVariablesClass m
+                )
              => EvaluatorGeneric program (EvaluationError program) m a
+-}
 
+class (Monad m) => NewSnobol4Machine m where
+    type ProgramType m
+    type ExprType m
+    type FuncType m
+    type ArgType m
+    eval :: ExprType m
+         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+    registerExpr :: Expr -> InterpreterGeneric (ProgramType m) m (ExprType m)
+
+class (NewSnobol4Machine m) => LocalVariablesClass m where
+    lookupLocal :: Int -> m (Maybe (Data (ExprType m)))
+    writeLocal :: Int -> Data (ExprType m) -> m (Maybe ())
+
+{-
 -- |
 instance MonadTrans (EvaluatorGeneric a b) where
     lift = Evaluator . lift . lift . lift
+-}
 
 -- | A paused interpreter
 data PausedInterpreterGeneric program m
@@ -313,23 +367,27 @@ data PausedInterpreterGeneric program m
       Paused (ProgramStateGeneric program m)
     -- | An interpreter that has been terminated
     | Terminated ProgramResult
-  deriving Show
+
+deriving instance ( Show program
+                  , Show (ExprType m)
+                  , Show (FuncType m)
+                  ) => Show (PausedInterpreterGeneric program m)
 
 -- | A result from running the pattern scanner
-data ScanResult
+data ScanResult expr
     = 
     -- | No match
       NoScan
     -- | A match with the matched part, assignments to perform, and the start
     -- and end index of the entire match
-    | Scan Data [(Lookup,Data)] Snobol4Integer Snobol4Integer
+    | Scan (Data expr) [(Lookup expr, Data expr)] Snobol4Integer Snobol4Integer
   deriving Show
 
 -- | The result of executing a statement
-data ExecResult
+data ExecResult expr
     = 
     -- | The statement executed and returned a result or nothing
-      StmtResult (Maybe Data)
+      StmtResult (Maybe (Data expr))
     -- | The statement resulted in returning from the current function call
     | Return
     -- | The statement resulted in returning from the current function call

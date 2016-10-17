@@ -120,6 +120,9 @@ modifyCompilerErrors :: (Vector (Address, CompilerError) -> Vector (Address, Com
                      -> SimpleCompiler ()
 modifyCompilerErrors f = modifyCompilerState $ \st -> st{ compilerErrors = f $ compilerErrors st }
 
+modifyEntryPoint :: (Address -> Address) -> SimpleCompiler ()
+modifyEntryPoint f = modifySymbolTable $ \st -> st{ programEntryPoint = f $ programEntryPoint st }
+
 instance Compiler SimpleCompiler where
     addUserLabel lbl = do
         addr <- getCurrentAddress
@@ -154,3 +157,8 @@ instance Compiler SimpleCompiler where
         addr <- getCurrentAddress
         modifyCompilerErrors $ flip V.snoc (addr, err)
     getPanicLabel = return $ -1
+    setEntryPoint lbl = do
+        lookupResult <- SimpleCompiler $ gets $ M.lookup lbl . userLabels . symbolTable
+        case lookupResult of
+            Just addr -> modifyEntryPoint $ const addr
+            Nothing -> compileError BadEndLabel

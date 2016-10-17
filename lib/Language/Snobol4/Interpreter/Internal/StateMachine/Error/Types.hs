@@ -13,9 +13,9 @@ module Language.Snobol4.Interpreter.Internal.StateMachine.Error.Types where
 import Language.Snobol4.Interpreter.Data
 
 -- | The reason evaluation stopped
-data EvalStop
+data EvalStop expr
     -- | The evaluation succeeded and there is nothing else to evaluate
-    = EvalSuccess (Maybe Data)
+    = EvalSuccess (Maybe (Data expr))
     -- | The evaluation failed
     | EvalFailed
   deriving (Show, Eq)

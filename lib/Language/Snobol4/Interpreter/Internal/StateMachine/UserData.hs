@@ -22,7 +22,7 @@ noDatatypes :: Datatypes
 noDatatypes = M.empty
 
 -- | Empty collection of vaules of user-defined datatypes
-noUserData :: UserDatas
+noUserData :: (UserDatas expr)
 noUserData = M.empty
 
 -- | Get the user-defined datatypes known to the interpreter
@@ -30,7 +30,7 @@ getDatatypes :: InterpreterShell m => InterpreterGeneric program m Datatypes
 getDatatypes = getsProgramState datatypes
 
 -- | Get the values of user-defined datatypes known to the interpreter
-getUserDatas :: InterpreterShell m => InterpreterGeneric program m UserDatas
+getUserDatas :: InterpreterShell m => InterpreterGeneric program m (UserDatas (ExprType m))
 getUserDatas = getsProgramState userDatas
 
 -- | Apply a function to the the user-defined datatypes known to the interpreter
@@ -43,7 +43,7 @@ datatypesLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric pro
 datatypesLookup k = M.lookup k <$> getDatatypes
 
 -- | Lookup a value of a user-defined datatype
-userDataLookup :: InterpreterShell m => UserKey -> InterpreterGeneric program m (Maybe Snobol4UserData)
+userDataLookup :: InterpreterShell m => UserKey -> InterpreterGeneric program m (Maybe (Snobol4UserData (ExprType m)))
 userDataLookup k = M.lookup k <$> getUserDatas
 
 -- | Create a new user-defined datatype

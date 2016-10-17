@@ -86,16 +86,16 @@ datatypeNameCode :: Snobol4String
 datatypeNameCode = "CODE"
 
 -- | Check if data is a string
-isString :: Data -> Bool
+isString :: (Data expr) -> Bool
 isString (StringData _) = True
 isString _ = False
 
 -- | Check if data is an integer
-isInteger :: Data -> Bool
+isInteger :: (Data expr) -> Bool
 isInteger (IntegerData _) = True
 isInteger _ = False
 
 -- | Check if data is a real
-isReal :: Data -> Bool
+isReal :: (Data expr) -> Bool
 isReal (RealData _) = True
 isReal _ = False
