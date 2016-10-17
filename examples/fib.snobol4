@@ -1,3 +1,8 @@
+* Test program: fib.snobol4
+
+* Calculates fibonacci sequence using two different implementations
+
+* Recursive definition of fibonacci
 FIB.START   LT(N,0)                 :S(FRETURN)
             EQ(N,0)                 :S(FIB.0)
             EQ(N,1)                 :S(FIB.1)
@@ -7,29 +12,40 @@ FIB.START   LT(N,0)                 :S(FRETURN)
 FIB.0       FIB = 0                 :(RETURN)
 FIB.1       FIB = 1                 :(RETURN)
 
-
+* Iterative definition of fibonacci
 FIB2.START  LT(N,0)                 :S(FRETURN)
             EQ(N,0)                 :S(FIB2.0)
             EQ(N,1)                 :S(FIB2.1)
             A = 0
             B = 1
             C = 0
-            M = 1
-FIB2.LOOP   M = M + 1
+            N = N - 1
+FIB2.LOOP   N = N - 1
             C = B
             B = B + A
             A = C
-            EQ(M,N)                 :S(FIB2.N)F(FIB2.LOOP)
+            EQ(N,0)                 :S(FIB2.N)F(FIB2.LOOP)
 FIB2.0      FIB2 = 0                :(RETURN)
 FIB2.1      FIB2 = 1                :(RETURN)
 FIB2.N      FIB2 = B                :(RETURN)
 
+* Entry point
 INIT        DEFINE('FIB(N)A,B','FIB.START')
             DEFINE('FIB2(N)A,B,C','FIB2.START')
+
+
+* Calculate first 10 fibonacci numbers using recursive definition
+            OUTPUT = 'RECURSIVE'
+
             I = 0
 LOOP        OUTPUT = FIB(I)
             I = I + 1
             LT(I,10)                :S(LOOP)
+
+            OUTPUT = 
+
+* Calculate first 50 fibonacci numbers using iterative definition
+            OUTPUT = 'ITERATIVE'
 
             I = 0
 LOOP2       OUTPUT = FIB2(I)
