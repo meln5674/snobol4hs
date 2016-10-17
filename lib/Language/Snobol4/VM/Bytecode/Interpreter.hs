@@ -306,11 +306,10 @@ exec (AssignRefStatic (Symbol sym) argCount) = do
 exec AssignDynamic = do
     item <- pop >>= \case
         Name lookup -> return lookup
+        Reference lookup -> return lookup
         _ -> programError IllegalDataType
-    sym <- toString item
-    value <- pop >>= \case
-        Name (KeywordName 
-    assign (LookupId $ unmkString sym) value
+    value <- pop
+    assign item value
     incProgramCounter
     return False
 

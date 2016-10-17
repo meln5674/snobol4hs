@@ -74,8 +74,16 @@ primitiveBinOps :: ( NewSnobol4Machine m
                    )
                 => [(Operator, OpSyn (ProgramType m) m)]
 primitiveBinOps =
-    [ (Plus, PrimitiveOperator binOp_plus)
+    [ (Pipe, PrimitiveOperator binOp_pipe)
+    , (Blank, PrimitiveOperator binOp_blank)
     , (Minus, PrimitiveOperator binOp_minus)
+    , (Plus, PrimitiveOperator binOp_plus)
+    , (Slash, PrimitiveOperator binOp_slash)
+    , (Star, PrimitiveOperator binOp_star)
+    , (Bang, PrimitiveOperator binOp_bang)
+    , (DoubleStar, PrimitiveOperator binOp_doubleStar)
+    , (Dot, PrimitiveOperator binOp_dot)
+    , (Dollar, PrimitiveOperator binOp_dollar)
     ]
 
 -- | The names and actions of the primitive functions
@@ -879,3 +887,53 @@ binOp_minus :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_minus [x,y] = liftM Just $ arithmetic (subtract) (subtract) x y
+
+binOp_star :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_star [x,y] = liftM Just $ arithmetic (*) (*) x y
+
+binOp_slash :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_slash [x,y] = liftM Just $ arithmetic (div) (/) x y
+
+binOp_bang :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_bang [x,y] = liftM Just $ arithmetic (^) (**) x y
+
+binOp_doubleStar :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_doubleStar [x,y] = liftM Just $ arithmetic (^) (**) x y
+
+binOp_blank :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_blank [x,y] = liftM Just $ pattern ConcatPattern x y
+
+binOp_pipe :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_pipe [x,y] = liftM Just $ pattern AlternativePattern x y
+
+binOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_dollar [x,y] = do
+    pat <- toPattern x
+    ref <- case y of
+        Reference l -> return l
+        _ -> programError IllegalDataType
+    return $ Just $ TempPatternData $ ImmediateAssignmentPattern pat ref
+
+binOp_dot :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+binOp_dot [x,y] = do
+    pat <- toPattern x
+    ref <- case y of
+        Reference l -> return l
+        _ -> programError IllegalDataType
+    return $ Just $ TempPatternData $ AssignmentPattern pat ref
