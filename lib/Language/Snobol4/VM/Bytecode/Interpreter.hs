@@ -53,6 +53,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.Statements
 import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
 import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
+import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
 
 import Language.Snobol4.VM.Bytecode.Interpreter.Types
 
@@ -328,12 +329,13 @@ exec (AssignRefStatic (Symbol sym) argCount) = do
     return False
 
 exec AssignDynamic = do
+    value <- pop
     item <- pop >>= \case
         ReferenceId sym -> return $ LookupId sym
         ReferenceAggregate sym args -> return $ LookupAggregate sym args
         ReferenceKeyword sym -> return $ LookupKeyword sym
+        ReferenceUserData key dataName ix -> return $ LookupUserData key dataName ix
         _ -> programError VariableNotPresentWhereRequired
-    value <- pop
     assign item value
     incProgramCounter
     return False
@@ -357,7 +359,7 @@ exec Define = do
     return False
     
 exec CallDynamic = programError ErrorInSnobol4System
-exec (CallStatic (Symbol sym) argCount) = do
+exec (CallStatic (Symbol sym) argCount isLValue) = do
     lookupResult <- funcLookup sym
     let execFunc PrimitiveFunction{funcPrim=action} = do
             args <- replicateM argCount pop
@@ -424,7 +426,27 @@ exec (CallStatic (Symbol sym) argCount) = do
             replicateM (argCount-2) pop
             exec (BinOp op)
         execFunc (FunctionFunctionSynonym _ func) = execFunc func
-    
+        execFunc (DataSelectorFunction name dataName ix) = do
+            when (argCount == 0) $ programError IllegalDataType
+            replicateM (argCount-1) pop
+            UserData key <- pop
+            if isLValue
+                then push $ ReferenceUserData key dataName $ mkInteger ix
+                else do
+                    result <- userDataLookup key
+                    case result of
+                        Nothing -> programError ErrorInSnobol4System
+                        Just data_ -> do
+                            item <- lookup $ LookupUserData key dataName $ mkInteger ix
+                            push item
+            incProgramCounter
+            return False
+        execFunc (DataConstructorFunction name ix) = do
+            args <- replicateM ix pop
+            result <- userDataConstruct name (mkInteger ix) args
+            push $ UserData result
+            incProgramCounter
+            return False
     case lookupResult of
         Nothing -> programError UndefinedFunctionOrOperation
         Just func -> execFunc func
@@ -557,7 +579,7 @@ exec (BinOp op) = do
                     return False
                 Nothing -> exec JumpToFailureLabel
         Just (OperatorOperatorSynonym op') -> exec (BinOp op')
-        Just (OperatorFunctionSynonym sym) -> exec (CallStatic sym 2)
+        Just (OperatorFunctionSynonym sym) -> exec (CallStatic sym 2 False)
 exec (UnOp op) = do
     lookupResult <- lookupUnOpSyn op
     case lookupResult of
@@ -572,7 +594,7 @@ exec (UnOp op) = do
                     return False
                 Nothing -> exec JumpToFailureLabel
         Just (OperatorOperatorSynonym op') -> exec (UnOp op')
-        Just (OperatorFunctionSynonym sym) -> exec (CallStatic sym 1)
+        Just (OperatorFunctionSynonym sym) -> exec (CallStatic sym 1 False)
 
 exec InvokeScanner = do
     patternItem <- pop

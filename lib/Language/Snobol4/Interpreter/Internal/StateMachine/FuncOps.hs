@@ -53,12 +53,25 @@ funcLookup :: ( InterpreterShell m{-, Snobol4Machine program-} ) => Snobol4Strin
 funcLookup name = M.lookup name <$> getFunctions
 
 -- | Add a new function
-functionsNew :: ( InterpreterShell m{-, Snobol4Machine program-} ) => UserFunction -> InterpreterGeneric program m ()
+functionsNew :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+             => UserFunction 
+             -> InterpreterGeneric program m ()
 functionsNew func = modifyFunctions $ M.insert (funcName func) $ UserFunction func
 
+selectorFunctionsNew :: ( InterpreterShell m
+                        )
+                     => Snobol4String
+                     -> Snobol4String
+                     -> Int
+                     -> InterpreterGeneric program m ()
+selectorFunctionsNew name dataname ix = modifyFunctions $ M.insert name $ DataSelectorFunction name dataname ix
 
-
-
+constructorFunctionsNew :: ( InterpreterShell m
+                           )
+                        => Snobol4String
+                        -> Int
+                        -> InterpreterGeneric program m ()
+constructorFunctionsNew name count = modifyFunctions $ M.insert name $ DataConstructorFunction name count
 
 
 noUnOpSyns :: ( InterpreterShell m

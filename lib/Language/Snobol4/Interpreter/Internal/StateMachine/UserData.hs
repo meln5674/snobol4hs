@@ -12,10 +12,14 @@ module Language.Snobol4.Interpreter.Internal.StateMachine.UserData where
 
 import qualified Data.Map as M
 
+import Control.Monad
+
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
-import Language.Snobol4.Interpreter.Data.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine.Error
+import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Shell
+import Language.Snobol4.Interpreter.Error
 
 -- | Empty collection of user-defined datatypes
 noDatatypes :: Datatypes
@@ -38,6 +42,12 @@ modifyDatatypes :: InterpreterShell m => (Datatypes -> Datatypes) -> Interpreter
 modifyDatatypes f = modifyProgramState $
     \st -> st { datatypes = f $ datatypes st }
 
+modifyUserDatas :: InterpreterShell m 
+                => (UserDatas (ExprType m) -> UserDatas (ExprType m)) 
+                -> InterpreterGeneric program m ()
+modifyUserDatas f = modifyProgramState $ 
+    \st -> st { userDatas = f $ userDatas st }
+
 -- | Lookup a user-defined datatype
 datatypesLookup :: InterpreterShell m => Snobol4String -> InterpreterGeneric program m (Maybe Snobol4Datatype)
 datatypesLookup k = M.lookup k <$> getDatatypes
@@ -50,4 +60,57 @@ userDataLookup k = M.lookup k <$> getUserDatas
 datatypesNew :: InterpreterShell m => Snobol4Datatype -> InterpreterGeneric program m ()
 datatypesNew datatype = modifyDatatypes $ M.insert (datatypeName datatype) datatype
 
+userDatasNextKey :: InterpreterShell m => InterpreterGeneric program m UserKey
+userDatasNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getUserDatas 
 
+
+
+userDataConstruct :: InterpreterShell m
+                  => Snobol4String
+                  -> Snobol4Integer
+                  -> [Data (ExprType m)]
+                  -> InterpreterGeneric (ProgramType m) m UserKey
+userDataConstruct name count args = do
+    let args' = if unmkInteger count > length args
+                    then args ++ replicate (unmkInteger count - length args) (StringData nullString)
+                    else take (unmkInteger count) args
+    key <- userDatasNextKey
+    let value = Snobol4UserData name args'
+    modifyUserDatas $ M.insert key value
+    return key
+
+userDataSelect :: InterpreterShell m 
+               => UserKey
+               -> Snobol4String 
+               -> Snobol4Integer 
+               -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+userDataSelect key dataName ix = do
+    keyLookup <- userDataLookup key
+    case keyLookup of
+        Just data_
+            | datatypeNameUser data_ == dataName -> 
+                case drop (unmkInteger ix) (userDataFields data_) of
+                    [] -> programError ErrorInSnobol4System
+                    (x:_) -> return $ Just x
+            | otherwise -> programError IllegalDataType
+        Nothing -> return Nothing
+
+userDataModify :: InterpreterShell m
+               => UserKey
+               -> Snobol4String
+               -> Snobol4Integer
+               -> Data (ExprType m)
+               -> InterpreterGeneric (ProgramType m) m ()
+userDataModify key dataName ix val = do
+    keyLookup <- userDataLookup key
+    case keyLookup of
+        Just data_
+            | datatypeNameUser data_ == dataName -> 
+                case drop (unmkInteger ix) (userDataFields data_) of
+                    [] -> programError ErrorInSnobol4System
+                    (_:xs) -> modifyUserDatas $ M.insert key $ data_
+                        { userDataFields = 
+                            take (unmkInteger ix - 1) (userDataFields data_) ++ val : xs
+                        }
+            | otherwise -> programError IllegalDataType
+        Nothing -> programError ErrorInSnobol4System

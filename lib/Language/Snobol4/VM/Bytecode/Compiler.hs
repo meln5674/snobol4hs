@@ -218,7 +218,7 @@ compileRValue (LitExpr (String s)) = do
 compileRValue (CallExpr name argExprs) = do
     sym <- getFuncSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
-    addInstruction $ CallStatic sym $ length argExprs
+    addInstruction $ CallStatic sym (length argExprs) False
 compileRValue (RefExpr name argExprs) = do
     sym <- getVarSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
@@ -291,8 +291,10 @@ compileLValue (IdExpr name) = do
 compileLValue (LitExpr _) = do
     compileError IllegalLValue
     return DynamicLValue
-compileLValue expr@CallExpr{} = do
-    compileRValue expr
+compileLValue (CallExpr name argExprs) = do
+    sym <- getFuncSymbol $ mkString name
+    mapM compileRValue $ reverse argExprs
+    addInstruction $ CallStatic sym (length argExprs) True
     return DynamicLValue
 compileLValue (RefExpr name argExprs) = do
     sym <- getVarSymbol $ mkString name

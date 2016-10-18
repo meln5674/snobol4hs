@@ -116,7 +116,9 @@ data Function program (m :: * -> *) where
     FunctionUnOperatorSynonym :: Snobol4String -> Operator -> Function program m
     FunctionBinOperatorSynonym :: Snobol4String -> Operator -> Function program m
     FunctionFunctionSynonym :: Snobol4String -> Function program m -> Function program m
-
+    DataSelectorFunction :: Snobol4String -> Snobol4String -> Int -> Function program m
+    DataConstructorFunction :: Snobol4String -> Int -> Function program m
+    
 getFuncName :: Function program m -> Snobol4String
 getFuncName (UserFunction func) = funcName func
 getFuncName (PrimitiveFunction name _) = name

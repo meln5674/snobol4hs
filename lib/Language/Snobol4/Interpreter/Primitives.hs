@@ -468,6 +468,9 @@ copy [arg] = do
         _ -> programError IllegalDataType
 copy _ = programError ErrorInSnobol4System
 
+uncurry3 :: (a -> b -> c -> d) -> ((a,b,c) -> d)
+uncurry3 f (a,b,c) = f a b c
+
 -- | The data function, parses a data prototype to create a user-defined
 -- datatype
 data_ :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
@@ -480,6 +483,8 @@ data_ [arg] = do
         Right datatype -> return datatype
     let datatype = Snobol4Datatype dataName fieldNames
     datatypesNew datatype
+    forM (zip3 fieldNames (repeat dataName) [0..]) $ uncurry3 selectorFunctionsNew
+    constructorFunctionsNew dataName (length fieldNames)
     return $ Just $ StringData $ nullString
 data_ _ = programError IncorrectNumberOfArguments
 
@@ -528,6 +533,19 @@ define [arg,labelArg] = do
         Left _ -> programError ErroneousPrototype
         Right func -> return func
     labelResult <- labelLookup labelStr
+    Label addr <- case labelResult of
+        Just l -> return l
+        Nothing -> programError EntryPointOfFunctionNotLabel
+    let func = Function funcName argNames localNames addr
+    functionsNew func
+    return $ Just $ StringData nullString
+define [arg] = do
+    protoStr <- toString arg
+    parseResult <- parseT $ unmkString protoStr
+    FunctionPrototype funcName argNames localNames <- case parseResult of
+        Left _ -> programError ErroneousPrototype
+        Right func -> return func
+    labelResult <- labelLookup funcName
     Label addr <- case labelResult of
         Just l -> return l
         Nothing -> programError EntryPointOfFunctionNotLabel

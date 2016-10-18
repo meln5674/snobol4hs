@@ -1,0 +1,18 @@
+SUM     SUM = COMPLEX(R(C1) + R(C2), I(C1) + I(C2)) :(RETURN)
+
+
+
+INIT    DEFINE('SUM(C1,C2)')
+
+        DATA('COMPLEX(R,I)')
+        C = COMPLEX(1.5,2.0)
+        A = R(C)
+        OUTPUT = A
+        R(C) = 3.2
+        OUTPUT = R(C) '+' I(C) 'I'
+
+        C = SUM(C,COMPLEX(1.0,1.0))
+
+        OUTPUT = R(C) '+' I(C) 'I'
+
+END     INIT

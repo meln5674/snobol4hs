@@ -156,7 +156,7 @@ data Instruction
     -- | ???
     | CallDynamic
     -- | 
-    | CallStatic Symbol Int
+    | CallStatic Symbol Int Bool
     -- | ^(arg count)
     | GetArgCount
     -- | v(2 + local counter + arg counter);

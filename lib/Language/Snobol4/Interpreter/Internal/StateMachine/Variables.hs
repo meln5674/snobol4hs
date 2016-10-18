@@ -32,6 +32,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Tables
 --import Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
 import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
 import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
+import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
 --import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 -- | Empty collection of variables
@@ -300,6 +301,7 @@ assign (LookupAggregate name args) val = do
 assign LookupOutput val = toString val >>= lift . output . unmkString
 assign LookupPunch val = toString val >>= lift . punch . unmkString
 assign (LookupKeyword sym) val = assignKeyword sym val
+assign (LookupUserData key dataName ix) val = userDataModify key dataName ix val
 assign _ _ = programError VariableNotPresentWhereRequired
 
 lookup :: ( InterpreterShell m
@@ -348,3 +350,4 @@ execLookup (LookupAggregate name args) = do
                 loop _ _ = return Nothing
             loop val args
 execLookup (LookupKeyword sym) = liftM Just $ lookupKeyword sym
+execLookup (LookupUserData key dataName ix) = userDataSelect key dataName ix

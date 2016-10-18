@@ -16,6 +16,8 @@ module Language.Snobol4.Interpreter.Internal.StateMachine.Functions
     , clearFunc
     , funcLookup
     , functionsNew
+    , selectorFunctionsNew
+    , constructorFunctionsNew
     
     , noUnOpSyns
     , noBinOpSyns

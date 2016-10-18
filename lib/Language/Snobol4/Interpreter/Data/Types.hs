@@ -156,6 +156,7 @@ data Lookup expr
     | LookupLiteral (Data expr)
     -- | A lookup which returns the vale of the specified keyword
     | LookupKeyword Snobol4String
+    | LookupUserData UserKey Snobol4String Snobol4Integer
   deriving (Show, Eq, Ord)
 
 -- | A SNOBOL4 Value
@@ -180,6 +181,8 @@ data Data expr
     | ReferenceId Snobol4String
     -- | A reference to a an aggregate, along with the number of arguments
     | ReferenceAggregate Snobol4String [Data expr]
+    -- | A referenceTo
+    | ReferenceUserData UserKey Snobol4String Snobol4Integer
     -- | A reference to a keyword
     | ReferenceKeyword Snobol4String
     -- | Object code created using the CODE primitive
@@ -213,6 +216,8 @@ instance Show (Data expr) where
     show (Name _) = "[NAME]"
     show (ReferenceId _) = "[REFERENCE]"
     show (ReferenceAggregate _ _) = "[REFERENCE]"
+    show (ReferenceUserData _ _ _) = "[REFERENCE]"
+    show (ReferenceKeyword _) = "[REFERENCE]"
     show (CodeData _) = "[CODE]"
     show (UserData _) = "[USERDATA]"
 
