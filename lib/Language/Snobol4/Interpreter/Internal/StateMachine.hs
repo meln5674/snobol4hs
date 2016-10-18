@@ -74,6 +74,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
 import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
 --import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
@@ -100,6 +101,8 @@ emptyState = ProgramState
     noUserData
     noBinOpSyns
     noUnOpSyns
+    noProtectedKeywords
+    noUnprotectedKeywords
 
 -- | Execute an interpreter action
 interpret :: ( InterpreterShell m 

@@ -1,6 +1,5 @@
 module Language.Snobol4.VM.Bytecode.Interpreter.StackMachine
     ( StackMachine 
-    , ExprKey 
     , runStackMachine 
     , push 
     , pop 

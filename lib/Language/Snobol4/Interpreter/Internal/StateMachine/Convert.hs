@@ -147,11 +147,12 @@ toString (PatternData k) = do
     result <- patternsLookup k
     case result of
         Nothing -> programError ErrorInSnobol4System
-        Just pat -> do
-            let conv (LiteralPattern s) = return $ s
-                conv (ConcatPattern a b) = (<>) <$> conv a <*> conv b
-                conv _ = programError IllegalDataType
-            conv pat
+        Just pat -> toString (TempPatternData pat)
+toString (TempPatternData pat) = do
+    let conv (LiteralPattern s) = return $ s
+        conv (ConcatPattern a b) = (<>) <$> conv a <*> conv b
+        conv _ = programError IllegalDataType
+    conv pat
 toString _ = programError IllegalDataType
 
 -- | Convert data to a pattern

@@ -36,10 +36,13 @@ modifyCodes :: InterpreterShell m
 modifyCodes f = modifyProgramState $
     \st -> st { codes = f $ codes st }
 
+codesNextKey :: InterpreterShell m => InterpreterGeneric program m CodeKey
+codesNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getCodes
+
 -- | Create a new object code
 codesNew :: InterpreterShell m => Snobol4Code -> InterpreterGeneric program m CodeKey
 codesNew code = do
-    newKey <- (succ . fst . M.findMax) `liftM` getCodes
+    newKey <- codesNextKey
     modifyCodes $ M.insert newKey $ newRef code
     return newKey
 

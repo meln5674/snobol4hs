@@ -8,6 +8,7 @@ Portability     : Unknown
 
 -}
 
+{-# LANGUAGE LambdaCase #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Arrays where
 
 import qualified Data.Map as M
@@ -39,6 +40,9 @@ modifyArrays :: InterpreterShell m
 modifyArrays f = modifyProgramState $
     \st -> st { arrays = f $ arrays st }
 
+arraysNextKey :: InterpreterShell m => InterpreterGeneric program m ArrayKey
+arraysNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getArrays 
+
 -- | Allocate a new array with an upper and lower bound each set to an intital value
 arraysNew :: InterpreterShell m => Snobol4Integer -> Snobol4Integer -> (Data (ExprType m)) -> InterpreterGeneric program m ArrayKey
 arraysNew minIx maxIx v = arraysNew' $ newArray minIx maxIx v
@@ -46,7 +50,7 @@ arraysNew minIx maxIx v = arraysNew' $ newArray minIx maxIx v
 -- | Add a new array
 arraysNew' :: InterpreterShell m => (Snobol4Array (ExprType m)) -> InterpreterGeneric program m ArrayKey
 arraysNew' arr = do
-    newKey <- (succ . fst . M.findMax) `liftM` getArrays
+    newKey <- arraysNextKey
     modifyArrays $ M.insert newKey $ newRef $ arr
     return newKey
 
@@ -57,7 +61,7 @@ arraysNew'' :: InterpreterShell m
            -> InterpreterGeneric program m (Data (ExprType m))
 arraysNew'' [] val = return val
 arraysNew'' ((minIx,maxIx):ds) val = do
-    newKey <- (succ . fst . M.findMax) `liftM` getArrays
+    newKey <- arraysNextKey
     xs <- forM [minIx..maxIx] $ \ix -> do
         v <- arraysNew'' ds val
         return (ix,v)
@@ -71,7 +75,7 @@ arraysCopy k = do
     case result of
         Nothing -> return Nothing
         Just arr -> do
-            newKey <- (succ . fst . M.findMax) `liftM` getArrays
+            newKey <- arraysNextKey
             modifyArrays $ M.insert newKey $ newRef arr
             return $ Just newKey
 

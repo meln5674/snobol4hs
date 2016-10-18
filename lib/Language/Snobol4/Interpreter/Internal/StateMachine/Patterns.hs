@@ -40,10 +40,13 @@ modifyPatterns :: InterpreterShell m
 modifyPatterns f = modifyProgramState $
     \st -> st { patterns = f $ patterns st }
 
+patternsNextKey :: InterpreterShell m => InterpreterGeneric program m PatternKey
+patternsNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getPatterns
+
 -- | Create a new pattern
 patternsNew :: InterpreterShell m => (Pattern (ExprType m)) -> InterpreterGeneric program m PatternKey
 patternsNew pat = do
-    newKey <- (succ . fst . M.findMax) `liftM` getPatterns
+    newKey <- patternsNextKey
     modifyPatterns $ M.insert newKey $ newRef pat
     return newKey
 

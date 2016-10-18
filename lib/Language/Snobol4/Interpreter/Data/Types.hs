@@ -147,11 +147,11 @@ data Lookup expr
     -- | Lookup an element in an array by index or a table by key
     | LookupAggregate Snobol4String [Data expr]
     -- | The output varaible
-    | Output
+    | LookupOutput
     -- | The input variable
-    | Input
+    | LookupInput
     -- | The output variable
-    | Punch
+    | LookupPunch
     -- | A lookup which returns a value
     | LookupLiteral (Data expr)
     -- | A lookup which returns the vale of the specified keyword
@@ -177,7 +177,11 @@ data Data expr
     -- | Passing an expression by name
     | Name (Lookup expr)
     -- | A refernence to a variable
-    | Reference (Lookup expr)
+    | ReferenceId Snobol4String
+    -- | A reference to a an aggregate, along with the number of arguments
+    | ReferenceAggregate Snobol4String [Data expr]
+    -- | A reference to a keyword
+    | ReferenceKeyword Snobol4String
     -- | Object code created using the CODE primitive
     | CodeData CodeKey
     -- | Data of a user-defined type
@@ -201,11 +205,16 @@ instance Show Snobol4Real where
 instance Show (Data expr) where
     show (StringData s) = show s
     show (PatternData _) = "[PATTERN]"
+    show (TempPatternData _) = "[PATTERN]"
     show (IntegerData i) = show i
     show (RealData f) = show f
     show (ArrayData _) = "[ARRAY]"
     show (TableData _) = "[TABLE]"
     show (Name _) = "[NAME]"
+    show (ReferenceId _) = "[REFERENCE]"
+    show (ReferenceAggregate _ _) = "[REFERENCE]"
+    show (CodeData _) = "[CODE]"
+    show (UserData _) = "[USERDATA]"
 
 -- | Class of types which can be read from a string
 class Snobol4Read s where

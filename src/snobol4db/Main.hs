@@ -5,6 +5,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeFamilies #-}
 module Main where
 
 import System.Environment
@@ -23,6 +25,7 @@ import System.Console.Haskeline
 
 import Control.Monad
 import Control.Monad.Trans
+import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Except
 
 import Language.Snobol4.Parser
@@ -43,6 +46,77 @@ deriving instance MonadException ConsoleShell
 deriving instance MonadException m => MonadException (Interpreter m)
 deriving instance MonadException m => MonadException (StackMachine expr m)
 
+
+data DebugShellState = DebugShellState
+    { inputs :: [String]
+    , lastInput :: String
+    , outputs :: [String]
+    , punches :: [String]
+    } 
+newtype DebugShell a = DebugShell { runDebugShell :: StateT DebugShellState ConsoleShell a }
+   deriving (Functor, Applicative, Monad, MonadIO, MonadException )
+
+getLastInput :: DebugShell String
+getLastInput = DebugShell $ gets lastInput
+
+putLastInput :: String -> DebugShell ()
+putLastInput x = DebugShell $ modify $ \st -> st { lastInput = x }
+
+getInputs :: DebugShell [String]
+getInputs = DebugShell $ gets inputs
+
+putInputs :: [String] -> DebugShell ()
+putInputs xs = DebugShell $ modify $ \st -> st { inputs = xs }
+
+modifyInputs :: ([String] -> [String]) -> DebugShell ()
+modifyInputs f = DebugShell $ modify $ \st -> st { inputs = f $ inputs st }
+
+getOutputs :: DebugShell [String]
+getOutputs = DebugShell $ gets outputs
+
+putOutputs :: [String] -> DebugShell ()
+putOutputs xs = DebugShell $ modify $ \st -> st { outputs = xs }
+
+modifyOutputs :: ([String] -> [String]) -> DebugShell ()
+modifyOutputs f = DebugShell $ modify $ \st -> st { outputs = f $ outputs st }
+
+getPunches :: DebugShell [String]
+getPunches = DebugShell $ gets punches
+
+putPunches :: [String] -> DebugShell ()
+putPunches xs = DebugShell $ modify $ \st -> st { punches = xs }
+
+modifyPunches :: ([String] -> [String]) -> DebugShell ()
+modifyPunches f = DebugShell $ modify $ \st -> st { punches = f $ punches st }
+
+emptyDebugState = DebugShellState [] "" [] []
+
+instance InterpreterShell DebugShell where
+    input = do
+        getInputs >>= \case
+            [] -> return Nothing
+            (x:xs) -> do
+                putInputs xs
+                putLastInput x
+                return $ Just x
+    output x = modifyOutputs (x:)
+    lastOutput = getOutputs >>= \case
+        [] -> return ""
+        (x:_) -> return x
+    punch x = modifyPunches (x:)
+    lastPunch = getPunches >>= \case
+        [] -> return ""
+        (x:_) -> return x
+    date = DebugShell $ lift date
+    time = DebugShell $ lift time
+
+instance InterpreterShellRun DebugShell where
+    type BaseMonad DebugShell = IO
+    start = DebugShell $ lift start
+    shell = shell . flip evalStateT emptyDebugState . runDebugShell
+        
+
+
 instance (MonadException m) => MonadException (ExceptT e m) where
     controlIO f = ExceptT $ controlIO $ \(RunIO run) -> let
                     run' = RunIO (fmap ExceptT . run . runExceptT)
@@ -58,7 +132,7 @@ parseArgs [] = Left "No path specified"
 parseArgs [x] = Right $ Args x
 parseArgs _ = Left "Too many arguments"
 
-executeCmd :: String -> InputT (Interpreter ConsoleShell) Bool
+executeCmd :: String -> InputT (Interpreter DebugShell) Bool
 executeCmd "" = return False
 executeCmd "quit" = return True
 executeCmd "step" = do
@@ -90,12 +164,30 @@ executeCmd "stack" = do
         when (i == frameStart) $ outputStr "------"
         outputStrLn ""
     return False
+executeCmd "input" = do
+    inputLine <- getInputLine ">>>"
+    case inputLine of
+        Just line -> lift $ lift $ lift $ modifyInputs (line:)
+        Nothing -> return ()
+    return False
+executeCmd "inputs" = do
+    inputLines <- lift $ lift $ lift $ liftM reverse getInputs
+    mapM outputStrLn inputLines
+    return False
+executeCmd "outputs" = do
+    outputLines <- lift $ lift $ lift $ liftM reverse getOutputs
+    mapM outputStrLn outputLines
+    return False
+executeCmd "punches" = do
+    punchLines <- lift $ lift $ lift $ liftM reverse getPunches
+    mapM outputStrLn punchLines
+    return False
 executeCmd _ = do
     outputStrLn "Unknown command"
     return False
 
 
-mainLoop :: InputT (Interpreter ConsoleShell) ()
+mainLoop :: InputT (Interpreter DebugShell) ()
 mainLoop = do
     userInput <- getInputLine ">"
     case userInput of
@@ -114,11 +206,13 @@ doMain args = do
     (program,table) <- ExceptT $ liftM decode $ BS.readFile path
     let _ = program :: CompiledProgram
         _ = table :: SymbolTable
-    result <- lift $ shell $ runVM $ runInputT defaultSettings $ do
-        outputStrLn "Loading program"
-        lift $ initVM program table
-        outputStrLn "Program loaded"
-        mainLoop
+    result <- lift $ shell $ do
+        start
+        runVM $ runInputT defaultSettings $ do
+            outputStrLn "Loading program"
+            lift $ initVM program table
+            outputStrLn "Program loaded"
+            mainLoop
     case result of
         Left err -> throwE $ show err
         Right x -> return x

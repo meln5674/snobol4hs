@@ -30,6 +30,8 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Syntax.AST
 
+type ExprKey = Address
+
 data LabeledInstruction = LabeledInstruction Snobol4String Instruction
 
 newtype CompiledProgram = CompiledProgram { getCompiledProgram :: Vector Instruction }
@@ -77,10 +79,16 @@ data Instruction
       PushString Snobol4String
     | PushInteger Snobol4Integer
     | PushReal Snobol4Real
+    | PushReference Snobol4String
+    | PushReferenceKeyword Snobol4String
+    | PushReferenceAggregate Snobol4String Snobol4Integer
+    | PushExpression SystemLabel
     -- | Pop the top value off of the stack
     | Pop
     -- | Make N copies of the top value of the stack
     | Copy Int
+    -- | v2; ^($1); ^($2)
+    | Rotate
     
     -- | v2; ^($2 + $1)
     | Add
@@ -131,9 +139,13 @@ data Instruction
     | LookupDynamic
     -- | ^(value pointed to by !1)
     | LookupStatic Symbol
+    -- | ^(value pointed to by &!1)
+    | LookupStaticKeyword Symbol
     
     -- | v1; !1 := $1
     | AssignStatic Symbol
+    -- | v1; &!1 := $1
+    | AssignStaticKeyword Symbol
     -- | v(!2 + 1); !1<$1, $2, ... $(!2)> := $(!2 + 1)
     | AssignRefStatic Symbol Int
     -- | v2; $1 := $2
@@ -155,12 +167,25 @@ data Instruction
     --   Jump to $1;
     --   ^failure
     | FReturn
+    
+    -- | v(2 + local counter + arg counter);
+    --   Jump to $1;
+    --   ^($3 as a reference)
+    | NReturn
+
+    -- | Return from an unevaluated expression
+    | ExprReturn
 
     -- | v(!2); ^(!1<$1,$2,$...,$(!2)>    
     | RefStatic Symbol Int
     
     -- | Set the fail label to !1
     | SetFailLabel SystemLabel
+    -- | ^(fail label)
+    | PushFailLabel
+    -- | v1;
+    -- fail label = $1
+    | PopFailLabel
     -- | Jump to the failure label
     | JumpToFailureLabel
     -- | v1; $1 == 0 || $1 == "" ? Jump to the failure label : noop
@@ -249,7 +274,7 @@ instance Serialize Operator
 instance Serialize ProgramError
 instance Serialize SystemLabel
 instance Serialize Symbol
-instance Serialize Instruction where
+instance Serialize Instruction
 instance Serialize SymbolTable
 
 deriving instance Serialize CompiledProgram

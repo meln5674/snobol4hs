@@ -208,6 +208,9 @@ type Datatypes = Map Snobol4String Snobol4Datatype
 -- | Collection of values of user-defined datatypes
 type UserDatas expr = Map UserKey (Snobol4UserData expr)
 
+type UnprotectedKeywords expr = Map Snobol4String (Data expr)
+
+type ProtectedKeywords expr = Map Snobol4String (Data expr)
 
 class EmptyProgramClass program where
     emptyProgram :: program
@@ -283,6 +286,8 @@ data ProgramStateGeneric program m where
         , binOpSyns :: OpSyns program m
         -- | Map of unary operators to their functions
         , unOpSyns :: OpSyns program m 
+        , protectedKeywords :: ProtectedKeywords (ExprType m)
+        , unprotectedKeywords :: UnprotectedKeywords (ExprType m)
         } -> ProgramStateGeneric program m
 
 deriving instance ( Show program

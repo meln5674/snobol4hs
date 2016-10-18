@@ -41,6 +41,10 @@ modifyTables :: InterpreterShell m
 modifyTables f = modifyProgramState $
     \st -> st { tables = f $ tables st }
 
+tablesNextKey :: InterpreterShell m => InterpreterGeneric program m TableKey
+tablesNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getTables
+
+
 -- | Allocate an empty table
 tablesNew :: InterpreterShell m => InterpreterGeneric program m TableKey
 tablesNew = tablesNew' emptyTable
@@ -48,7 +52,7 @@ tablesNew = tablesNew' emptyTable
 -- | Add a new table
 tablesNew' :: InterpreterShell m => (Snobol4Table (ExprType m)) -> InterpreterGeneric program m TableKey
 tablesNew' tab = do
-    newKey <- (succ . fst . M.findMax) `liftM` getTables
+    newKey <- tablesNextKey
     modifyTables $ M.insert newKey $ newRef tab
     return newKey
 

@@ -16,12 +16,14 @@ PUNCH. It also uses a StateT transformer to hold the last values of each.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE LambdaCase #-}
 module Language.Snobol4.Interpreter.Shell.Console 
     ( ConsoleShell(..)
     , mkConsoleShell
     ) where
 
 import System.IO
+import System.IO.Error
 
 import Data.Time
 
@@ -109,10 +111,11 @@ mkConsoleShell = liftIO
 
 -- |
 instance InterpreterShell ConsoleShell where
-    input = do
-        str <- liftIO $ hGetLine stdin
-        putLastInput str
-        return str
+    input = liftIO (tryIOError $ hGetLine stdin) >>= \case
+        Right str -> do
+            putLastInput str
+            return $ Just str
+        Left _ -> return Nothing
     output str = do
         putLastOutput str
         liftIO $ hPutStrLn stdout str

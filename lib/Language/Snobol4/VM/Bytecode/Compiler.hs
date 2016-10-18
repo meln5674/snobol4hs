@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.VM.Bytecode.Compiler where
 
 import Control.Monad
@@ -5,14 +6,16 @@ import Control.Monad
 import Language.Snobol4.Syntax.AST
 import Language.Snobol4.VM.Bytecode
 
-import Language.Snobol4.Interpreter.Data (Data(StringData,IntegerData,RealData))
+import Language.Snobol4.Interpreter.Data (Data(StringData,IntegerData,RealData), Lookup(..))
 import Language.Snobol4.Interpreter.Data.String
 import Language.Snobol4.Interpreter.Data.Integer
 import Language.Snobol4.Interpreter.Data.Real
 
+import Language.Snobol4.Interpreter.Internal.StateMachine hiding (Return, FReturn)
+
 data CompilerError
-    = LiteralAsLValue
-    | BadEndLabel
+    = BadEndLabel
+    | IllegalLValue
   deriving Show
 
 class Monad m => Compiler m where
@@ -25,9 +28,11 @@ class Monad m => Compiler m where
     compileError :: CompilerError -> m ()
     getPanicLabel :: m SystemLabel
     setEntryPoint :: Snobol4String -> m ()
+    getSystemLabelAddress :: SystemLabel -> m Address
 
 data LValue
     = StaticLValue Symbol
+    | StaticKeywordLValue Symbol
     | StaticRefLValue Symbol Int
     | DynamicLValue
     | InputLValue
@@ -37,6 +42,7 @@ data LValue
 compile :: Compiler m => Program -> m ()
 compile prog = do
     mapM_ compileStatement $ getProgram prog
+    addUserLabel "END"
     addInstruction Finish
 
 compileStatement :: Compiler m => Stmt -> m ()
@@ -93,6 +99,7 @@ compileStatementBody (Stmt _ (Just sub) Nothing (Just obj) _) = do
     compileObject obj
     case lvalue of
         StaticLValue sym -> addInstruction $ AssignStatic sym
+        StaticKeywordLValue sym -> addInstruction $ AssignStaticKeyword sym
         StaticRefLValue sym argCount -> addInstruction $ AssignRefStatic sym argCount
         DynamicLValue -> addInstruction AssignDynamic
         InputLValue -> addInstruction Pop
@@ -171,6 +178,28 @@ compileObject :: Compiler m => Expr -> m ()
 compileObject = compileRValue
 
 compileRValue :: Compiler m => Expr -> m ()
+compileRValue (PrefixExpr And (IdExpr sym)) = do
+    addInstruction $ LookupStaticKeyword $ Symbol $ mkString sym
+compileRValue (PrefixExpr Star expr) = do
+    exprLabel <- allocSystemLabel
+    afterLabel <- allocSystemLabel
+    addInstruction $ JumpStatic afterLabel
+    addSystemLabel exprLabel
+    compileRValue expr
+    addInstruction $ ExprReturn
+    addSystemLabel afterLabel
+    addInstruction $ PushExpression exprLabel
+compileRValue (PrefixExpr Not expr) = do
+    successLabel <- allocSystemLabel
+    addInstruction $ PushFailLabel
+    addInstruction $ SetFailLabel successLabel
+    compileRValue expr
+    addInstruction $ Rotate
+    addInstruction $ PopFailLabel
+    addInstruction $ JumpToFailureLabel
+    addSystemLabel successLabel
+    addInstruction $ PopFailLabel
+    addInstruction $ PushString nullString
 compileRValue (PrefixExpr op expr) = do
     compileRValue expr
     addInstruction $ UnOp op
@@ -195,9 +224,33 @@ compileRValue (RefExpr name argExprs) = do
     mapM compileRValue $ reverse argExprs
     addInstruction $ RefStatic sym $ length argExprs
 compileRValue (ParenExpr expr) = compileRValue expr
-compileRValue (BinaryExpr expr1 op expr2) = do
+compileRValue (BinaryExpr expr1 Dot expr2) = do
+    lvalue <- compileLValue expr2
+    case lvalue of
+        StaticLValue (Symbol sym) -> addInstruction $ PushReference sym
+        StaticKeywordLValue (Symbol sym) -> addInstruction $ PushReferenceKeyword sym
+        StaticRefLValue (Symbol sym) count -> addInstruction $ PushReferenceAggregate sym $ mkInteger count
+        DynamicLValue -> compileError IllegalLValue
+        InputLValue -> addInstruction $ PushReference "INPUT"
+        OutputLValue -> addInstruction $ PushReference "OUTPUT"
+        PunchLValue -> addInstruction $ PushReference "OUTPUT"
     compileRValue expr1
+    addInstruction $ BinOp Dot
+compileRValue (BinaryExpr expr1 Dollar expr2) = do
+    lvalue <- compileLValue expr2
+    case lvalue of
+        StaticLValue (Symbol sym) -> addInstruction $ PushReference sym
+        StaticKeywordLValue (Symbol sym) -> addInstruction $ PushReferenceKeyword sym
+        StaticRefLValue (Symbol sym) count -> addInstruction $ PushReferenceAggregate sym $ mkInteger count
+        DynamicLValue -> compileError IllegalLValue
+        InputLValue -> addInstruction $ PushReference "INPUT"
+        OutputLValue -> addInstruction $ PushReference "OUTPUT"
+        PunchLValue -> addInstruction $ PushReference "PUNCH"
+    compileRValue expr1
+    addInstruction $ BinOp Dollar
+compileRValue (BinaryExpr expr1 op expr2) = do
     compileRValue expr2
+    compileRValue expr1
     addInstruction $ BinOp op
 compileRValue NullExpr = do
     addInstruction $ PushString nullString
@@ -205,9 +258,29 @@ compileRValue NullExpr = do
 
 
 compileLValue :: Compiler m => Expr -> m LValue
-compileLValue (PrefixExpr op expr) = do
+compileLValue (PrefixExpr And (IdExpr sym)) = return $ StaticKeywordLValue $ Symbol $ mkString sym
+compileLValue (PrefixExpr And (ParenExpr expr)) = compileLValue (PrefixExpr And expr)
+compileLValue (PrefixExpr And _) = do
+    compileError IllegalLValue
+    return DynamicLValue
+compileLValue (PrefixExpr Dollar expr) = do
     compileRValue expr
+    addInstruction $ UnOp Dollar
+    return DynamicLValue
+{-
+compileLValue (PrefixExpr op expr) = do
+    lvalue <- compileLValue expr
+    case lvalue of
+        InputLValue -> addInstruction $ PushReference $ mkString "INPUT"
+        OutputLValue -> addInstruction $ PushReference $ mkString "OUTPUT"
+        PunchLValue -> addInstruction $ PushReference $ mkString "PUNCH"
+        StaticLValue (Symbol sym) -> addInstruction $ PushReference sym
+        StaticRefLValue (Symbol sym) i -> addInstruction $ PushReferenceAggregate sym (mkInteger i)
     addInstruction $ UnOp op
+    return DynamicLValue
+-}
+compileLValue (PrefixExpr _ _) = do
+    compileError IllegalLValue
     return DynamicLValue
 compileLValue (IdExpr "INPUT") = return InputLValue
 compileLValue (IdExpr "OUTPUT") = return OutputLValue
@@ -216,7 +289,7 @@ compileLValue (IdExpr name) = do
     sym <- getVarSymbol $ mkString name
     return $ StaticLValue sym
 compileLValue (LitExpr _) = do
-    compileError LiteralAsLValue
+    compileError IllegalLValue
     return DynamicLValue
 compileLValue expr@CallExpr{} = do
     compileRValue expr
@@ -225,14 +298,8 @@ compileLValue (RefExpr name argExprs) = do
     sym <- getVarSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
     return $ StaticRefLValue sym $ length argExprs
-compileLValue (ParenExpr expr) = do
-    compileRValue expr
-    return DynamicLValue
-compileLValue expr@BinaryExpr{} = do
-    compileRValue expr
-    return DynamicLValue
 compileLValue NullExpr = do
-    compileError LiteralAsLValue
+    compileError IllegalLValue
     return DynamicLValue
 
 compileGotoValue :: Compiler m => Expr -> m ()

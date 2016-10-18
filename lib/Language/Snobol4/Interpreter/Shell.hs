@@ -27,7 +27,7 @@ module Language.Snobol4.Interpreter.Shell where
 -- retreive the last values sent to output and punch
 class Monad m => InterpreterShell m where
     -- | Grab a line from input
-    input :: m String
+    input :: m (Maybe String)
     -- | Send a line to output
     output :: String -> m ()
     -- | Send a line to punch

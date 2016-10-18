@@ -8,6 +8,8 @@ Portability     : Unknown
 
 -}
 
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Data.Integer 
     ( module Language.Snobol4.Interpreter.Data.Integer 
     , Snobol4IntegerClass (..)

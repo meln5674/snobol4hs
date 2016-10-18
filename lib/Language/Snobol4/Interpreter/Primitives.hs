@@ -45,6 +45,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
 import Language.Snobol4.Interpreter.Internal.StateMachine.Tables
 import Language.Snobol4.Interpreter.Internal.StateMachine.Functions
+import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
 import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
 import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
 --import Language.Snobol4.Interpreter.Internal.StateMachine.Run
@@ -66,6 +67,15 @@ primitiveVars =
     , ("ARB", TempPatternData ArbPattern)
     , ("BAL", TempPatternData BalPattern)
     , ("SUCCEED", TempPatternData SucceedPattern)
+    ]
+
+primitiveUnOps :: ( NewSnobol4Machine m
+                   , InterpreterShell m
+                   , LocalVariablesClass m
+                   )
+                => [(Operator, OpSyn (ProgramType m) m)]
+primitiveUnOps =
+    [ (And, PrimitiveOperator unOp_and)
     ]
 
 primitiveBinOps :: ( NewSnobol4Machine m
@@ -151,6 +161,40 @@ primitiveFunctions =
     , PrimitiveFunction "VALUE"     value
     ]
 
+primitiveProtectedKeywords =
+    [ ("ALPHABET", keyword_alphabet)
+    , ("ABORT", keyword_abort)
+    , ("ARB", keyword_arb)
+    , ("BAL", keyword_bal)
+    , ("ERRTYPE", keyword_errtype)
+    , ("FAIL", keyword_fail)
+    , ("FENCE", keyword_fence)
+    , ("FNCLEVEL", keyword_fnclevel)
+    , ("LASTNO", keyword_lastno)
+    , ("REM", keyword_rem)
+    , ("RTNTYPE", keyword_rtntype)
+    , ("STCOUNT", keyword_stcount)
+    , ("STFCOUNT", keyword_stfcount)
+    , ("STNO", keyword_stno)
+    , ("SUCCEED", keyword_succeed)
+    ]
+
+primitiveUnprotectedKeywords =
+    [ ("ABEND", keyword_abend)
+    , ("ANCHOR", keyword_anchor)
+    , ("CODE", keyword_code)
+    , ("DUMP", keyword_dump)
+    , ("ERRLIMIT", keyword_errlimit)
+    , ("FTRACE", keyword_ftrace)
+    , ("FULLSCAN", keyword_fullscan)
+    , ("INPUT", keyword_input)
+    , ("MAXLNGTH", keyword_maxlngth)
+    , ("OUTPUT", keyword_output)
+    , ("STLIMIT", keyword_stlimit)
+    , ("TRACE", keyword_trace)
+    , ("TRIM", keyword_trim)
+    ]
+    
 maybeError :: Monad m 
            => ProgramError 
            -> Maybe a 
@@ -180,8 +224,10 @@ addPrimitives = do
         funcMap = M.fromList $ zip (map primName funcs) funcs 
     mapM_ (uncurry varWrite) primitiveVars
     mapM_ (uncurry setBinOpSyn) primitiveBinOps
+    mapM_ (uncurry setUnOpSyn) primitiveUnOps
     putFunctions funcMap
-
+    putProtectedKeywords $ M.fromList primitiveProtectedKeywords
+    putUnprotectedKeywords $ M.fromList primitiveUnprotectedKeywords
 
 -- | Generalization for lt, le, eq, ne, ge, and gt
 numericalPredicate :: (InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
@@ -619,7 +665,7 @@ item :: ( InterpreterShell m
         , LocalVariablesClass m
         , Ord (ExprType m)
         ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 item (name:keys) = do
     name' <- toString name
     execLookup $ LookupAggregate name' keys
@@ -919,12 +965,13 @@ binOp_pipe :: ( InterpreterShell m, LocalVariablesClass m )
 binOp_pipe [x,y] = liftM Just $ pattern AlternativePattern x y
 
 binOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
-        => [Data (ExprType m)]
+        => [Data (ExprType m)] 
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_dollar [x,y] = do
     pat <- toPattern x
     ref <- case y of
-        Reference l -> return l
+        ReferenceId sym -> return $ LookupId sym
+        ReferenceAggregate sym args -> return $ LookupAggregate sym args
         _ -> programError IllegalDataType
     return $ Just $ TempPatternData $ ImmediateAssignmentPattern pat ref
 
@@ -934,6 +981,47 @@ binOp_dot :: ( InterpreterShell m, LocalVariablesClass m )
 binOp_dot [x,y] = do
     pat <- toPattern x
     ref <- case y of
-        Reference l -> return l
+        ReferenceId sym -> return $ LookupId sym
+        ReferenceKeyword sym -> return $ LookupKeyword sym
+        ReferenceAggregate sym args -> return $ LookupAggregate sym args
         _ -> programError IllegalDataType
     return $ Just $ TempPatternData $ AssignmentPattern pat ref
+
+
+unOp_and :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+unOp_and [ReferenceId sym] = return $ Just $ ReferenceKeyword sym
+unOp_and _ = programError UnknownKeyword
+
+
+
+keyword_alphabet = StringData $ mkString ['A'..'Z']
+keyword_abort = TempPatternData AbortPattern
+keyword_arb = TempPatternData ArbPattern
+keyword_bal = TempPatternData BalPattern
+keyword_errtype = IntegerData 0
+keyword_fail = TempPatternData FailPattern
+keyword_fence = TempPatternData FencePattern
+keyword_fnclevel = IntegerData 0
+keyword_lastno = IntegerData (-1)
+keyword_rem = TempPatternData $ RTabPattern 0
+keyword_rtntype = StringData nullString
+keyword_stcount = IntegerData 0
+keyword_stfcount = IntegerData 0
+keyword_stno = IntegerData 0
+keyword_succeed = TempPatternData SucceedPattern
+
+keyword_abend = IntegerData 0
+keyword_anchor = IntegerData 0
+keyword_code = IntegerData 0
+keyword_dump = IntegerData 0
+keyword_errlimit = IntegerData 0
+keyword_ftrace = IntegerData 0
+keyword_fullscan = IntegerData 0
+keyword_input = IntegerData 1
+keyword_maxlngth = IntegerData 5000
+keyword_output = IntegerData 1
+keyword_stlimit = IntegerData 50000
+keyword_trace = IntegerData 0
+keyword_trim = IntegerData 0

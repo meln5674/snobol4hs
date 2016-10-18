@@ -31,6 +31,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
 import Language.Snobol4.Interpreter.Internal.StateMachine.Tables
 --import Language.Snobol4.Interpreter.Internal.StateMachine.CallStack
 import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
+import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
 --import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 -- | Empty collection of variables
@@ -274,7 +275,7 @@ assign :: ( InterpreterShell m
           ) 
        => (Lookup (ExprType m)) 
        -> (Data (ExprType m)) 
-       -> InterpreterGeneric program m ()
+       -> InterpreterGeneric (ProgramType m) m ()
 assign (LookupId s) val = varWrite s val
 assign (LookupAggregate name args) val = do
     let loop (ArrayData k) [IntegerData ix] = arraysWrite ix val k
@@ -296,8 +297,9 @@ assign (LookupAggregate name args) val = do
     case base of
         Just baseVal -> loop baseVal args
         Nothing -> programError ErroneousArrayOrTableReference
-assign Output val = toString val >>= lift . output . unmkString
-assign Punch val = toString val >>= lift . punch . unmkString
+assign LookupOutput val = toString val >>= lift . output . unmkString
+assign LookupPunch val = toString val >>= lift . punch . unmkString
+assign (LookupKeyword sym) val = assignKeyword sym val
 assign _ _ = programError VariableNotPresentWhereRequired
 
 lookup :: ( InterpreterShell m
@@ -306,7 +308,7 @@ lookup :: ( InterpreterShell m
           , Ord (ExprType m)
           ) 
        => (Lookup (ExprType m)) 
-       -> InterpreterGeneric program m (Data (ExprType m))
+       -> InterpreterGeneric (ProgramType m) m (Data (ExprType m))
 lookup l = do
     result <- execLookup l
     case result of
@@ -320,10 +322,10 @@ execLookup :: ( InterpreterShell m
               , Ord (ExprType m)
               ) 
            => (Lookup (ExprType m)) 
-           -> InterpreterGeneric program m (Maybe (Data (ExprType m))) 
-execLookup Input = (Just . StringData . mkString) <$> lift input 
-execLookup Output = (Just . StringData . mkString) <$> lift lastOutput 
-execLookup Punch = (Just . StringData . mkString) <$> lift lastPunch 
+           -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m))) 
+execLookup LookupInput = (liftM $ StringData . mkString) <$> lift input 
+execLookup LookupOutput = (Just . StringData . mkString) <$> lift lastOutput 
+execLookup LookupPunch = (Just . StringData . mkString) <$> lift lastPunch 
 execLookup (LookupLiteral x) = return $ Just x 
 execLookup (LookupId i) = varLookup i
 execLookup (LookupAggregate name args) = do
@@ -345,4 +347,4 @@ execLookup (LookupAggregate name args) = do
                 loop x [] = return $ Just x
                 loop _ _ = return Nothing
             loop val args
-
+execLookup (LookupKeyword sym) = liftM Just $ lookupKeyword sym

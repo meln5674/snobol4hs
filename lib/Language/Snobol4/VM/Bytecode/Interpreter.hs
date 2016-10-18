@@ -42,7 +42,7 @@ import Language.Snobol4.Interpreter.Scanner
 import Language.Snobol4.Syntax.AST hiding (getProgram)
 
 import Language.Snobol4.VM.Bytecode
-import Language.Snobol4.VM.Bytecode.Interpreter.StackMachine (StackMachine, runStackMachine, ExprKey)
+import Language.Snobol4.VM.Bytecode.Interpreter.StackMachine (StackMachine, runStackMachine)
 import qualified Language.Snobol4.VM.Bytecode.Interpreter.StackMachine as S
 import Language.Snobol4.Interpreter.Internal.StateMachine hiding (Return, FReturn)
 import qualified Language.Snobol4.Interpreter.Internal.StateMachine as StMch
@@ -238,6 +238,19 @@ exec (PushReal r) = do
     push $ RealData r
     incProgramCounter
     return False
+exec (PushReference sym) = do
+    push $ ReferenceId sym
+    incProgramCounter
+    return False
+exec (PushReferenceKeyword sym) = do
+    push $ ReferenceKeyword sym
+    incProgramCounter
+    return False
+exec (PushReferenceAggregate sym count) = do
+    args <- replicateM (unmkInteger count) pop
+    push $ ReferenceAggregate sym args
+    incProgramCounter
+    return False
 exec Pop = do
     pop
     incProgramCounter
@@ -289,11 +302,22 @@ exec (LookupStatic (Symbol sym)) = {-runEvaluation $-} do
     push value
     incProgramCounter
     return False
+exec (LookupStaticKeyword (Symbol sym)) = {-runEvaluation $-} do
+    value <- lookup $ LookupKeyword $ unmkString sym
+    {-liftEval $-} --do
+    push value
+    incProgramCounter
+    return False
 
             
 exec (AssignStatic (Symbol sym)) = do
     val <- pop
     assign (LookupId $ unmkString sym) val
+    incProgramCounter
+    return False
+exec (AssignStaticKeyword (Symbol sym)) = do
+    val <- pop
+    assign (LookupKeyword $ unmkString sym) val
     incProgramCounter
     return False
 exec (AssignRefStatic (Symbol sym) argCount) = do
@@ -305,9 +329,10 @@ exec (AssignRefStatic (Symbol sym) argCount) = do
 
 exec AssignDynamic = do
     item <- pop >>= \case
-        Name lookup -> return lookup
-        Reference lookup -> return lookup
-        _ -> programError IllegalDataType
+        ReferenceId sym -> return $ LookupId sym
+        ReferenceAggregate sym args -> return $ LookupAggregate sym args
+        ReferenceKeyword sym -> return $ LookupKeyword sym
+        _ -> programError VariableNotPresentWhereRequired
     value <- pop
     assign item value
     incProgramCounter
@@ -432,6 +457,34 @@ exec Return = do
     incProgramCounter
     return False
 
+exec NReturn = do
+    -- Return to the last stack frame
+    popCallStackFrame
+    
+    -- Find how many arguments+locals there are
+    IntegerData localsCount <- pop
+
+    -- Reset the references
+    replicateM (1 + unmkInteger localsCount) popReference
+    
+    -- Jump to the return address
+    pop >>= \(IntegerData addr) -> putProgramCounter $ Address $ unmkInteger addr
+    
+    -- Pop return value
+    returnValue <- pop >>= \case
+        Name (LookupId sym) -> return $ ReferenceId sym
+        Name (LookupAggregate sym args) -> return $ ReferenceAggregate sym args
+        _ -> programError IllegalDataType
+    
+    -- Pop off args and locals
+    replicateM (unmkInteger localsCount) pop
+        
+    -- Push the return value back onto the stack
+    push returnValue
+    
+    incProgramCounter
+    return False
+
 exec FReturn =  do
     -- Return to the last stack frame
     popCallStackFrame
@@ -541,9 +594,10 @@ exec InvokeScanner = do
             incProgramCounter
     return False
 exec InvokeReplacer = do
+    replacement <- pop
     IntegerData end <- pop
     IntegerData start <- pop
-    replacement <- pop
+    match <- pop
     StringData originalString <- pop
     replacementStr <- toString replacement
     let preReplacement = snobol4Take start originalString
@@ -568,9 +622,12 @@ exec Finish = return True
 
 exec Input = do
     str <- lift $ lift input 
-    push $ StringData $ mkString str
-    incProgramCounter
-    return False
+    case str of
+        Just str -> do
+            push $ StringData $ mkString str
+            incProgramCounter
+            return False
+        Nothing -> exec JumpToFailureLabel
 exec Output = do
     value <- pop
     str <- toString value

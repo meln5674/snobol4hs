@@ -13,7 +13,7 @@ import Control.Monad.Trans.State.Strict
 import Language.Snobol4.Interpreter.Data
 
 
-import Language.Snobol4.VM.Bytecode (SystemLabel(..), CompiledProgram, Symbol)
+import Language.Snobol4.VM.Bytecode (SystemLabel(..), CompiledProgram, Symbol, ExprKey)
 
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types hiding (Return, FReturn)
 
@@ -168,8 +168,6 @@ instance (Monad m) => NewSnobol4Machine (StackMachine expr m) where
     type ArgType (StackMachine expr m) = ()
     eval = undefined
 -}
-
-type ExprKey = Address
 
 instance (Monad m) => NewSnobol4Machine (StackMachine ExprKey m) where
     type ProgramType (StackMachine ExprKey m) = CompiledProgram
