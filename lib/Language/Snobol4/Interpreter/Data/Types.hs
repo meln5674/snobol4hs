@@ -185,6 +185,9 @@ data Data expr
     | ReferenceUserData UserKey Snobol4String Snobol4Integer
     -- | A reference to a keyword
     | ReferenceKeyword Snobol4String
+    | ReferenceInput
+    | ReferenceOutput
+    | ReferencePunch
     -- | Object code created using the CODE primitive
     | CodeData CodeKey
     -- | Data of a user-defined type

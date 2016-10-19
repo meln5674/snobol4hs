@@ -1,0 +1,9 @@
+INIT    PAT = (ARBNO('A') $ OUTPUT) FAIL
+        TEXT = 'AAAA'
+        OUTPUT = "UNANCHORED"
+        TEXT PAT
+        OUTPUT = 
+        &ANCHOR = 1
+        OUTPUT = "ANCHORED"
+        TEXT PAT
+END INIT

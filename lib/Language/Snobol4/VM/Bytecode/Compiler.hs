@@ -243,9 +243,9 @@ compileRValue (BinaryExpr expr1 Dot expr2) = do
         StaticKeywordLValue (Symbol sym) -> addInstruction $ PushReferenceKeyword sym
         StaticRefLValue (Symbol sym) count -> addInstruction $ PushReferenceAggregate sym $ mkInteger count
         DynamicLValue -> compileError IllegalLValue
-        InputLValue -> addInstruction $ PushReference "INPUT"
-        OutputLValue -> addInstruction $ PushReference "OUTPUT"
-        PunchLValue -> addInstruction $ PushReference "OUTPUT"
+        InputLValue -> addInstruction $ PushReferenceInput
+        OutputLValue -> addInstruction $ PushReferenceOutput
+        PunchLValue -> addInstruction $ PushReferencePunch
     compileRValue expr1
     addInstruction $ BinOp Dot
 compileRValue (BinaryExpr expr1 Dollar expr2) = do
@@ -255,9 +255,9 @@ compileRValue (BinaryExpr expr1 Dollar expr2) = do
         StaticKeywordLValue (Symbol sym) -> addInstruction $ PushReferenceKeyword sym
         StaticRefLValue (Symbol sym) count -> addInstruction $ PushReferenceAggregate sym $ mkInteger count
         DynamicLValue -> compileError IllegalLValue
-        InputLValue -> addInstruction $ PushReference "INPUT"
-        OutputLValue -> addInstruction $ PushReference "OUTPUT"
-        PunchLValue -> addInstruction $ PushReference "PUNCH"
+        InputLValue -> addInstruction $ PushReferenceInput
+        OutputLValue -> addInstruction $ PushReferenceOutput
+        PunchLValue -> addInstruction $ PushReferencePunch
     compileRValue expr1
     addInstruction $ BinOp Dollar
 compileRValue (BinaryExpr expr1 op expr2) = do

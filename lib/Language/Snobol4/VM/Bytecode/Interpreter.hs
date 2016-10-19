@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.VM.Bytecode.Interpreter 
     ( module Language.Snobol4.VM.Bytecode.Interpreter 
     , InterpreterGeneric(Interpreter)
@@ -11,7 +12,7 @@ module Language.Snobol4.VM.Bytecode.Interpreter
     , getCallStackFrameStart
     ) where
 
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, toInteger)
 
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -54,6 +55,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Statements
 import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
 import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
 import Language.Snobol4.Interpreter.Internal.StateMachine.UserData
+import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
 
 import Language.Snobol4.VM.Bytecode.Interpreter.Types
 
@@ -251,6 +253,18 @@ exec (PushReferenceKeyword sym) = do
 exec (PushReferenceAggregate sym count) = do
     args <- replicateM (unmkInteger count) pop
     push $ ReferenceAggregate sym args
+    incProgramCounter
+    return False
+exec PushReferenceInput = do
+    push ReferenceInput
+    incProgramCounter
+    return False
+exec PushReferenceOutput = do
+    push ReferenceOutput
+    incProgramCounter
+    return False
+exec PushReferencePunch = do
+    push ReferencePunch
     incProgramCounter
     return False
 exec (PushExpression lbl) = do
@@ -626,7 +640,8 @@ exec InvokeScanner = do
     pat <- toPattern patternItem
     toMatch <- pop
     matchStr <- toString toMatch
-    result <- scanPattern matchStr pat
+    anchorMode <- getAnchorMode
+    result <- scanPattern matchStr pat anchorMode
     case result of
         NoScan -> do
             addr <- getFailLabel

@@ -82,6 +82,9 @@ data Instruction
     | PushReference Snobol4String
     | PushReferenceKeyword Snobol4String
     | PushReferenceAggregate Snobol4String Snobol4Integer
+    | PushReferenceInput
+    | PushReferenceOutput
+    | PushReferencePunch
     | PushExpression SystemLabel
     -- | Pop the top value off of the stack
     | Pop

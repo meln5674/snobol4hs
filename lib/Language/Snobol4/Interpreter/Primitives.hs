@@ -1006,6 +1006,9 @@ binOp_dollar [x,y] = do
     ref <- case y of
         ReferenceId sym -> return $ LookupId sym
         ReferenceAggregate sym args -> return $ LookupAggregate sym args
+        ReferenceInput -> return $ LookupInput
+        ReferenceOutput -> return $ LookupOutput
+        ReferencePunch -> return $ LookupPunch
         _ -> programError IllegalDataType
     return $ Just $ TempPatternData $ ImmediateAssignmentPattern pat ref
 binOp_dollar _ = programError IncorrectNumberOfArguments
@@ -1019,6 +1022,9 @@ binOp_dot [x,y] = do
         ReferenceId sym -> return $ LookupId sym
         ReferenceKeyword sym -> return $ LookupKeyword sym
         ReferenceAggregate sym args -> return $ LookupAggregate sym args
+        ReferenceInput -> return $ LookupInput
+        ReferenceOutput -> return $ LookupOutput
+        ReferencePunch -> return $ LookupPunch
         _ -> programError IllegalDataType
     return $ Just $ TempPatternData $ AssignmentPattern pat ref
 binOp_dot _ = programError IncorrectNumberOfArguments

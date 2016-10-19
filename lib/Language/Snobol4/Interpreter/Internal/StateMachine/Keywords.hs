@@ -1,4 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Keywords where
+
+import Prelude hiding (toInteger)
 
 import qualified Data.Map as M
 
@@ -7,6 +10,7 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Shell
 
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
+import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
 import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 
@@ -88,3 +92,11 @@ assignKeyword sym val = do
     case M.lookup sym protected of
         Just _ -> programError UnknownKeyword
         Nothing -> modifyUnprotectedKeywords $ M.insert sym val
+
+
+getAnchorMode :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) => InterpreterGeneric (ProgramType m) m Bool
+getAnchorMode = do
+    anchorValue <- lookupKeyword "ANCHOR" >>= toInteger
+    return $ maybe True (0 /=) anchorValue

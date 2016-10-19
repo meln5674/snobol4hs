@@ -30,18 +30,27 @@ scanPattern :: ( InterpreterShell m
                )
             => Snobol4String
             -> Pattern (ExprType m)
+            -> Bool
             -> InterpreterGeneric (ProgramType m) m (ScanResult (ExprType m))
-scanPattern toScan pat = do
-    result <- runExceptT 
-            $ flip runStateT (startState toScan)
-            $ runScanner 
-            $ match pat return nullString
-    case result of
-        Right (matchResult, st) -> do
-            let ScannerState
-                 { assignments=toAssign
-                 , startPos=matchStart
-                 , endPos=matchEnd
-                 } = st
-            return $ Scan (StringData matchResult) toAssign matchStart matchEnd
-        Left _ -> return NoScan
+scanPattern toScan pat anchor = loop 0 $ if anchor 
+    then 0
+    else unmkInteger $ snobol4Length toScan
+  where
+    loop skip maxSkip
+        | skip > maxSkip = return NoScan
+        | otherwise = do
+            result <- runExceptT 
+                    $ flip runStateT (startState toScan skip)
+                    $ runScanner 
+                    $ match pat return nullString
+            case result of
+                Right (matchResult, st) -> do
+                    let ScannerState
+                         { assignments=toAssign
+                         , startPos=matchStart
+                         , endPos=matchEnd
+                         } = st
+                    return $ Scan (StringData matchResult) toAssign (skip + matchStart) (skip + matchEnd)
+                Left _ -> loop (skip+1) maxSkip
+        
+    

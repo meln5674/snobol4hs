@@ -215,9 +215,9 @@ consumeNotAny cs = do
         else backtrack
 
 -- | Create a start state from input
-startState :: Snobol4String -> ScannerState expr
-startState s = ScannerState
-             { inputStr = s
+startState :: Snobol4String -> Snobol4Integer -> ScannerState expr
+startState s skip = ScannerState
+             { inputStr = snobol4Drop skip s
              , assignments = []
              , startPos = 0
              , endPos = 0
