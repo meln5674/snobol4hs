@@ -223,6 +223,7 @@ popReference = do
         2 -> do
             IntegerData ix <- pop
             return $ Just $ GlobalVar $ unmkInteger ix
+        _ -> programError ErrorInSnobol4System
     setReference name ref
 
 
@@ -252,6 +253,10 @@ exec (PushReferenceAggregate sym count) = do
     push $ ReferenceAggregate sym args
     incProgramCounter
     return False
+exec (PushExpression lbl) = do
+    push $ TempPatternData $ UnevaluatedExprPattern lbl
+    incProgramCounter
+    return False
 exec Pop = do
     pop
     incProgramCounter
@@ -259,6 +264,13 @@ exec Pop = do
 exec (Copy n) = do
     x <- pop
     replicateM_ (n+1) $ push x
+    incProgramCounter
+    return False
+exec Rotate = do
+    x <- pop
+    y <- pop
+    push x
+    push y
     incProgramCounter
     return False
 exec Add = arithmetic (+) (+)
@@ -527,7 +539,7 @@ exec FReturn =  do
 
     return False
 
-exec (RefStatic (Symbol sym) argCount) = {-runEvaluation $-} do
+exec (LookupStaticRef (Symbol sym) argCount) = {-runEvaluation $-} do
     args <- {-liftEval $-} replicateM argCount pop
     result <- lookup (LookupAggregate (unmkString sym) args)
     {-liftEval $-} --do
@@ -539,6 +551,15 @@ exec (SetFailLabel lbl) = do
     addr <- lookupSystemLabel lbl
     setFailLabel addr
     incProgramCounter
+    return False
+exec PushFailLabel = do
+    addr <- getFailLabel
+    push $ IntegerData $ getAddress addr
+    incProgramCounter
+    return False
+exec PopFailLabel = do
+    IntegerData i <- pop
+    putProgramCounter $ Address i
     return False
 exec JumpToFailureLabel = do
     addr <- getFailLabel
@@ -556,7 +577,9 @@ exec (JumpStaticIf _) = programError ErrorInSnobol4System
 exec (JumpStaticElse _) = programError ErrorInSnobol4System
 exec JumpDynamic = do
     labelItem <- pop
-    label <- toString labelItem
+    label <- case labelItem of
+        ReferenceId sym -> return sym
+        _ -> toString labelItem
     result <- labelLookup label
     case result of
         Nothing -> programError UndefinedOrErroneousGoto
@@ -568,6 +591,7 @@ exec (BinOp op) = do
     lookupResult <- lookupBinOpSyn op
     case lookupResult of
         Nothing -> programError UndefinedFunctionOrOperation
+        Just NoOperator -> programError UndefinedFunctionOrOperation
         Just (PrimitiveOperator action) -> do
             x <- pop
             y <- pop
@@ -584,6 +608,7 @@ exec (UnOp op) = do
     lookupResult <- lookupUnOpSyn op
     case lookupResult of
         Nothing -> programError UndefinedFunctionOrOperation
+        Just NoOperator -> programError UndefinedFunctionOrOperation
         Just (PrimitiveOperator action) -> do
             arg <- pop
             result <- action [arg]

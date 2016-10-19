@@ -139,7 +139,7 @@ executeCmd "step" = do
     lift $ step
     prog <- lift $ liftM getCompiledProgram $ getProgram
     pc <- lift $ liftM (unmkInteger . getAddress) $ getProgramCounter
-    flip V.imapM prog $ \ix inst -> do
+    flip V.imapM_ prog $ \ix inst -> do
         when (pc - 5 < ix && ix < pc + 5) $ do
             if ix == pc
                 then outputStr ">>> "
@@ -149,7 +149,7 @@ executeCmd "step" = do
 executeCmd "program" = do
     prog <- lift $ liftM getCompiledProgram $ getProgram
     pc <- lift $ liftM (unmkInteger . getAddress) $ getProgramCounter
-    flip V.imapM prog $ \ix inst -> do
+    flip V.imapM_ prog $ \ix inst -> do
         when (pc - 5 < ix && ix < pc + 5) $ do
             if ix == pc
                 then outputStr ">>> "
@@ -172,15 +172,15 @@ executeCmd "input" = do
     return False
 executeCmd "inputs" = do
     inputLines <- lift $ lift $ lift $ liftM reverse getInputs
-    mapM outputStrLn inputLines
+    mapM_ outputStrLn inputLines
     return False
 executeCmd "outputs" = do
     outputLines <- lift $ lift $ lift $ liftM reverse getOutputs
-    mapM outputStrLn outputLines
+    mapM_ outputStrLn outputLines
     return False
 executeCmd "punches" = do
     punchLines <- lift $ lift $ lift $ liftM reverse getPunches
-    mapM outputStrLn punchLines
+    mapM_ outputStrLn punchLines
     return False
 executeCmd _ = do
     outputStrLn "Unknown command"

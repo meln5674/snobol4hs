@@ -56,8 +56,9 @@ compileStatement stmt = do
     compileStatementGoto lbl stmt
 
 compileStatementLabel :: Compiler m => Stmt -> m ()
-compileStatementLabel stmt@(Stmt Nothing _ _ _ _) = return ()
-compileStatementLabel stmt@(Stmt (Just lbl) _ _ _ _) = addUserLabel $ mkString lbl
+compileStatementLabel (Stmt Nothing _ _ _ _) = return ()
+compileStatementLabel (Stmt (Just lbl) _ _ _ _) = addUserLabel $ mkString lbl
+compileStatementLabel (EndStmt _) = undefined
 
 compileStatementBody :: Compiler m => Stmt -> m ()
 compileStatementBody (Stmt _ Nothing _ _ _) = return ()
@@ -67,7 +68,12 @@ compileStatementBody (Stmt _ (Just sub) Nothing Nothing _) = do
         StaticLValue sym -> do
             addInstruction $ LookupStatic sym
             addInstruction $ Pop
-        StaticRefLValue _ argCount -> replicateM_ argCount $ addInstruction Pop
+        StaticRefLValue sym argCount -> do
+            addInstruction $ LookupStaticRef sym argCount
+            replicateM_ argCount $ addInstruction Pop
+        StaticKeywordLValue sym -> do
+            addInstruction $ LookupStaticKeyword sym
+            addInstruction Pop
         DynamicLValue -> addInstruction Pop
         InputLValue -> do
             addInstruction Input
@@ -84,7 +90,8 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) Nothing _) = do
         StaticLValue sym -> do
             addInstruction $ LookupStatic sym
         StaticRefLValue sym argCount -> do
-            addInstruction $ RefStatic sym argCount
+            addInstruction $ LookupStaticRef sym argCount
+        StaticKeywordLValue sym -> addInstruction $ LookupStaticKeyword sym
         DynamicLValue -> return ()
         InputLValue -> addInstruction $ Input
         OutputLValue -> addInstruction $ LastOutput
@@ -112,7 +119,8 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) (Just obj) _) = do
             addInstruction $ LookupStatic sym
         StaticRefLValue sym argCount -> do
             addInstruction $ Copy argCount
-            addInstruction $ RefStatic sym argCount
+            addInstruction $ LookupStaticRef sym argCount
+        StaticKeywordLValue sym -> addInstruction $ LookupStaticKeyword sym
         DynamicLValue -> addInstruction $ Copy 1
         InputLValue -> addInstruction Input
         OutputLValue -> addInstruction LastOutput
@@ -124,15 +132,18 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) (Just obj) _) = do
     case lvalue of
         StaticLValue sym -> addInstruction $ AssignStatic sym
         StaticRefLValue sym argCount -> addInstruction $ AssignRefStatic sym argCount
+        StaticKeywordLValue sym -> addInstruction $ AssignStaticKeyword sym
         DynamicLValue -> addInstruction AssignDynamic
         InputLValue -> addInstruction Pop
         OutputLValue -> addInstruction Output
         PunchLValue -> addInstruction Punch
+compileStatementBody (EndStmt _) = undefined
     
 
 compileGotoPart :: Compiler m => GotoPart -> m ()
 compileGotoPart (GotoPart (IdExpr "RETURN")) = addInstruction Return
 compileGotoPart (GotoPart (IdExpr "FRETURN")) = addInstruction FReturn
+compileGotoPart (GotoPart (IdExpr "NRETURN")) = addInstruction NReturn
 compileGotoPart (GotoPart expr) = do
     compileGotoValue expr
     addInstruction $ JumpDynamic
@@ -167,6 +178,7 @@ compileStatementGoto lbl (Stmt _ _ _ _ (Just (BothGoto success failure))) = do
     addSystemLabel lbl
     addInstruction $ SetFailLabel panicLbl
     compileGotoPart failure
+compileStatementGoto _ (EndStmt _) = undefined
 
 compileSubject :: Compiler m => Expr -> m LValue
 compileSubject = compileLValue
@@ -222,7 +234,7 @@ compileRValue (CallExpr name argExprs) = do
 compileRValue (RefExpr name argExprs) = do
     sym <- getVarSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
-    addInstruction $ RefStatic sym $ length argExprs
+    addInstruction $ LookupStaticRef sym $ length argExprs
 compileRValue (ParenExpr expr) = compileRValue expr
 compileRValue (BinaryExpr expr1 Dot expr2) = do
     lvalue <- compileLValue expr2
@@ -300,6 +312,12 @@ compileLValue (RefExpr name argExprs) = do
     sym <- getVarSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
     return $ StaticRefLValue sym $ length argExprs
+compileLValue (ParenExpr _) = do
+    compileError IllegalLValue
+    return $ DynamicLValue
+compileLValue (BinaryExpr _ _ _) = do
+    compileError IllegalLValue
+    return $ DynamicLValue
 compileLValue NullExpr = do
     compileError IllegalLValue
     return DynamicLValue

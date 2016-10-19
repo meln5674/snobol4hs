@@ -76,6 +76,7 @@ primitiveUnOps :: ( NewSnobol4Machine m
                 => [(Operator, OpSyn (ProgramType m) m)]
 primitiveUnOps =
     [ (And, PrimitiveOperator unOp_and)
+    , (Dollar, PrimitiveOperator unOp_dollar)
     ]
 
 primitiveBinOps :: ( NewSnobol4Machine m
@@ -368,91 +369,90 @@ convert :: ( InterpreterShell m
 convert [toConvert,resultType] = do
     resultType' <- toString resultType
     case toConvert of
-        StringData _ -> case () of
-            ()
-                | resultType' == datatypeNameString -> return $ Just toConvert
-                | resultType' == datatypeNameInteger -> liftM (liftM IntegerData) $ toInteger toConvert
-                | resultType' == datatypeNameReal -> liftM (liftM RealData) $ toReal toConvert
-                | resultType' == datatypeNameExpression -> undefined
-                | resultType' == datatypeNameCode -> undefined
-                | otherwise -> return Nothing
-        IntegerData _ -> case () of
-            ()
-                | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
-                | resultType' == datatypeNameInteger -> return $ Just toConvert
-                | resultType' == datatypeNameReal -> liftM (liftM RealData) $ toReal toConvert
-                | otherwise -> return Nothing
-        RealData _ -> case () of
-            ()
-                | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
-                | resultType' == datatypeNameInteger -> liftM (liftM IntegerData) $ toInteger toConvert
-                | resultType' == datatypeNameReal -> return $ Just toConvert
-                | otherwise -> return Nothing
-        TempPatternData (UnevaluatedExprPattern _) -> undefined
-        PatternData _ -> case () of
-            ()
-                | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNamePattern
-                | resultType' == datatypeNamePattern -> return $ Just toConvert
-                | otherwise -> return Nothing
-        ArrayData k -> case () of
-            ()
-                | resultType' == datatypeNameString -> do
-                    result <- arraysLookup k
-                    case result of
-                        Nothing -> programError ErrorInSnobol4System
-                        Just arr -> return $ Just $ StringData $ arrayFormalIdent arr
-                | resultType' == datatypeNameArray -> return $ Just toConvert
-                | resultType' == datatypeNameTable -> do
-                    result <- arraysLookup k
-                    case result of
-                        Nothing -> programError ErrorInSnobol4System
-                        Just arr -> do
-                            tabResult <- arrayToTable arr
-                            case tabResult of
-                                Nothing -> return Nothing
-                                Just tab -> do
-                                    k' <- tablesNew' tab
-                                    return $ Just $ TableData k'
-                | otherwise -> return Nothing
-        TableData k -> case () of
-            ()
-                | resultType' == datatypeNameString -> do
-                    result <- tablesLookup k
-                    case result of
-                        Nothing -> programError ErrorInSnobol4System
-                        Just tab -> return $ Just $ StringData $ tableFormalIdent tab
-                | resultType' == datatypeNameArray -> do
-                    result <- tablesLookup k
-                    case result of
-                        Nothing -> programError ErrorInSnobol4System
-                        Just tab -> do
-                            arrResult <- tableToArray tab
-                            case arrResult of
-                                Nothing -> return Nothing
-                                Just arr -> do
-                                    k' <- arraysNew' arr
-                                    return $ Just $ ArrayData k'
-                | resultType' == datatypeNameTable -> return $ Just toConvert
-                | otherwise -> return Nothing
-        Name _ -> case () of
-            ()
-                | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNameName
-                | resultType' == datatypeNameName -> return $ Just toConvert
-                | otherwise -> return Nothing
-        CodeData _ -> case () of
-            ()
-                | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNameCode
-                | otherwise -> return Nothing
+        StringData{}
+            | resultType' == datatypeNameString -> return $ Just toConvert
+            | resultType' == datatypeNameInteger -> liftM (liftM IntegerData) $ toInteger toConvert
+            | resultType' == datatypeNameReal -> liftM (liftM RealData) $ toReal toConvert
+            | resultType' == datatypeNameExpression -> undefined
+            | resultType' == datatypeNameCode -> undefined
+            | otherwise -> return Nothing
+        IntegerData{}
+            | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
+            | resultType' == datatypeNameInteger -> return $ Just toConvert
+            | resultType' == datatypeNameReal -> liftM (liftM RealData) $ toReal toConvert
+            | otherwise -> return Nothing
+        RealData{}
+            | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
+            | resultType' == datatypeNameInteger -> liftM (liftM IntegerData) $ toInteger toConvert
+            | resultType' == datatypeNameReal -> return $ Just toConvert
+            | otherwise -> return Nothing
+        TempPatternData (UnevaluatedExprPattern{}) -> undefined
+        TempPatternData{}
+            | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNamePattern
+            | resultType' == datatypeNamePattern -> return $ Just toConvert
+            | otherwise -> return Nothing
+        PatternData{}
+            | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNamePattern
+            | resultType' == datatypeNamePattern -> return $ Just toConvert
+            | otherwise -> return Nothing
+        ArrayData k 
+            | resultType' == datatypeNameString -> do
+                result <- arraysLookup k
+                case result of
+                    Nothing -> programError ErrorInSnobol4System
+                    Just arr -> return $ Just $ StringData $ arrayFormalIdent arr
+            | resultType' == datatypeNameArray -> return $ Just toConvert
+            | resultType' == datatypeNameTable -> do
+                result <- arraysLookup k
+                case result of
+                    Nothing -> programError ErrorInSnobol4System
+                    Just arr -> do
+                        tabResult <- arrayToTable arr
+                        case tabResult of
+                            Nothing -> return Nothing
+                            Just tab -> do
+                                k' <- tablesNew' tab
+                                return $ Just $ TableData k'
+            | otherwise -> return Nothing
+        TableData k
+            | resultType' == datatypeNameString -> do
+                result <- tablesLookup k
+                case result of
+                    Nothing -> programError ErrorInSnobol4System
+                    Just tab -> return $ Just $ StringData $ tableFormalIdent tab
+            | resultType' == datatypeNameArray -> do
+                result <- tablesLookup k
+                case result of
+                    Nothing -> programError ErrorInSnobol4System
+                    Just tab -> do
+                        arrResult <- tableToArray tab
+                        case arrResult of
+                            Nothing -> return Nothing
+                            Just arr -> do
+                                k' <- arraysNew' arr
+                                return $ Just $ ArrayData k'
+            | resultType' == datatypeNameTable -> return $ Just toConvert
+            | otherwise -> return Nothing
+        Name _ 
+            | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNameName
+            | resultType' == datatypeNameName -> return $ Just toConvert
+            | otherwise -> return Nothing
+        CodeData _ 
+            | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNameCode
+            | otherwise -> return Nothing
         UserData k -> do
             result <- userDataLookup k
             case result of
                 Nothing -> programError ErrorInSnobol4System
-                Just userData -> case () of
-                    ()
-                        | resultType' == datatypeNameString -> do
-                            return $ Just $ StringData $ datatypeNameUser userData
-                        | resultType' == datatypeNameUser userData -> return $ Just toConvert
-                        | otherwise -> return Nothing
+                Just userData 
+                    | resultType' == datatypeNameString -> do
+                        return $ Just $ StringData $ datatypeNameUser userData
+                    | resultType' == datatypeNameUser userData -> return $ Just toConvert
+                    | otherwise -> return Nothing
+        ReferenceId{} -> programError ErrorInSnobol4System
+        ReferenceAggregate{} -> programError ErrorInSnobol4System
+        ReferenceUserData{} -> programError ErrorInSnobol4System
+        ReferenceKeyword{} -> programError ErrorInSnobol4System
 convert _ = programError IncorrectNumberOfArguments
 
 -- | The copy function, creates a new instance of the given array
@@ -493,7 +493,7 @@ data_ _ = programError IncorrectNumberOfArguments
 datatype :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
          => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 datatype [arg] = do
-    case arg of
+    result <- case arg of
         UserData k -> do
             result <- userDataLookup k
             case result of
@@ -502,18 +502,25 @@ datatype [arg] = do
                     datatypeResult <- datatypesLookup $ datatypeNameUser userData
                     case datatypeResult of
                         Nothing -> programError ErrorInSnobol4System
-                        Just datatype -> return $ Just $ StringData $ datatypeName datatype
-        _ -> return $ Just $ StringData $ mkString $ case arg of
-            StringData _ -> datatypeNameString
-            PatternData _ -> datatypeNamePattern
-            TempPatternData (UnevaluatedExprPattern _) -> datatypeNameExpression
-            TempPatternData _ -> datatypeNamePattern
-            IntegerData _ -> datatypeNameInteger
-            RealData _ -> datatypeNameReal
-            ArrayData _ -> datatypeNameArray
-            TableData _ -> datatypeNameTable
-            Name _ -> datatypeNameName
-            CodeData _ -> datatypeNameCode
+                        Just datatype -> return $ Just $ datatypeName datatype
+        StringData{} -> return $ Just datatypeNameString
+        PatternData{} -> return $ Just datatypeNamePattern
+        TempPatternData (UnevaluatedExprPattern _) -> return $ Just datatypeNameExpression
+        TempPatternData{} -> return $ Just datatypeNamePattern
+        IntegerData{} -> return $ Just datatypeNameInteger
+        RealData{} -> return $ Just datatypeNameReal
+        ArrayData{} -> return $ Just datatypeNameArray
+        TableData{} -> return $ Just datatypeNameTable
+        Name{} -> return $ Just datatypeNameName
+        CodeData{} -> return $ Just datatypeNameCode
+        ReferenceId{} -> return $ Nothing
+        ReferenceAggregate{} -> return $ Nothing
+        ReferenceUserData{} -> return $ Nothing
+        ReferenceKeyword{} -> return $ Nothing
+    case result of
+        Just x -> return $ Just $ StringData $ mkString x
+        Nothing -> programError ErrorInSnobol4System
+            
 datatype _ = programError IncorrectNumberOfArguments
 
 -- | The date function, returns the current date in mm/dd/yyyy format
@@ -676,6 +683,7 @@ integer [a] = do
     result <- toInteger a
     return $ Just $ StringData ""
 integer [] = return $ Just $ StringData ""
+integer _ = programError IncorrectNumberOfArguments
 
 -- | The item function, indexes an array or table
 item :: ( InterpreterShell m
@@ -946,41 +954,49 @@ binOp_plus :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_plus [x,y] = liftM Just $ arithmetic (+) (+) x y
+binOp_plus _ = programError IncorrectNumberOfArguments
 
 binOp_minus :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_minus [x,y] = liftM Just $ arithmetic (subtract) (subtract) x y
+binOp_minus _ = programError IncorrectNumberOfArguments
 
 binOp_star :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_star [x,y] = liftM Just $ arithmetic (*) (*) x y
+binOp_star _ = programError IncorrectNumberOfArguments
 
 binOp_slash :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_slash [x,y] = liftM Just $ arithmetic (div) (/) x y
+binOp_slash _ = programError IncorrectNumberOfArguments
 
 binOp_bang :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_bang [x,y] = liftM Just $ arithmetic (^) (**) x y
+binOp_bang _ = programError IncorrectNumberOfArguments
 
 binOp_doubleStar :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_doubleStar [x,y] = liftM Just $ arithmetic (^) (**) x y
+binOp_doubleStar _ = programError IncorrectNumberOfArguments
 
 binOp_blank :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_blank [x,y] = liftM Just $ pattern ConcatPattern x y
+binOp_blank _ = programError IncorrectNumberOfArguments
 
 binOp_pipe :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_pipe [x,y] = liftM Just $ pattern AlternativePattern x y
+binOp_pipe _ = programError IncorrectNumberOfArguments
 
 binOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)] 
@@ -992,6 +1008,7 @@ binOp_dollar [x,y] = do
         ReferenceAggregate sym args -> return $ LookupAggregate sym args
         _ -> programError IllegalDataType
     return $ Just $ TempPatternData $ ImmediateAssignmentPattern pat ref
+binOp_dollar _ = programError IncorrectNumberOfArguments
 
 binOp_dot :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
@@ -1004,7 +1021,7 @@ binOp_dot [x,y] = do
         ReferenceAggregate sym args -> return $ LookupAggregate sym args
         _ -> programError IllegalDataType
     return $ Just $ TempPatternData $ AssignmentPattern pat ref
-
+binOp_dot _ = programError IncorrectNumberOfArguments
 
 unOp_and :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
@@ -1012,7 +1029,15 @@ unOp_and :: ( InterpreterShell m, LocalVariablesClass m )
 unOp_and [ReferenceId sym] = return $ Just $ ReferenceKeyword sym
 unOp_and _ = programError UnknownKeyword
 
-
+unOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+unOp_dollar [Name (LookupId sym)] = return $ Just $ ReferenceId sym
+unOp_dollar [x] = do
+    sym <- toString x
+    return $ Just $ ReferenceId sym
+unOp_dollar _ = programError IncorrectNumberOfArguments
+    
 
 keyword_alphabet = StringData $ mkString ['A'..'Z']
 keyword_abort = TempPatternData AbortPattern

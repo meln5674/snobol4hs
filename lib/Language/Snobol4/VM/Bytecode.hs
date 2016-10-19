@@ -30,7 +30,7 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Syntax.AST
 
-type ExprKey = Address
+type ExprKey = SystemLabel
 
 data LabeledInstruction = LabeledInstruction Snobol4String Instruction
 
@@ -140,6 +140,8 @@ data Instruction
     -- | ^(value pointed to by !1)
     | LookupStatic Symbol
     -- | ^(value pointed to by &!1)
+    -- | v(!2); ^(!1<$1,$2,$...,$(!2)>    
+    | LookupStaticRef Symbol Int
     | LookupStaticKeyword Symbol
     
     -- | v1; !1 := $1
@@ -176,8 +178,6 @@ data Instruction
     -- | Return from an unevaluated expression
     | ExprReturn
 
-    -- | v(!2); ^(!1<$1,$2,$...,$(!2)>    
-    | RefStatic Symbol Int
     
     -- | Set the fail label to !1
     | SetFailLabel SystemLabel

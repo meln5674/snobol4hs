@@ -1,0 +1,6 @@
+INIT    A = 'B'
+        B = 1
+        OUTPUT = B
+        $A = 2
+        OUTPUT = B
+END INIT

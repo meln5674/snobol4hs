@@ -28,12 +28,14 @@ process for each remaining alternative.
 {-# LANGUAGE FlexibleContexts #-}
 module Language.Snobol4.Interpreter.Scanner.Internal where
 
+import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Except
 
 
 import Language.Snobol4.Interpreter.Data
+import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Shell
 import Language.Snobol4.Interpreter.Types
 import Language.Snobol4.Interpreter.Internal.StateMachine
@@ -142,6 +144,25 @@ immediateAssignment :: ( InterpreterShell m
                     -> (Data (ExprType m)) 
                     -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m ()
 immediateAssignment l = Scanner . lift . lift . assign l
+
+-- | Try to match a balanced pair of parenthesis
+consumeBal :: Monad m => ScannerGeneric (ProgramType m) (ExprType m) m Snobol4String
+consumeBal = liftM mkString $ loop 0 id
+  where
+    loop :: Monad m 
+         => Int                 -- ^ Depth of parenthesis
+         -> (String -> String)  -- ^ Function to apply to the string consumed
+                                --   afterwards, allows O(1) string concatenation
+         -> ScannerGeneric (ProgramType m) (ExprType m) m String
+    loop depth strf = do
+        c <- liftM unmkString nextChar
+        case c of
+            "(" -> consumeN 1 >> loop (depth+1) (\s -> strf ('(':s))
+            ")"
+                | depth == 1 -> consumeN 1 >> return (strf ")")
+                | otherwise -> consumeN 1 >> loop (depth-1) (\s -> strf ('(':s))
+            [c] -> consumeN 1 >> loop depth (\s -> strf (c:s))
+            _ -> Scanner $ lift $ lift $ programError ErrorInSnobol4System
 
 -- | Attempt to consume a string from input, failing if the start of the input
 -- does not match thet provided string
@@ -288,5 +309,5 @@ match ArbPattern next = \s1 -> catchScan
 match (ArbNoPattern p) next = \s1 -> catchScan
     (match p (match (ArbNoPattern p) next) s1)
     (next s1)
-
-
+match BalPattern next = undefined
+match SucceedPattern next = \s1 -> catchScan (next s1) (match SucceedPattern next s1)

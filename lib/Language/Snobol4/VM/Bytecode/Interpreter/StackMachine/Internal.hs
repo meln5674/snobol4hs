@@ -171,7 +171,7 @@ instance (Monad m) => NewSnobol4Machine (StackMachine expr m) where
 
 instance (Monad m) => NewSnobol4Machine (StackMachine ExprKey m) where
     type ProgramType (StackMachine ExprKey m) = CompiledProgram
-    type ExprType (StackMachine ExprKey m) = Address
+    type ExprType (StackMachine ExprKey m) = ExprKey
     type FuncType (StackMachine ExprKey m) = Symbol
     type ArgType (StackMachine ExprKey m) = ()
     eval = undefined

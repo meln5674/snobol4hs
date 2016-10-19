@@ -125,17 +125,47 @@ getFuncName (PrimitiveFunction name _) = name
 getFuncName (FunctionUnOperatorSynonym name _) = name
 getFuncName (FunctionBinOperatorSynonym name _) = name
 getFuncName (FunctionFunctionSynonym name _) = name
+getFuncName (DataSelectorFunction name _ _) = name
+getFuncName (DataConstructorFunction name _) = name
 
 -- | 
 instance Show (Function program m) where
     show (UserFunction f) = show f
     show (PrimitiveFunction a _) = "(PrimitiveFunction " ++ show a ++ ")"
+    show (FunctionUnOperatorSynonym a b) = "(FunctionUnOperatorSynonym " ++ show a ++ " " ++ show b ++ ")"
+    show (FunctionBinOperatorSynonym a b) = "(FunctionBinOperatorSynonym " ++ show a ++ " " ++ show b ++ ")"
+    show (FunctionFunctionSynonym a b) = "(FunctionFunctionSynonym " ++ show a ++ " " ++ show b ++ ")"
+    show (DataSelectorFunction a b c) = "(DataSelectorFunction " ++ show a ++ " " ++ show b ++ " " ++ show c ++ ")"
+    show (DataConstructorFunction a b) = "(DataConstructorFunction " ++ show a ++ " " ++ show b ++ ")"
 
 -- |
 instance Eq (Function program m) where
     PrimitiveFunction{} == _ = False
     _ == PrimitiveFunction{} = False
-    (UserFunction f) == (UserFunction f') = f == f;
+
+    (UserFunction f) == (UserFunction f') = f == f';
+    (UserFunction _) == _ = False
+    _ == (UserFunction _) = False
+
+    (FunctionUnOperatorSynonym a b) == (FunctionUnOperatorSynonym a' b') = a == a' && b == b'
+    FunctionUnOperatorSynonym{} == _ = False
+    _ == FunctionUnOperatorSynonym{} = False
+
+    (FunctionBinOperatorSynonym a b) == (FunctionBinOperatorSynonym a' b') = a == a' && b == b'
+    FunctionBinOperatorSynonym{} == _ = False
+    _ == FunctionBinOperatorSynonym{} = False
+
+    (FunctionFunctionSynonym a b) == (FunctionFunctionSynonym a' b') = a == a' && b == b'
+    FunctionFunctionSynonym{} == _ = False
+    _ == FunctionFunctionSynonym{} = False
+    
+    (DataSelectorFunction a b c) == (DataSelectorFunction a' b' c') = a == a' && b == b' && c == c'
+    DataSelectorFunction{} == _ = False
+    _ == DataSelectorFunction{} = False
+    
+    (DataConstructorFunction a b) == (DataConstructorFunction a' b') = a == a' && b == b'
+    DataConstructorFunction{} == _ = False
+    _ == DataConstructorFunction{} = False
 
 -- | A label that can be jumped to
 data Label
