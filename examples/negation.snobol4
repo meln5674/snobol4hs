@@ -1,0 +1,7 @@
+INIT    ~EQ(0,1)            :S(S1)F(F1)
+S1      OUTPUT = "0 =/= 1"  :(NEXT)
+F1      OUTPUT = "0 == 1"   :(NEXT)
+NEXT    ~EQ(0,0)            :S(S2)F(F2)
+S2      OUTPUT = "0 =/= 0"  :(END)
+F2      OUTPUT = "0 == 0"   :(END)
+END     INIT

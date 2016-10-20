@@ -202,14 +202,13 @@ compileRValue (PrefixExpr Star expr) = do
     addSystemLabel afterLabel
     addInstruction $ PushExpression exprLabel
 compileRValue (PrefixExpr Not expr) = do
-    successLabel <- allocSystemLabel
-    addInstruction $ PushFailLabel
-    addInstruction $ SetFailLabel successLabel
+    operandFailLabel <- allocSystemLabel
+    addInstruction $ PushFailLabel operandFailLabel
     compileRValue expr
-    addInstruction $ Rotate
+    addInstruction $ Pop
     addInstruction $ PopFailLabel
     addInstruction $ JumpToFailureLabel
-    addSystemLabel successLabel
+    addSystemLabel operandFailLabel
     addInstruction $ PopFailLabel
     addInstruction $ PushString nullString
 compileRValue (PrefixExpr op expr) = do
@@ -291,8 +290,12 @@ compileLValue (PrefixExpr op expr) = do
     addInstruction $ UnOp op
     return DynamicLValue
 -}
-compileLValue (PrefixExpr _ _) = do
-    compileError IllegalLValue
+compileLValue (PrefixExpr Not expr) = do
+    compileRValue (PrefixExpr Not expr)
+    return DynamicLValue
+compileLValue (PrefixExpr op expr) = do
+    compileRValue expr
+    addInstruction $ UnOp op
     return DynamicLValue
 compileLValue (IdExpr "INPUT") = return InputLValue
 compileLValue (IdExpr "OUTPUT") = return OutputLValue
@@ -312,11 +315,12 @@ compileLValue (RefExpr name argExprs) = do
     sym <- getVarSymbol $ mkString name
     mapM compileRValue $ reverse argExprs
     return $ StaticRefLValue sym $ length argExprs
-compileLValue (ParenExpr _) = do
-    compileError IllegalLValue
-    return $ DynamicLValue
-compileLValue (BinaryExpr _ _ _) = do
-    compileError IllegalLValue
+compileLValue (ParenExpr expr) = do
+    compileLValue expr
+compileLValue (BinaryExpr expr1 op expr2) = do
+    compileRValue expr2
+    compileRValue expr1
+    addInstruction $ BinOp op
     return $ DynamicLValue
 compileLValue NullExpr = do
     compileError IllegalLValue

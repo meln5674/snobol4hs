@@ -80,8 +80,8 @@ instance ProgramClass CompiledProgram where
 getFailLabel :: (Monad m) => Interpreter m Address
 getFailLabel = lift S.getFailLabel
 
-setFailLabel :: ( Monad m) => Address -> Interpreter m ()
-setFailLabel = lift . S.setFailLabel
+putFailLabel :: ( Monad m) => Address -> Interpreter m ()
+putFailLabel = lift . S.putFailLabel
 
 putSystemLabels :: (Monad m) => Vector Address -> Interpreter m ()
 putSystemLabels = lift . S.putSystemLabels
@@ -107,6 +107,10 @@ popCallStackFrame = lift S.popCallStackFrame
 pushCallStackFrame = lift . S.pushCallStackFrame
 
 getCallStackFrameStart = lift S.getCallStackFrameStart
+
+pushFailLabel = lift . S.pushFailLabel
+
+popFailLabel = lift S.popFailLabel
 
 {-
 wrapPop :: InterpreterShell m => MaybeT (StackMachine m) Data -> Interpreter m Data
@@ -563,17 +567,17 @@ exec (LookupStaticRef (Symbol sym) argCount) = {-runEvaluation $-} do
 
 exec (SetFailLabel lbl) = do
     addr <- lookupSystemLabel lbl
-    setFailLabel addr
+    putFailLabel addr
     incProgramCounter
     return False
-exec PushFailLabel = do
-    addr <- getFailLabel
-    push $ IntegerData $ getAddress addr
+exec (PushFailLabel lbl) = do
+    addr <- lookupSystemLabel lbl
+    pushFailLabel addr
     incProgramCounter
     return False
 exec PopFailLabel = do
-    IntegerData i <- pop
-    putProgramCounter $ Address i
+    popFailLabel
+    incProgramCounter
     return False
 exec JumpToFailureLabel = do
     addr <- getFailLabel

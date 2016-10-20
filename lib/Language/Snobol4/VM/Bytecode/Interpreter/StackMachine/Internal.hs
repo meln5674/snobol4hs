@@ -78,6 +78,12 @@ putCallStackFrameStart depth = modifyStackMachineState $ \st -> st{callStackFram
 modifyCallStackFrameStart :: Monad m => (Int -> Int) -> StackMachine expr m ()
 modifyCallStackFrameStart f = getCallStackFrameStart >>= putCallStackFrameStart . f
 
+getFailStackCounter :: Monad m => StackMachine expr m Int
+getFailStackCounter = StackMachine $ gets failStackCounter
+
+putFailStackCounter :: Monad m => Int -> StackMachine expr m ()
+putFailStackCounter c = modifyStackMachineState $ \st -> st{ failStackCounter = c }
+
 pushCallStackFrame :: Monad m => Int -> StackMachine expr m ()
 pushCallStackFrame depth = do
     oldDepth <- getCallStackFrameStart
@@ -103,10 +109,29 @@ getFailLabel :: Monad m => StackMachine expr m Address
 getFailLabel = StackMachine $ gets failLabel
 
 -- | Set the label to jump to in case of failure
-setFailLabel :: Monad m => Address -> StackMachine expr m ()
-setFailLabel addr = do
+putFailLabel :: Monad m => Address -> StackMachine expr m ()
+putFailLabel addr = do
     modifyStackMachineState $ \st -> st { failLabel = addr }
     modifyFailStackCounter (const 0)
+
+pushFailLabel :: Monad m => Address -> StackMachine expr m ()
+pushFailLabel lbl = do
+    getFailLabel >>= push . IntegerData . getAddress
+    getFailStackCounter >>= push . IntegerData . mkInteger
+    putFailLabel lbl
+    putFailStackCounter 0
+
+popFailLabel :: Monad m => StackMachine expr m (Maybe ())
+popFailLabel = do
+    counter <- pop
+    addr <- pop
+    case (counter, addr) of
+        (Just (IntegerData counter), Just (IntegerData addr)) -> do
+            putFailLabel $ Address addr
+            putFailStackCounter $ unmkInteger counter
+            return $ Just ()
+        _ -> return Nothing
+
 
 -- | Set the labels for compiler-created jumps
 putSystemLabels :: Monad m => Vector Address -> StackMachine expr m ()
@@ -155,8 +180,7 @@ pop = do
 -- | Pop each item that was pushed since the fail label was last set
 popFailStack :: Monad m => StackMachine expr m ()
 popFailStack = do
-    n <- StackMachine $ gets failStackCounter
-    replicateM n pop
+    getFailStackCounter >>= flip replicateM pop
     modifyFailStackCounter (const 0)
     return ()
 

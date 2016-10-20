@@ -185,7 +185,7 @@ data Instruction
     -- | Set the fail label to !1
     | SetFailLabel SystemLabel
     -- | ^(fail label)
-    | PushFailLabel
+    | PushFailLabel SystemLabel
     -- | v1;
     -- fail label = $1
     | PopFailLabel
