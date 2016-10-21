@@ -100,7 +100,7 @@ primitiveBinOps =
 -- | The names and actions of the primitive functions
 primitiveFunctions
     :: ( InterpreterShell m
-       {-, Snobol4Machine program-}
+       , NewSnobol4Machine m
        , LocalVariablesClass m
        , ProgramClass (ProgramType m)
        , Ord (ExprType m)
@@ -608,7 +608,7 @@ eq = numericalPredicate (==)
 
 -- | The eval function, evaluates an unevaluated expression
 eval :: ( InterpreterShell m
-        {-, Snobol4Machine program-}
+        , NewSnobol4Machine m
         , LocalVariablesClass m 
         )  
      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -989,7 +989,9 @@ binOp_doubleStar _ = programError IncorrectNumberOfArguments
 binOp_blank :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
-binOp_blank [x,y] = liftM Just $ pattern ConcatPattern x y
+binOp_blank [x,y] = liftM Just $ pattern (\p1 p2 -> case (p1,p2) of
+    (LiteralPattern l1, LiteralPattern l2) -> LiteralPattern $ l1 <> l2
+    _ -> ConcatPattern p1 p2) x y
 binOp_blank _ = programError IncorrectNumberOfArguments
 
 binOp_pipe :: ( InterpreterShell m, LocalVariablesClass m )

@@ -112,7 +112,11 @@ getInput = Scanner $ gets inputStr
 
 -- | Peek at the next character to be scanned
 nextChar :: Monad m => ScannerGeneric (ProgramType m) expr {-error-} m Snobol4String
-nextChar = Scanner $ gets $ snobol4Head . inputStr
+nextChar = do
+    str <- Scanner $ gets inputStr
+    case snobol4Uncons str of
+        Just (x,xs) -> return x
+        Nothing -> backtrack
 
 -- | Set the input yet to be scanned
 setInput :: Monad m => Snobol4String -> ScannerGeneric (ProgramType m) expr {-error-} m ()
@@ -272,12 +276,18 @@ match (HeadPattern l) next = \s -> do
     immediateAssignment l $ IntegerData pos
     next s
     
-match (SpanPattern cs) next = \s1 -> catchScan
-    (consumeAny cs >>= \s2 -> match (SpanPattern cs) next (s1 <> s2))
-    (next s1)
-match (BreakPattern cs) next = \s1 -> catchScan
-    (consumeNotAny cs >>= \s2 -> match (BreakPattern cs) next (s1 <> s2)) 
-    (next s1)
+match (SpanPattern cs) next = \s1 -> (consumeAny cs >>= \s2 -> loop next (s1 <> s2))
+  where
+    loop loopNext = \s1 -> catchScan
+        (consumeAny cs >>= \s2 -> loop loopNext (s1 <> s2))
+        (loopNext s1)
+
+match (BreakPattern cs) next = \s1 -> (consumeNotAny cs >>= \s2 -> loop next (s1 <> s2))
+  where
+    loop loopNext = \s1 -> catchScan
+        (consumeNotAny cs >>= \s2 -> loop loopNext (s1 <> s2))
+        (loopNext s1)
+
 match (AnyPattern cs) next = func (consumeAny cs) next
 match (NotAnyPattern cs) next = func (consumeNotAny cs) next
 match (TabPattern col) next = \s -> do

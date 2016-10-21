@@ -26,6 +26,10 @@ import Language.Snobol4.Interpreter.Data.Types
 snobol4Head :: Snobol4String -> Snobol4String
 snobol4Head (Snobol4String s) = Snobol4String $ [head s]
 
+snobol4Uncons :: Snobol4String -> Maybe (Snobol4String,Snobol4String)
+snobol4Uncons (Snobol4String (x:xs)) = Just (Snobol4String [x],Snobol4String xs)
+snobol4Uncons _ = Nothing
+
 -- | Generalization of length
 snobol4Length :: Snobol4String -> Snobol4Integer
 snobol4Length (Snobol4String s) = Snobol4Integer $ length s

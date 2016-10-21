@@ -24,7 +24,7 @@ import Language.Snobol4.Interpreter.Scanner.Internal
 
 -- | Match a string against a pattern
 scanPattern :: ( InterpreterShell m
-               {-, Snobol4Machine program-}
+               , NewSnobol4Machine m
                , LocalVariablesClass m
                , Ord (ExprType m)
                )

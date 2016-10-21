@@ -211,6 +211,7 @@ instance Show Snobol4Real where
 instance Show (Data expr) where
     show (StringData s) = show s
     show (PatternData _) = "[PATTERN]"
+    show (TempPatternData (LiteralPattern s)) = show s
     show (TempPatternData _) = "[PATTERN]"
     show (IntegerData i) = show i
     show (RealData f) = show f

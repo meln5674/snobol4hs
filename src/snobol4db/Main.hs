@@ -159,8 +159,8 @@ executeCmd "program" = do
 executeCmd "stack" = do
     stack <- lift getStack
     frameStart <- lift getCallStackFrameStart
-    forM_ (zip [0..] stack) $ \(i,inst) -> do
-        outputStr $ show inst
+    forM_ (zip [0..] stack) $ \(i,item) -> do
+        outputStr $ show item
         when (i == frameStart) $ outputStr "------"
         outputStrLn ""
     return False
@@ -181,6 +181,17 @@ executeCmd "outputs" = do
 executeCmd "punches" = do
     punchLines <- lift $ lift $ lift $ liftM reverse getPunches
     mapM_ outputStrLn punchLines
+    return False
+executeCmd "lookup" = do
+    inputLine <- getInputLine ">>>"
+    case inputLine of
+        Just name -> do
+            lookupString <- lift $ do
+                lookupResult <- execLookup (LookupId $ mkString name)
+                --traverse toString lookupResult
+                return lookupResult
+            outputStrLn $ show lookupString
+        Nothing -> outputStrLn $ show ""
     return False
 executeCmd _ = do
     outputStrLn "Unknown command"

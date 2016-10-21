@@ -275,30 +275,26 @@ unary = do
 
 -- | Parse either just a blank (concat operator) or a blank followed by any 
 -- binary operator and then another blank
-binary :: Monad m => ParsecT TokStream ParserState m (Maybe Operator)
+binary :: Monad m => ParsecT TokStream ParserState m Operator
 binary = do
     mandatoryBlanks
-    x <- P.optionMaybe $ do
-        x <- P.optionMaybe (operator <|> exponentiate)
-        mandatoryBlanks
-        return x
-    let y = join x
-    case y of
-        Just (Located (Operator op) _) -> case op of
-            "$" -> return $ Just Dollar
-            "!" -> return $ Just Bang
-            "*" -> return $ Just Star
-            "/" -> return $ Just Slash
-            "+" -> return $ Just Plus
-            "-" -> return $ Just Minus
-            "|" -> return $ Just Pipe
-            "." -> return $ Just Dot
+    x <- operator <|> exponentiate
+    mandatoryBlanks
+    case x of
+        Located (Operator op) _ -> case op of
+            "$" -> return $ Dollar
+            "!" -> return $ Bang
+            "*" -> return $ Star
+            "/" -> return $ Slash
+            "+" -> return $ Plus
+            "-" -> return $ Minus
+            "|" -> return $ Pipe
+            "." -> return $ Dot
             _ -> P.unexpected $ show op ++ "(Expecting a binary operator)"
-        Just (Located Exponentiate _) -> return $ Just DoubleStar
-        Nothing -> return Nothing
+        Located Exponentiate _ -> return $ DoubleStar
         _ -> error 
             $ "Internal error: Something other than an operator was lexed as an operator: " 
-            ++ show y
+            ++ show x
 
 -- | Parse any literal
 literal :: Monad m => ParsecT TokStream ParserState m (Located Token SourcePos)
@@ -342,17 +338,22 @@ element = do
         Nothing -> rest
 
 -- | Parse a binary operator expression
-operation :: Monad m => ParsecT TokStream ParserState m Expr
-operation = do
+operationBinary :: Monad m => ParsecT TokStream ParserState m Expr
+operationBinary = do
     a <- element
     op <- binary
     b <- P.try expression <|> element
-    case op of
-        Just op' -> return $ BinaryExpr a op' b
-        Nothing -> case b of
-            NullExpr -> do
-                return a
-            _ -> return $ BinaryExpr a Blank b
+    return $ BinaryExpr a op b
+
+operationBlank :: Monad m => ParsecT TokStream ParserState m Expr
+operationBlank = do
+    a <- element
+    mandatoryBlanks
+    b <- P.try expression <|> element
+    return $ BinaryExpr a Blank b
+
+operation :: Monad m => ParsecT TokStream ParserState m Expr
+operation = P.try operationBinary <|> operationBlank
 
 -- | Parse an expression, which is an element or binary operation, optionally 
 -- surounded by blanks

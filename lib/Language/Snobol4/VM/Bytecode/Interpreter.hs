@@ -4,12 +4,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Language.Snobol4.VM.Bytecode.Interpreter 
     ( module Language.Snobol4.VM.Bytecode.Interpreter 
     , InterpreterGeneric(Interpreter)
     , getProgram
     , getProgramCounter
     , getCallStackFrameStart
+    , execLookup
+    , toString
     ) where
 
 import Prelude hiding (lookup, toInteger)
@@ -76,6 +79,21 @@ instance EmptyProgramClass CompiledProgram where
 instance ProgramClass CompiledProgram where
     type InstructionType CompiledProgram = Instruction
     getInstruction (Address ix) (CompiledProgram is) = is V.! unmkInteger ix
+
+instance ( InterpreterShell m
+         ) => NewSnobol4Machine (StackMachine ExprKey m) where
+    type ProgramType (StackMachine ExprKey m) = CompiledProgram
+    type ExprType (StackMachine ExprKey m) = ExprKey
+    type FuncType (StackMachine ExprKey m) = Symbol
+    type ArgType (StackMachine ExprKey m) = ()
+    eval lbl = do
+        addr <- lookupSystemLabel lbl
+        putProgramCounter addr
+        result <- runJIT
+        if result
+            then liftM Just pop
+            else return Nothing
+        
 
 getFailLabel :: (Monad m) => Interpreter m Address
 getFailLabel = lift S.getFailLabel
@@ -303,7 +321,9 @@ exec ConcatString = do
     incProgramCounter
     return False
 
-exec ConcatPattern = pattern Data.ConcatPattern
+exec ConcatPattern = pattern $ \p1 p2 -> case (p1,p2) of
+    (LiteralPattern l1, LiteralPattern l2) -> LiteralPattern $ l1 <> l2
+    _ -> Data.ConcatPattern p1 p2
 exec AlternatePattern = pattern Data.AlternativePattern
 
 exec GreaterThan = programError ErrorInSnobol4System
@@ -557,6 +577,9 @@ exec FReturn =  do
 
     return False
 
+exec ExprReturn = do
+    programError ErrorInSnobol4System
+
 exec (LookupStaticRef (Symbol sym) argCount) = {-runEvaluation $-} do
     args <- {-liftEval $-} replicateM argCount pop
     result <- lookup (LookupAggregate (unmkString sym) args)
@@ -717,7 +740,36 @@ exec LastPunch = do
     incProgramCounter
     return False
 
-step :: InterpreterShell m => Interpreter m Bool
+data JITResult
+    = ExprFinished
+    | ExprUnfinished Bool
+
+execJIT :: ( InterpreterShell m 
+           ) 
+        => Instruction -> Interpreter m JITResult
+execJIT ExprReturn = return ExprFinished
+execJIT x = liftM ExprUnfinished $ exec x
+
+runJIT :: ( InterpreterShell m
+          )
+       => Interpreter m Bool
+runJIT = loop
+  where
+    loop = do
+        result <- stepJIT
+        case result of
+            ExprFinished -> return True
+            ExprUnfinished True -> loop
+            ExprUnfinished False -> return False
+
+stepJIT :: ( InterpreterShell m
+           )
+        => Interpreter m JITResult
+stepJIT = fetch >>= execJIT
+
+step :: ( InterpreterShell m 
+        )
+     => Interpreter m Bool
 step = fetch >>= exec
 
 

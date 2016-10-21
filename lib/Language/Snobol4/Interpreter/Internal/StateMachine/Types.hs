@@ -383,11 +383,13 @@ class (Monad m) => NewSnobol4Machine m where
     type ExprType m
     type FuncType m
     type ArgType m
-    eval :: ExprType m
+    eval :: ( InterpreterShell m 
+            )
+         => ExprType m
          -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
     registerExpr :: Expr -> InterpreterGeneric (ProgramType m) m (ExprType m)
 
-class (NewSnobol4Machine m) => LocalVariablesClass m where
+class (Monad m) => LocalVariablesClass m where
     lookupLocal :: Int -> m (Maybe (Data (ExprType m)))
     writeLocal :: Int -> Data (ExprType m) -> m (Maybe ())
 

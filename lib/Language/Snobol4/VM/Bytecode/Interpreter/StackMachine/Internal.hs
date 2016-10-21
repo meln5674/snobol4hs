@@ -193,14 +193,9 @@ instance (Monad m) => NewSnobol4Machine (StackMachine expr m) where
     eval = undefined
 -}
 
-instance (Monad m) => NewSnobol4Machine (StackMachine ExprKey m) where
-    type ProgramType (StackMachine ExprKey m) = CompiledProgram
-    type ExprType (StackMachine ExprKey m) = ExprKey
-    type FuncType (StackMachine ExprKey m) = Symbol
-    type ArgType (StackMachine ExprKey m) = ()
-    eval = undefined
-
-instance (Monad m) => LocalVariablesClass (StackMachine ExprKey m) where
+instance ( Monad m
+         , ExprType (StackMachine ExprKey m) ~ ExprKey
+         ) => LocalVariablesClass (StackMachine ExprKey m) where
     lookupLocal ix = do
         frameStackStart <- getCallStackFrameStart
         let stackIx = frameStackStart - ix
