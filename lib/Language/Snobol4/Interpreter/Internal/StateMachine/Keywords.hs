@@ -5,6 +5,8 @@ import Prelude hiding (toInteger)
 
 import qualified Data.Map as M
 
+import Control.Monad
+
 import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Shell
@@ -100,3 +102,53 @@ getAnchorMode :: ( InterpreterShell m
 getAnchorMode = do
     anchorValue <- lookupKeyword "ANCHOR" >>= toInteger
     return $ maybe True (0 /=) anchorValue
+
+incFunctionLevel :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) => InterpreterGeneric (ProgramType m) m ()
+incFunctionLevel = do
+    functionLevel <- lookupKeyword "FNCLEVEL" >>= toInteger
+    case functionLevel of
+        Just x -> modifyKeyword "FNCLEVEL" $ IntegerData $ x + 1
+        Nothing -> programError ErrorInSnobol4System
+
+decFunctionLevel :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) => InterpreterGeneric (ProgramType m) m ()
+decFunctionLevel = do
+    functionLevel <- lookupKeyword "FNCLEVEL" >>= toInteger
+    case functionLevel of
+        Just x -> modifyKeyword "FNCLEVEL" $ IntegerData $ x - 1
+        Nothing -> programError ErrorInSnobol4System
+
+setReturnType :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) 
+              => Snobol4String
+              -> InterpreterGeneric (ProgramType m) m ()
+setReturnType = modifyKeyword "RTNTYPE" . StringData
+
+incFailCount :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) 
+              => InterpreterGeneric (ProgramType m) m ()
+incFailCount = do
+    failCount <- lookupKeyword "STFCOUNT" >>= toInteger
+    case failCount of
+        Just x -> modifyKeyword "STFCOUNT" $ IntegerData $ x + 1
+        Nothing -> programError ErrorInSnobol4System
+
+getOutputSwitch :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) => InterpreterGeneric (ProgramType m) m Bool
+getOutputSwitch = liftM (maybe True (0/=)) $ lookupKeyword "OUTPUT" >>= toInteger
+
+getInputSwitch :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) => InterpreterGeneric (ProgramType m) m Bool
+getInputSwitch = liftM (maybe True (0/=)) $ lookupKeyword "INPUT" >>= toInteger
+
+getTrimMode :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+                 ) => InterpreterGeneric (ProgramType m) m Bool
+getTrimMode = liftM (maybe True (0/=)) $ lookupKeyword "TRIM" >>= toInteger

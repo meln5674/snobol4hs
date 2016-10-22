@@ -417,6 +417,7 @@ exec (CallStatic (Symbol sym) argCount isLValue) = do
             case result of
                 Just value -> do
                     push value
+                    incFunctionLevel
                     incProgramCounter
                     return False
                 Nothing -> exec JumpToFailureLabel
@@ -526,6 +527,9 @@ exec Return = do
     -- Push the return value back onto the stack
     push returnValue
     
+    decFunctionLevel
+    setReturnType "RETURN"
+    
     incProgramCounter
     return False
 
@@ -554,6 +558,9 @@ exec NReturn = do
     -- Push the return value back onto the stack
     push returnValue
     
+    decFunctionLevel
+    setReturnType "NRETURN"
+    
     incProgramCounter
     return False
 
@@ -574,6 +581,9 @@ exec FReturn =  do
     addr <- getFailLabel
     putProgramCounter addr
     popFailStack
+
+    decFunctionLevel
+    setReturnType "FRETURN"
 
     return False
 
@@ -606,6 +616,7 @@ exec JumpToFailureLabel = do
     addr <- getFailLabel
     putProgramCounter addr
     popFailStack
+    incFailCount
     return False
 exec JumpToFailureLabelIf = programError ErrorInSnobol4System
 exec JumpToFailureLabelElse = programError ErrorInSnobol4System

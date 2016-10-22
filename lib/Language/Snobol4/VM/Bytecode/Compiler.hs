@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.VM.Bytecode.Compiler where
 
+import qualified Data.Vector as V
+
 import Control.Monad
 
 import Language.Snobol4.Syntax.AST

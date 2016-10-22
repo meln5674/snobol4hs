@@ -10,7 +10,10 @@ Portability     : Unknown
 
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.Variables where
+
+import Prelude hiding (toInteger)
 
 import qualified Data.Map as M
 import qualified Data.Vector as V
@@ -298,8 +301,12 @@ assign (LookupAggregate name args) val = do
     case base of
         Just baseVal -> loop baseVal args
         Nothing -> programError ErroneousArrayOrTableReference
-assign LookupOutput val = toString val >>= lift . output . unmkString
-assign LookupPunch val = toString val >>= lift . punch . unmkString
+assign LookupOutput val = do
+    outputSwitch <- getOutputSwitch
+    when outputSwitch $ toString val >>= lift . output . unmkString
+assign LookupPunch val = do
+    outputSwitch <- getOutputSwitch
+    when outputSwitch $ toString val >>= lift . punch . unmkString
 assign (LookupKeyword sym) val = assignKeyword sym val
 assign (LookupUserData key dataName ix) val = userDataModify key dataName ix val
 assign _ _ = programError VariableNotPresentWhereRequired
@@ -325,7 +332,14 @@ execLookup :: ( InterpreterShell m
               ) 
            => (Lookup (ExprType m)) 
            -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m))) 
-execLookup LookupInput = (liftM $ StringData . mkString) <$> lift input 
+execLookup LookupInput = do
+    inputSwitch <- getInputSwitch
+    if inputSwitch 
+        then do
+            trimMode <- getTrimMode
+            let trimFunc = if trimMode then snobol4Trim else id
+            (liftM $ StringData . trimFunc . mkString) <$> lift input 
+        else return Nothing
 execLookup LookupOutput = (Just . StringData . mkString) <$> lift lastOutput 
 execLookup LookupPunch = (Just . StringData . mkString) <$> lift lastPunch 
 execLookup (LookupLiteral x) = return $ Just x 
