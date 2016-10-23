@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RankNTypes #-}
 module Main where
 
 import System.Environment
@@ -43,9 +44,15 @@ import Language.Snobol4.VM.Bytecode
 import Language.Snobol4.Syntax.AST hiding (getProgram)
 
 deriving instance MonadException ConsoleShell
-deriving instance MonadException m => MonadException (Interpreter m)
+--deriving instance MonadException m => MonadException (VM m)
 deriving instance MonadException m => MonadException (StackMachine expr m)
 
+
+
+instance ( InterpreterShell m, MonadException m ) => MonadException (VM m) where
+    controlIO f = mkVM $ \runFunc stateFunc s -> controlIO $ \(RunIO r) -> let
+        r' = RunIO (fmap (stateFunc . const) . r . flip runFunc s)
+        in fmap (flip runFunc s) $ f r'
 
 data DebugShellState = DebugShellState
     { inputs :: [String]
@@ -122,6 +129,8 @@ instance (MonadException m) => MonadException (ExceptT e m) where
                     run' = RunIO (fmap ExceptT . run . runExceptT)
                     in fmap runExceptT $ f run'
 
+
+
 data Args
     = Args
     { path :: FilePath
@@ -132,11 +141,11 @@ parseArgs [] = Left "No path specified"
 parseArgs [x] = Right $ Args x
 parseArgs _ = Left "Too many arguments"
 
-executeCmd :: String -> InputT (Interpreter DebugShell) Bool
+executeCmd :: String -> InputT (VM DebugShell) Bool
 executeCmd "" = return False
 executeCmd "quit" = return True
 executeCmd "step" = do
-    lift $ step
+    lift $ stepVM
     prog <- lift $ liftM getCompiledProgram $ getProgram
     pc <- lift $ liftM (unmkInteger . getAddress) $ getProgramCounter
     flip V.imapM_ prog $ \ix inst -> do
@@ -198,7 +207,7 @@ executeCmd _ = do
     return False
 
 
-mainLoop :: InputT (Interpreter DebugShell) ()
+mainLoop :: InputT (VM DebugShell) ()
 mainLoop = do
     userInput <- getInputLine ">"
     case userInput of

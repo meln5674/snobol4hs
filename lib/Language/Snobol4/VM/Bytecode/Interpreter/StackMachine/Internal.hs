@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes #-}
 module Language.Snobol4.VM.Bytecode.Interpreter.StackMachine.Internal where
 
 import qualified Data.Stack as S
@@ -51,6 +52,26 @@ newtype StackMachine expr m a = StackMachine
 -- | Run the stack machine
 runStackMachine :: Monad m => StackMachine expr m a -> m a
 runStackMachine f = flip evalStateT emptyStackMachineState $ runStackMachineInternal $ f
+
+-- | Initialize a stack machine
+initStackMachine :: Monad m => m (StackMachineState expr)
+initStackMachine = liftM snd $ resumeStackMachine (return ()) emptyStackMachineState
+
+-- | Run a paused stack machine
+resumeStackMachine :: Monad m => StackMachine expr m a -> StackMachineState expr -> m (a, StackMachineState expr)
+resumeStackMachine = runStateT . runStackMachineInternal
+
+mkStackMachine :: Monad m 
+               => ( forall s
+                  .  ( forall b . StackMachine expr m b -> s -> m (b, s) )
+                  -> ( forall b . (s -> m (b, s)) -> StackMachine expr m b )
+                  -> ( s -> m (a, s) )
+                  ) 
+               -> StackMachine expr m a
+mkStackMachine f = StackMachine $ StateT $ f runFunc stateFunc
+  where
+    runFunc g st = runStateT (runStackMachineInternal g) st
+    stateFunc = StackMachine . StateT
 
 instance InterpreterShell m => InterpreterShell (StackMachine expr m) where
     input = lift input

@@ -8,6 +8,7 @@ Portability     : Unknown
 
 -}
 
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ExplicitForAll #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine 
     ( module Language.Snobol4.Interpreter.Internal.StateMachine 
@@ -115,3 +116,17 @@ interpret st m = flip evalStateT st
         $ runExceptT 
         $ runInterpreter
         $ m
+
+mkInterpreterGeneric :: ( InterpreterShell m 
+                        ) 
+                     => ( forall s e
+                        .  ( forall b . InterpreterGeneric program m b -> s -> m (Either e b, s) )
+                        -> ( forall b . (s -> m (Either e b, s)) -> InterpreterGeneric program m b )
+                        -> s 
+                        -> m (Either e a, s) 
+                        )
+                     -> InterpreterGeneric program m a
+mkInterpreterGeneric f = Interpreter $ ExceptT $ StateT $ f runFunc stateFunc
+  where
+    runFunc g st = runStateT (runExceptT $ runInterpreter g) st
+    stateFunc = Interpreter . ExceptT . StateT

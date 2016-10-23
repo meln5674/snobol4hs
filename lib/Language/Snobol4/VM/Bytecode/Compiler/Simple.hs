@@ -16,7 +16,7 @@ import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.VM.Bytecode
 import Language.Snobol4.VM.Bytecode.Compiler
-import Language.Snobol4.VM.Bytecode.Primitives
+--import Language.Snobol4.VM.Bytecode.Primitives
 
 data CompilerResult
     = CompileFailed [(Address, CompilerError)]

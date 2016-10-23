@@ -1,3 +1,68 @@
+{-|
+Module          : Language.Snobol4.VM.Bytecode.Interpreter
+Description     : The SNOBOL4 Virtual Machine Interpreter
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+
+Public interface to the SNOBOL4 virtual machine
+
+The virtual machine can be run in one of three ways, continuous, interupted, and
+    monad.
+    
+To run the virtual machine in continuous mode, provide a program and symbol
+    table to the run function. The program will run until it terminates.
+
+@
+main = do
+    program <- loadUserProgram
+    table <- loadUserSymbolTable
+    shell $ do
+        start
+        run program table
+@
+
+
+To run the virtual machine in interupted mode, provide a program and symbol
+    table to the initAndPauseVM function. This will create a new VM and
+    provide a token to access it. The next instruction can be executed
+    by passing this token to the stepAndPauseVM function.
+
+@
+main = do
+    program <- loadUserProgram
+    table <- loadUserSymbolTable
+    vm <- shell $ do
+        start
+        initAndPauseVM program table
+    vm2 <- shell $ stepAndPauseVM vm
+    -- etc
+@
+
+To run the virtual machine in monad mode, provide a program and symbol table to
+    the initVM method. This will produce a monadic value that, when executed,
+    will start the virtual machine. This can then be bound with other actions,
+    such as stepVM or execLookup. To run this computation, pass the complete
+    monadic value to runVM.
+
+@
+main = do
+    program <- loadUserProgram
+    table <- loadUserSymbolTable
+    shell $ do
+        start
+        runVM $ runUserTransformerT $ do
+            lift $ initVM program table
+            userOutputFunction
+            stepVM
+            -- ...
+@
+
+-}
+
+
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -5,14 +70,25 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.Snobol4.VM.Bytecode.Interpreter 
-    ( module Language.Snobol4.VM.Bytecode.Interpreter 
-    , InterpreterGeneric(Interpreter)
+    ( VM
+    , PausedVM
+    , mkVM
+    , run
+    , initAndPauseVM
+    , stepAndPauseVM
+    , runVM
+    , initVM
+    , stepVM
+    
     , getProgram
     , getProgramCounter
     , getCallStackFrameStart
     , execLookup
     , toString
+    , getStack
     ) where
 
 import Prelude hiding (lookup, toInteger)
@@ -62,14 +138,19 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
 
 import Language.Snobol4.VM.Bytecode.Interpreter.Types
 
-
+{-
 type EvalError = ()
+-}
 
-type PausedInterpreter = PausedInterpreterGeneric CompiledProgram
+-- | A paused virtual machine
+data PausedVM m = PausedVM (PausedInterpreterGeneric CompiledProgram (StackMachine ExprKey m))
+                           (S.StackMachineState ExprKey)
 
-type ProgramState = ProgramStateGeneric CompiledProgram
+-- | State of the virtual machine
+type VMState = ProgramStateGeneric CompiledProgram
 
-type Interpreter m = InterpreterGeneric CompiledProgram (StackMachine ExprKey m)
+-- | Monad transformer for the interpreter
+type VM m = InterpreterGeneric CompiledProgram (StackMachine ExprKey m)
 
 --type Evaluator m = EvaluatorGeneric CompiledProgram EvalError (StackMachine m)
 
@@ -89,46 +170,73 @@ instance ( InterpreterShell m
     eval lbl = do
         addr <- lookupSystemLabel lbl
         putProgramCounter addr
-        result <- runJIT
+        result <- runExpr
         if result
             then liftM Just pop
             else return Nothing
         
 
-getFailLabel :: (Monad m) => Interpreter m Address
+-- | Retreive the label to jump to on failure
+getFailLabel :: (Monad m) => VM m Address
 getFailLabel = lift S.getFailLabel
 
-putFailLabel :: ( Monad m) => Address -> Interpreter m ()
+-- | Overwrite the label to jump to on failure
+putFailLabel :: ( Monad m) => Address -> VM m ()
 putFailLabel = lift . S.putFailLabel
 
-putSystemLabels :: (Monad m) => Vector Address -> Interpreter m ()
+-- | Set the compiler generated labels
+putSystemLabels :: (Monad m) => Vector Address -> VM m ()
 putSystemLabels = lift . S.putSystemLabels
 
-lookupSystemLabel :: (Monad m) => SystemLabel -> Interpreter m Address
+-- | Reterieve a compiler generated label
+lookupSystemLabel :: (Monad m) => SystemLabel -> VM m Address
 lookupSystemLabel = lift . S.lookupSystemLabel
 
-push :: Monad m => Data ExprKey -> Interpreter m ()
+-- | Push onto the stack
+push :: Monad m => Data ExprKey -> VM m ()
 push = lift . S.push
 
-pop :: Monad m => Interpreter m (Data ExprKey)
+-- | Pop from the stack
+pop :: Monad m => VM m (Data ExprKey)
 pop = lift S.pop >>= \case
     Nothing -> programError ErrorInSnobol4System
     Just x -> return x
 
-popFailStack :: Monad m => Interpreter m ()
+-- | Pop all items since the last time the failure label was set
+popFailStack :: Monad m => VM m ()
 popFailStack = lift S.popFailStack
 
+-- | Pop all items from the current stack frame
+popToCallStackFrame :: Monad m => VM m ()
 popToCallStackFrame = lift S.popToCallStackFrame
 
-popCallStackFrame = lift S.popCallStackFrame
+-- | Pop the current stack frame
+popCallStackFrame :: Monad m => VM m ()
+popCallStackFrame = do
+    x <- lift S.popCallStackFrame
+    case x of
+        Just _ -> return ()
+        Nothing -> programError ErrorInSnobol4System
 
+-- | Push a new stack frame
+pushCallStackFrame :: Monad m => Int -> VM m ()
 pushCallStackFrame = lift . S.pushCallStackFrame
 
+-- | Get the number of items on the current stack frame
+getCallStackFrameStart :: Monad m => VM m Int
 getCallStackFrameStart = lift S.getCallStackFrameStart
 
+-- | Push the current fail label onto the stack
+pushFailLabel :: Monad m => Address -> VM m ()
 pushFailLabel = lift . S.pushFailLabel
 
-popFailLabel = lift S.popFailLabel
+-- | Pop the the fail label from the stack
+popFailLabel :: Monad m => VM m ()
+popFailLabel = do
+    x <- lift S.popFailLabel
+    case x of
+        Just _ -> return ()
+        Nothing -> programError ErrorInSnobol4System
 
 {-
 wrapPop :: InterpreterShell m => MaybeT (StackMachine m) Data -> Interpreter m Data
@@ -193,9 +301,7 @@ pattern f = do
     return False
 -}
 
-
-
-
+{-
 arithmetic :: InterpreterShell m
            => (Snobol4Integer -> Snobol4Integer -> Snobol4Integer)
            -> (Snobol4Real -> Snobol4Real -> Snobol4Real)
@@ -218,6 +324,7 @@ pattern f = do
     push result
     incProgramCounter
     return False
+-}
 
 {-
 runEvaluation :: InterpreterShell m => Evaluator m Bool -> Interpreter m Bool
@@ -229,6 +336,8 @@ runEvaluation f = do
         return False
 -}
 
+-- | Push a reference to a variable onto the stack
+pushReference :: ( InterpreterShell m ) => Snobol4String -> VM m ()
 pushReference name = do
     ref <- getReference name
     case ref of
@@ -236,6 +345,9 @@ pushReference name = do
         Just (LocalVar ix)-> push (IntegerData $ mkInteger ix) >> push (IntegerData 1)
         Just (GlobalVar ix) -> push (IntegerData $ mkInteger ix) >> push (IntegerData 2)
     push $ StringData name
+
+-- | Pop a variable reference off the stack
+popReference :: ( InterpreterShell m ) => VM m ()
 popReference = do
     StringData name <- pop
     IntegerData typeField <- pop
@@ -250,8 +362,8 @@ popReference = do
         _ -> programError ErrorInSnobol4System
     setReference name ref
 
-
-exec :: InterpreterShell m => Instruction -> Interpreter m Bool
+-- | Execute an instruction
+exec :: InterpreterShell m => Instruction -> VM m Bool
 exec (PushString s) = do
     push $ StringData s
     incProgramCounter
@@ -309,6 +421,7 @@ exec Rotate = do
     push y
     incProgramCounter
     return False
+{-
 exec Add = arithmetic (+) (+)
 exec Subtract = arithmetic (-) (-)
 exec Multiply = arithmetic (*) (*)
@@ -337,7 +450,7 @@ exec PrimitiveAssignmentPattern = programError ErrorInSnobol4System
 exec PrimitiveImmediateAssignmentPattern = programError ErrorInSnobol4System
 exec PrimitiveLiteralPattern = programError ErrorInSnobol4System
 exec PrimitiveAnyPattern = programError ErrorInSnobol4System
-
+-}
 exec LookupDynamic = {-runEvaluation $-} do
     item <- {-liftEval-} pop
     sym <- {-liftEval $-} toString item
@@ -389,7 +502,7 @@ exec AssignDynamic = do
     assign item value
     incProgramCounter
     return False
-
+{-
 exec Define = do
     labelItem <- pop
     prototypeItem <- pop
@@ -407,8 +520,9 @@ exec Define = do
     functionsNew func
     incProgramCounter
     return False
-    
+  
 exec CallDynamic = programError ErrorInSnobol4System
+-}
 exec (CallStatic (Symbol sym) argCount isLValue) = do
     lookupResult <- funcLookup sym
     let execFunc PrimitiveFunction{funcPrim=action} = do
@@ -502,9 +616,9 @@ exec (CallStatic (Symbol sym) argCount isLValue) = do
         Nothing -> programError UndefinedFunctionOrOperation
         Just func -> execFunc func
     return False
-    
+{-
 exec GetArgCount = programError ErrorInSnobol4System
-
+-}
 exec Return = do
     -- Return to the last stack frame
     popCallStackFrame
@@ -618,15 +732,18 @@ exec JumpToFailureLabel = do
     popFailStack
     incFailCount
     return False
+{-
 exec JumpToFailureLabelIf = programError ErrorInSnobol4System
 exec JumpToFailureLabelElse = programError ErrorInSnobol4System
-
+-}
 exec (JumpStatic lbl) = do
     addr <- lookupSystemLabel lbl
     putProgramCounter addr
     return False
+{-
 exec (JumpStaticIf _) = programError ErrorInSnobol4System
 exec (JumpStaticElse _) = programError ErrorInSnobol4System
+-}
 exec JumpDynamic = do
     labelItem <- pop
     label <- case labelItem of
@@ -706,16 +823,17 @@ exec InvokeReplacer = do
     push $ StringData replacedString
     incProgramCounter
     return False
-
+{-
 exec ConvertToString = programError ErrorInSnobol4System
 exec ConvertToInteger = programError ErrorInSnobol4System
 exec ConvertToReal = programError ErrorInSnobol4System
 exec ConvertToPattern = programError ErrorInSnobol4System
+-}
 
-
+{-
 exec AllocArray = programError ErrorInSnobol4System
 exec AllocTable = programError ErrorInSnobol4System
-
+-}
 
 exec (Panic err) = programError err
 exec Finish = return True
@@ -751,39 +869,47 @@ exec LastPunch = do
     incProgramCounter
     return False
 
-data JITResult
-    = ExprFinished
+-- | result of executing an instruction in unevaluated expression mode
+data ExprResult
+    = 
+    -- | Expression has been evaluated
+      ExprFinished
+    -- | Expression has not been evaluated
     | ExprUnfinished Bool
 
-execJIT :: ( InterpreterShell m 
+-- | Execute an instruction in unevaluated expression mode
+execExpr :: ( InterpreterShell m 
            ) 
-        => Instruction -> Interpreter m JITResult
-execJIT ExprReturn = return ExprFinished
-execJIT x = liftM ExprUnfinished $ exec x
+        => Instruction -> VM m ExprResult
+execExpr ExprReturn = return ExprFinished
+execExpr x = liftM ExprUnfinished $ exec x
 
-runJIT :: ( InterpreterShell m
+-- | Run the virtual machine in unevaluated expression mode
+runExpr :: ( InterpreterShell m
           )
-       => Interpreter m Bool
-runJIT = loop
+       => VM m Bool
+runExpr = loop
   where
     loop = do
-        result <- stepJIT
+        result <- stepExpr
         case result of
             ExprFinished -> return True
             ExprUnfinished True -> loop
             ExprUnfinished False -> return False
 
-stepJIT :: ( InterpreterShell m
+-- | Execute the next instruction in unevaluated expression mode
+stepExpr :: ( InterpreterShell m
            )
-        => Interpreter m JITResult
-stepJIT = fetch >>= execJIT
+        => VM m ExprResult
+stepExpr = fetch >>= execExpr
 
+-- | Execute the next instruction
 step :: ( InterpreterShell m 
         )
-     => Interpreter m Bool
+     => VM m Bool
 step = fetch >>= exec
 
-
+{-
 primOp_plus = PrimitiveOperator $ const $ do
     y <- pop
     x <- pop
@@ -792,7 +918,9 @@ primOp_plus = PrimitiveOperator $ const $ do
 primOpsBin =
     [ (Plus, primOp_plus)
     ]
+-}
 
+-- | Run a compiled program to completion
 run :: InterpreterShell m => CompiledProgram -> SymbolTable -> m (Maybe ProgramError)
 run prog tbl = do
     result <- runStackMachine $ interpret emptyState $ runProg
@@ -800,32 +928,32 @@ run prog tbl = do
         Left err -> return $ Just err
         Right _ -> return Nothing
   where
-    runProg :: InterpreterShell m => Interpreter m (Maybe ProgramError)
+    runProg :: InterpreterShell m => VM m (Maybe ProgramError)
     runProg = do
         initVM prog tbl
         loop
-    loop :: InterpreterShell m => Interpreter m (Maybe ProgramError)
+    loop :: InterpreterShell m => VM m (Maybe ProgramError)
     loop = do
         result <- step
         if result
             then return Nothing
             else loop
     
-
-initVM :: InterpreterShell m => CompiledProgram -> SymbolTable -> Interpreter m ()
+-- | Iniialize a virtual machine from a program and symbol table
+initVM :: InterpreterShell m => CompiledProgram -> SymbolTable -> VM m ()
 initVM prog tbl = do
     putProgram prog
     let statics = V.replicate (M.size $ varSymbols tbl) $ StringData nullString
         dynamics = M.fromList $ zip (M.keys $ varSymbols tbl) $ map GlobalVar [0..]
     putVariables $ Variables statics dynamics
     putLabels $ M.map Label $ userLabels tbl
-    putBinOpSyns $ M.fromList primOpsBin
+    --putBinOpSyns $ M.fromList primOpsBin
     addPrimitives
     lbls <- prepareSystemLabels
     putSystemLabels lbls
     putProgramCounter $ programEntryPoint tbl
   where
-    prepareSystemLabels :: InterpreterShell m => Interpreter m (Vector Address)
+    prepareSystemLabels :: InterpreterShell m => VM m (Vector Address)
     prepareSystemLabels = do
         case sequence $ systemLabels tbl of
             Just m' -> V.generateM (M.size m') $ \ix -> case M.lookup (SystemLabel $ mkInteger ix) m' of
@@ -833,9 +961,94 @@ initVM prog tbl = do
                 Just addr -> return addr
             Nothing -> programError ErrorInSnobol4System
 
+-- | Initialize a pause a virtual machine from a progran and symbol table
+initAndPauseVM :: ( InterpreterShell m 
+                  , NewSnobol4Machine m
+                  )
+               => CompiledProgram 
+               -> SymbolTable 
+               -> m (PausedVM m)
+initAndPauseVM prog tbl = do
+    stk <- S.initStackMachine
+    resumeVM (initVM prog tbl >> return False) $ PausedVM (Paused emptyState) stk
 
-runVM :: InterpreterShell m => Interpreter m a -> m (Either ProgramError a)
+-- | Step a paused virtual machine one instruction
+stepAndPauseVM :: InterpreterShell m => PausedVM m -> m (PausedVM m)
+stepAndPauseVM = resumeVM step
+
+stepVM :: InterpreterShell m => VM m Bool
+stepVM = step
+
+-- | Run an action in a paused virtual machine
+resumeVM :: InterpreterShell m => VM m Bool -> PausedVM m -> m (PausedVM m)
+resumeVM _ (PausedVM (Terminated err) stk) = return $ PausedVM (Terminated err) stk
+resumeVM m (PausedVM (Paused st) stk) = do
+    (result, stk') <- flip S.resumeStackMachine stk $ interpret st $ do
+        done <- m
+        st' <- getProgramState
+        return (done,st')
+    case result of
+        Right (False, st') -> return $ PausedVM (Paused st') stk'
+        Right (True, _) -> return $ PausedVM (Terminated NormalTermination) stk'
+        Left err -> do
+            (Right addr,stk'') <- flip S.resumeStackMachine stk $ interpret st $ liftM (unmkInteger . getAddress) getProgramCounter
+            return $ PausedVM (Terminated $ ErrorTermination err addr) stk''
+
+
+
+-- | Don't even bother trying to understand this
+-- If you need to understand this, I pity you
+-- This function exposes a StateT/runStateT interface without exposing
+-- constructors/deconstructors
+-- The function passed to this function, itself accepts two additional functions,
+--      the first is the analog of runStateT
+--      the second is the analog of StateT
+-- Using this method, class instances can be created for the VM type if they can
+--  be created for StateT, without exposing the implementation details of the VM type
+mkVM :: forall m a
+      . (InterpreterShell m) 
+     => ( forall s e
+        .  ( forall b . VM m b -> s -> m (Either e b, s) )
+        -> ( forall b . (s -> m (Either e b, s)) -> VM m b)
+        -> s 
+        -> m (Either e a, s)
+        )
+     -> VM m a
+mkVM f = mkInterpreterGeneric 
+       $ \runFunc1 stateFunc1 st1 
+            -> S.mkStackMachine 
+             $ \runFunc2 stateFunc2 st2 -> do
+    let runFunc :: forall s s1 e b 
+                 . ( forall c . VM m c -> s -> StackMachine ExprKey m (Either e c, s)) 
+                -> ( forall c . StackMachine ExprKey m c -> s1 -> m (c, s1) )
+                -> VM m b 
+                -> (s,s1) 
+                -> m (Either e b, (s,s1))
+        runFunc runFunc1 runFunc2 g (st1x, st2x) = do
+            ((result, st1x'), st2x') <- runFunc2 ((runFunc1 g) st1x) st2x
+            return (result, (st1x', st2x'))
+        stateFunc :: ( forall c . (s -> StackMachine ExprKey m (Either e c, s)) -> VM m c )
+                  -> ( forall c . (s1 -> m (c, s1)) -> StackMachine ExprKey m c )
+                  -> ((s,s1) -> m (Either e c, (s,s1)))
+                  -> VM m c
+        stateFunc stateFunc1 stateFunc2 g = stateFunc1 $ \st1x -> stateFunc2 $ \st2x -> do
+            (result, (st1x',st2x')) <- g (st1x,st2x)
+            return ((result, st1x'), st2x')
+    (result, (st1',st2')) <- f (runFunc runFunc1 runFunc2) (stateFunc stateFunc1 stateFunc2) (st1, st2)
+    {-
+    (result, (st1',st2')) <- flip f (st1,st2) $ \g (st1x, st2x) -> do
+            ((result, st1x'), st2x') <- runFunc2 ((runFunc1 g) st1x) st2x
+            return (result, (st1x', st2x')) :: _
+    -}
+    return ((result, st1'), st2')
+        
+    
+
+-- | Run the virtual machine
+runVM :: InterpreterShell m => VM m a -> m (Either ProgramError a)
 runVM = runStackMachine . interpret emptyState
 
-getStack :: InterpreterShell m => Interpreter m ([Data ExprKey])
+-- | Get the contents of the stack
+getStack :: InterpreterShell m => VM m ([Data ExprKey])
 getStack = lift S.getStackList
+

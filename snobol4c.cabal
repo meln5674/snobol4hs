@@ -31,7 +31,7 @@ library
         Language.Snobol4.VM
         Language.Snobol4.VM.Bytecode
         Language.Snobol4.VM.Bytecode.Interpreter
-        Language.Snobol4.VM.Bytecode.Primitives
+        --Language.Snobol4.VM.Bytecode.Primitives
         Language.Snobol4.VM.Bytecode.Compiler
         Language.Snobol4.VM.Bytecode.Compiler.Simple
         --Language.Snobol4.VM.IO

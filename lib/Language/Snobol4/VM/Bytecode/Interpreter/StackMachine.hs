@@ -1,6 +1,10 @@
 module Language.Snobol4.VM.Bytecode.Interpreter.StackMachine
     ( StackMachine 
-    , runStackMachine 
+    , StackMachineState
+    , mkStackMachine
+    , runStackMachine
+    , initStackMachine
+    , resumeStackMachine
     
     , push 
     , pop 
