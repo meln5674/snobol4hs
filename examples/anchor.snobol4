@@ -1,5 +1,5 @@
 INIT    PAT = (ARBNO('A') $ OUTPUT) FAIL
-        TEXT = 'AAAA'
+        TEXT = 'AABAABAA'
         OUTPUT = "UNANCHORED"
         TEXT PAT
         OUTPUT = 

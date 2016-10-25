@@ -90,8 +90,10 @@ instance ( InterpreterShell m
          ) => NewSnobol4Machine (StackMachine m) where
     eval lbl = runVMInternal $ do
         addr <- lookupSystemLabel lbl
+        returnAddr <- getProgramCounter
         putProgramCounter addr
         result <- runExpr
+        putProgramCounter returnAddr
         if result
             then liftM Just pop
             else return Nothing
@@ -591,8 +593,8 @@ runExpr = loop
         result <- stepExpr
         case result of
             ExprFinished -> return True
-            ExprUnfinished True -> loop
-            ExprUnfinished False -> return False
+            ExprUnfinished False -> loop
+            ExprUnfinished True -> return False
 
 -- | Execute the next instruction in dynamic mode
 stepExpr :: ( InterpreterShell m

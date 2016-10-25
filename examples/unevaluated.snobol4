@@ -10,14 +10,14 @@ LOOP    STRING1 WORD =                          :F(OUTPUT)
         LIST = LIST W ', '                      :(LOOP)
 OUTPUT  OUTPUT = LIST
 
-        FINDW = ' ' *W ANY(' .,')
+INIT    FINDW = ' ' *W ANY(' .,')
         STRING1 = BACKUP1
         STRING2 = BACKUP2
         LIST = 
 
 LOOP2   STRING1 WORD =                          :F(OUTPUT2)
         STRING2 FINDW                           :F(LOOP2)
-        LIST = LIST W ', ' 
+        LIST = LIST W ', '                      :(LOOP2)
 OUTPUT2 OUTPUT = LIST
 
 END
