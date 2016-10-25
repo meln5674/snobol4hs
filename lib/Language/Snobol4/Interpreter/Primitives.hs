@@ -78,6 +78,7 @@ primitiveUnOps :: ( NewSnobol4Machine m
 primitiveUnOps =
     [ (And, PrimitiveOperator unOp_and)
     , (Dollar, PrimitiveOperator unOp_dollar)
+    , (At, PrimitiveOperator unOp_at)
     ]
 
 -- | Initial values of binary operators
@@ -967,7 +968,7 @@ binOp_plus _ = programError IncorrectNumberOfArguments
 binOp_minus :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
-binOp_minus [x,y] = liftM Just $ arithmetic (subtract) (subtract) x y
+binOp_minus [x,y] = liftM Just $ arithmetic (-) (-) x y
 binOp_minus _ = programError IncorrectNumberOfArguments
 
 -- | Binary * operator
@@ -1063,7 +1064,19 @@ unOp_dollar [x] = do
     sym <- toString x
     return $ Just $ ReferenceId sym
 unOp_dollar _ = programError IncorrectNumberOfArguments
-    
+
+unOp_at :: ( InterpreterShell m, LocalVariablesClass m )
+        => [Data (ExprType m)]
+        -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+unOp_at [Name l] = return $ Just $ TempPatternData $ HeadPattern l
+unOp_at [ReferenceId sym] = return $ Just $ TempPatternData $ HeadPattern $ LookupId sym
+unOp_at [ReferenceKeyword sym] = return $ Just $ TempPatternData $ HeadPattern $ LookupKeyword sym
+unOp_at [ReferenceAggregate sym args ] = return $ Just $ TempPatternData $ HeadPattern $ LookupAggregate sym args
+unOp_at [ReferenceInput] = return $ Just $ TempPatternData $ HeadPattern $ LookupInput
+unOp_at [ReferenceOutput] = return $ Just $ TempPatternData $ HeadPattern $ LookupOutput
+unOp_at [ReferencePunch] = return $ Just $ TempPatternData $ HeadPattern $ LookupPunch
+unOp_at [ReferenceUserData k sym ix] = return $ Just $ TempPatternData $ HeadPattern $ LookupUserData k sym ix
+unOp_at _ = programError IncorrectNumberOfArguments
 
 
 -- | Initial value of &ALPHABET

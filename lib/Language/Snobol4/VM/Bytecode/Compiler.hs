@@ -266,6 +266,17 @@ compileRValue (PrefixExpr Not expr) = do
     addSystemLabel operandFailLabel
     addInstruction $ PopFailLabel
     addInstruction $ PushString nullString
+compileRValue (PrefixExpr At expr) = do
+    lvalue <- compileLValue expr
+    case lvalue of
+        StaticLValue (Symbol sym) -> addInstruction $ PushReference sym
+        StaticKeywordLValue (Symbol sym) -> addInstruction $ PushReferenceKeyword sym
+        StaticRefLValue (Symbol sym) count -> addInstruction $ PushReferenceAggregate sym $ mkInteger count
+        DynamicLValue -> return ()
+        InputLValue -> addInstruction $ PushReferenceInput
+        OutputLValue -> addInstruction $ PushReferenceOutput
+        PunchLValue -> addInstruction $ PushReferencePunch
+    addInstruction $ UnOp At
 compileRValue (PrefixExpr op expr) = do
     compileRValue expr
     addInstruction $ UnOp op

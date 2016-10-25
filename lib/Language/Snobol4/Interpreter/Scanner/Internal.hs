@@ -52,6 +52,8 @@ data ScannerState expr
     , startPos :: Snobol4Integer
     -- | The number of characters scanned so far
     , endPos :: Snobol4Integer
+    -- | The number of characters that were skipped in non-anchor mode
+    , anchorPos :: Snobol4Integer
     }
 
 -- | The scanner type
@@ -128,7 +130,7 @@ incEndPos len = Scanner $ modify $ \st -> st{endPos = endPos st + mkInteger len}
 
 -- | Get the position of the cursor
 getCursorPos :: Monad m => ScannerGeneric (ProgramType m) expr {-error-} m Snobol4Integer
-getCursorPos = Scanner $ gets endPos
+getCursorPos = Scanner $ gets $ \st -> endPos st + anchorPos st
 
 -- | Get the distance of the cursor from the end of input
 getRCursorPos :: Monad m => ScannerGeneric (ProgramType m) expr {-error-} m Snobol4Integer
@@ -225,6 +227,7 @@ startState s skip = ScannerState
              , assignments = []
              , startPos = 0
              , endPos = 0
+             , anchorPos = skip
              }
 
 -- | I haven't thought up a name for this yet

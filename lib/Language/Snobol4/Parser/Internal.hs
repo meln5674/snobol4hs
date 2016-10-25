@@ -357,6 +357,7 @@ operationBlank = do
     a <- element
     mandatoryBlanks
     b <- P.try expression <|> element
+    when (b == NullExpr) $ P.unexpected ""
     return $ BinaryExpr a Blank b
 
 -- | Parse a binary operator expression 

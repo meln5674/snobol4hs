@@ -23,6 +23,8 @@ module Language.Snobol4.Interpreter.Shell.Mock
     , MockShellResults (..)
     , mkMockShell
     , addInput
+    , setDate
+    , setTime
     ) where
 
 import Data.Vector (Vector)
@@ -61,11 +63,11 @@ data MockShellResults
     = MockShellResults
     { 
     -- | Inputs that have not yet been consumed
-      inputs :: Vector String
+      mockInputs :: Vector String
     -- | Ouputs
-    , outputs :: Vector String
+    , mockOutputs :: Vector String
     -- | Punches
-    , punches :: Vector String
+    , mockPunches :: Vector String
     -- | The time last set
     , mockTime :: Int
     -- | The date last set
@@ -84,7 +86,7 @@ initialMockShellState = MockShellResults
     ""
 -- | Add an input to be read
 addInput :: Monad m => String -> MockShellT m ()
-addInput s = MockShellT $ modify $ \st -> st{ inputs = V.snoc (inputs st) s }
+addInput s = MockShellT $ modify $ \st -> st{ mockInputs = V.snoc (mockInputs st) s }
 
 -- | Set the date
 setDate :: Monad m => String -> MockShellT m ()
@@ -96,17 +98,17 @@ setTime t = MockShellT $ modify $ \st -> st{ mockTime = t }
 
 -- | Use mocked out values for input and output
 instance Monad m => InterpreterShell (MockShellT m) where
-    input = MockShellT $ state $ \st -> flip ($) (inputs st) $ \xs -> 
+    input = MockShellT $ state $ \st -> flip ($) (mockInputs st) $ \xs -> 
         if V.null xs 
             then (Nothing, st)
-            else (Just $ V.head xs, st{ inputs = V.tail xs })
-    output x = MockShellT $ modify $ \st -> st{ outputs = V.snoc (outputs st) x }
-    punch x = MockShellT $ modify $ \st -> st{ punches = V.snoc (punches st) x }
-    lastOutput = MockShellT $ gets $ flip (.) outputs $ \xs ->
+            else (Just $ V.head xs, st{ mockInputs = V.tail xs })
+    output x = MockShellT $ modify $ \st -> st{ mockOutputs = V.snoc (mockOutputs st) x }
+    punch x = MockShellT $ modify $ \st -> st{ mockPunches = V.snoc (mockPunches st) x }
+    lastOutput = MockShellT $ gets $ flip (.) mockOutputs $ \xs ->
         if V.null xs
             then ""
             else V.last xs
-    lastPunch = MockShellT $ gets $ flip (.) punches $ \xs ->
+    lastPunch = MockShellT $ gets $ flip (.) mockPunches $ \xs ->
         if V.null xs
             then ""
             else V.last xs

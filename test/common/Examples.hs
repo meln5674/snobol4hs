@@ -235,7 +235,7 @@ ex_pg20_5 = unlines
     , "********************************************************************************"
     , "          &TRIM     = 1"
     , "          CHAR      = LEN(1) . CH"
-    , "          LETTERS   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'    "
+    , "          LETTERS   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'"
     , "          COUNT     = TABLE(30)"
     , "READ      OUTPUT    = INPUT                       :F(DISPLAY)"
     , "          TEXT      = OUTPUT"
@@ -250,3 +250,15 @@ ex_pg20_5 = unlines
 
 
 
+
+ex_pg36 = unlines
+    [ "         &TRIM = 1"
+    , "         P = ('B' | 'R') ('E' | 'EA') ('D' | 'DS')"
+    , "         PATTERN = @X P @Y"
+    , "LOOP     OUTPUT = INPUT :F(END)"
+    , "         OUTPUT PATTERN :F(NOPAT)"
+    , "         OUTPUT = DUPL(' ',X) DUPL('-',Y - X)"
+    , "BLLINE   OUTPUT = :(LOOP)"
+    , "NOPAT    OUTPUT = 'P FAILED TO MATCH.' :(BLLINE)"
+    , "END"
+    ]
