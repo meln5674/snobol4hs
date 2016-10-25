@@ -42,32 +42,38 @@ class Parsable a where
     -- line or not
     startOfLine :: a -> Bool
 
--- | 
+-- | Parse an expression.
+-- Expects no label/blanks
 instance Parsable Expr where
     parser = fixedExpression
     startOfLine = const False
 
--- | 
+-- | Parse a single statement
+-- Expects label/blanks
 instance Parsable Stmt where
     parser = statement
     startOfLine = const True
 
--- | 
+-- | Parse an array prototype. 
+-- Expects no label/blanks
 instance Parsable ArrayPrototype where
     parser = array_prototype
     startOfLine = const False
 
--- | 
+-- | Parse a function prototype. 
+-- Expects no label/blanks
 instance Parsable FunctionPrototype where
     parser = function_prototype
     startOfLine = const False
 
--- | 
+-- | Parse a data prototype.
+-- Expects no label/blanks
 instance Parsable DataPrototype where
     parser = data_prototype
     startOfLine = const False
 
--- | 
+-- | Parse an entire program. 
+-- Expects label/blanks
 instance Parsable Program where
     parser = program
     startOfLine = const True
@@ -337,7 +343,7 @@ element = do
         Just x -> PrefixExpr x rest
         Nothing -> rest
 
--- | Parse a binary operator expression
+-- | Parse a binar operator expression, excluding the blank operator
 operationBinary :: Monad m => ParsecT TokStream ParserState m Expr
 operationBinary = do
     a <- element
@@ -345,6 +351,7 @@ operationBinary = do
     b <- P.try expression <|> element
     return $ BinaryExpr a op b
 
+-- | Parese a blank binary operator expression
 operationBlank :: Monad m => ParsecT TokStream ParserState m Expr
 operationBlank = do
     a <- element
@@ -352,6 +359,7 @@ operationBlank = do
     b <- P.try expression <|> element
     return $ BinaryExpr a Blank b
 
+-- | Parse a binary operator expression 
 operation :: Monad m => ParsecT TokStream ParserState m Expr
 operation = P.try operationBinary <|> operationBlank
 

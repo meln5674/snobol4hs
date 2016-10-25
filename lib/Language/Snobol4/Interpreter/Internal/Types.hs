@@ -1,3 +1,14 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.Types
+Description     : Types used by the AST interpreter
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+
+-}
+
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Language.Snobol4.Interpreter.Internal.Types where
@@ -14,21 +25,25 @@ import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Internal.StateMachine
 import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 
+-- | Expressions used by the stack machine
 type StackMachineExpr = Expr
+
+-- | Data used by the stack machine
 type StackMachineData = Data StackMachineExpr
 
+-- | A paused AST interpreter
 type PausedInterpreter m = PausedInterpreterGeneric Statements (StackMachine m)
 
+-- | State of the AST interpreter
 type ProgramState m = ProgramStateGeneric Statements (StackMachine m)
 
+-- | Monad for the AST interpreter
 type Interpreter m = InterpreterGeneric Statements (StackMachine m)
-
---type Evaluator m = EvaluatorGeneric Statements EvalStop (StackMachine m)
 
 -- | A stack
 type Stack = []
 
-
+-- | Stack machine
 data StackMachineState
     = StackMachineState
     { 
@@ -40,14 +55,16 @@ newtype StackMachine m a = StackMachine
     { runStackMachineInternal :: StateT StackMachineState m a }
   deriving (Functor, Applicative, Monad, MonadTrans)
 
-
+-- | An empty program has no statements
 instance EmptyProgramClass Statements where
     emptyProgram = Statements V.empty
 
+-- | Program has statements indexed by address
 instance ProgramClass Statements where
     type InstructionType Statements = Stmt
     getInstruction (Address ix) (Statements v) = v V.! unmkInteger ix
 
+-- | A frame of the call stack
 data CallStackFrame
     = Frame
     { 
@@ -63,6 +80,7 @@ data CallStackFrame
     }
   deriving Show
 
+-- | Lift another InterpreterShell into the stack machine
 instance InterpreterShell m => InterpreterShell (StackMachine m) where
     input = lift input
     output = lift . output

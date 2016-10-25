@@ -36,6 +36,7 @@ modifyCodes :: InterpreterShell m
 modifyCodes f = modifyProgramState $
     \st -> st { codes = f $ codes st }
 
+-- | Get the next key availible for referencing an object code
 codesNextKey :: InterpreterShell m => InterpreterGeneric program m CodeKey
 codesNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getCodes
 

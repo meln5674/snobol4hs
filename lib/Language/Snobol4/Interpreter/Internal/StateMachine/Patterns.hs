@@ -40,6 +40,7 @@ modifyPatterns :: InterpreterShell m
 modifyPatterns f = modifyProgramState $
     \st -> st { patterns = f $ patterns st }
 
+-- | Get the next key availible for referencing a pattern
 patternsNextKey :: InterpreterShell m => InterpreterGeneric program m PatternKey
 patternsNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getPatterns
 

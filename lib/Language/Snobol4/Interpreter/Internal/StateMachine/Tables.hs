@@ -41,6 +41,7 @@ modifyTables :: InterpreterShell m
 modifyTables f = modifyProgramState $
     \st -> st { tables = f $ tables st }
 
+-- | Get the next key availible for referencing a table
 tablesNextKey :: InterpreterShell m => InterpreterGeneric program m TableKey
 tablesNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getTables
 

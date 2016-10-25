@@ -15,7 +15,6 @@ module Language.Snobol4.Interpreter.Data.String
     ( module Language.Snobol4.Interpreter.Data.String 
     , Snobol4StringClass (..)
     , Snobol4String
-    , nullString
     ) where
 
 import qualified Data.Map as M
@@ -26,6 +25,7 @@ import Language.Snobol4.Interpreter.Data.Types
 snobol4Head :: Snobol4String -> Snobol4String
 snobol4Head (Snobol4String s) = Snobol4String $ [head s]
 
+-- | Split a string into its head and tail
 snobol4Uncons :: Snobol4String -> Maybe (Snobol4String,Snobol4String)
 snobol4Uncons (Snobol4String (x:xs)) = Just (Snobol4String [x],Snobol4String xs)
 snobol4Uncons _ = Nothing
@@ -82,12 +82,12 @@ nullString :: Snobol4String
 nullString = Snobol4String ""
 
 
--- |
+-- | Identity
 instance Snobol4StringClass Snobol4String where
     mkString = id
     unmkString = id
 
--- | 
+-- | Convert to/from a string that has the matching internal string
 instance Snobol4StringClass String where
     mkString = Snobol4String
     unmkString = getString

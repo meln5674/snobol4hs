@@ -12,6 +12,6 @@ module Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types where
 -- | A pair of an item and the number of references to it
 newtype RefCounted t = RefCounted (t, Int) deriving Show
 
--- | 
+-- | Apply the function to the ref-counted value
 instance Functor RefCounted where
     fmap f (RefCounted (x,i)) = RefCounted (f x,i)

@@ -14,13 +14,14 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     ( module Language.Snobol4.Interpreter.Internal.StateMachine 
     , Address (..)
     , ProgramStateGeneric
-    , InterpreterGeneric (..)
-    --, EvaluatorGeneric (..)
+    , InterpreterGeneric
     , ProgramClass (..)
     , EmptyProgramClass (..)
     , PausedInterpreterGeneric (..)
-    --, Snobol4Machine (..)
     , NewSnobol4Machine (..)
+    , ProgramType
+    , ExprType
+    , FuncType
     , LocalVariablesClass (..)
     , programError
     , execLookup
@@ -37,9 +38,7 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , ScanResult (..)
     , fetch
     , ExecResult (..)
-    --, catchEval
-    --, liftEval
-    --, unliftEval
+
     , getProgramCounter
     , putProgramCounter
     , labelLookup
@@ -47,11 +46,32 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , Statements (..)
     , Label (..)
     , modifyProgramCounter
+    , getProgram
     , putProgram
     , getProgramState
+
+    , getReference
+    , setReference
+    
+    , lookup
+    , funcLookup
+    , userDataLookup
+    , lookupBinOpSyn
+    , lookupUnOpSyn
+    
+    , putVariables
+    , putLabels
+    
+    , userDataConstruct
+    
+    , getAnchorMode
+    , incFailCount
+    , setReturnType
+    , incFunctionLevel
+    , decFunctionLevel
     ) where
 
-import Prelude hiding (toInteger)
+import Prelude hiding (toInteger, lookup)
 
 import Control.Monad
 import Control.Monad.Trans
@@ -117,6 +137,9 @@ interpret st m = flip evalStateT st
         $ runInterpreter
         $ m
 
+-- | Don't ask
+--
+-- See at Language.Snobol4.VM.Bytecode.Interpreter.Internal.mkVM
 mkInterpreterGeneric :: ( InterpreterShell m 
                         ) 
                      => ( forall s e

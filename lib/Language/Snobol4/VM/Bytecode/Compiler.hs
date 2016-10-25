@@ -1,3 +1,16 @@
+{-|
+Module          : Language.Snobol4.VM.Bytecode.Compiler
+Description     : Bytecode compiler
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+This module provides functions which only control how instructions, labels, and
+    symbols are generated, and in what order, along w. The Compiler typeclass is
+    used to control how these are managed.
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.VM.Bytecode.Compiler where
 
@@ -13,43 +26,75 @@ import Language.Snobol4.Interpreter.Data.String
 import Language.Snobol4.Interpreter.Data.Integer
 import Language.Snobol4.Interpreter.Data.Real
 
-import Language.Snobol4.Interpreter.Internal.StateMachine hiding (Return, FReturn)
+import Language.Snobol4.Interpreter.Internal.StateMachine hiding (Return, FReturn, getProgram)
 
+-- | A compiler error
 data CompilerError
-    = BadEndLabel
+    = 
+    -- | The end label does not refer to a known label
+      BadEndLabel
+    -- | An illegal L-value was found, such as a literal
     | IllegalLValue
   deriving Show
 
+-- | Class of monads which manage compiler details
 class Monad m => Compiler m where
+    -- | Register a new user-defined label at the current address
     addUserLabel :: Snobol4String -> m ()
+    -- | Retreive the address of a user-defined label
+    getUserLabel :: Snobol4String -> m (Maybe Address)
+    -- | Allocate a new compiler-generated label with no defined address
     allocSystemLabel :: m SystemLabel
+    -- | Set the address of a compiler-generated label
     addSystemLabel :: SystemLabel -> m ()
+    -- | Add an instruction
     addInstruction :: Instruction -> m ()
+    -- | Get the symbol to use for a variable
     getVarSymbol :: Snobol4String -> m Symbol
+    -- | Get the symbol to use for a function
     getFuncSymbol :: Snobol4String -> m Symbol
+    -- | Add an error
     compileError :: CompilerError -> m ()
+    -- | Get the label to jump to for error termination
     getPanicLabel :: m SystemLabel
-    setEntryPoint :: Snobol4String -> m ()
-    getSystemLabelAddress :: SystemLabel -> m Address
+    -- | Set the entry point of the program
+    setEntryPoint :: Address -> m ()
+    -- | Get the address of a compiler-generated label
+    getSystemLabelAddress :: SystemLabel -> m (Maybe Address)
 
+-- | An L-value, used to determine how to assign a value
 data LValue
-    = StaticLValue Symbol
+    = 
+    -- | Assignment to a static variable
+      StaticLValue Symbol
+    -- | Assignment to a keyword
     | StaticKeywordLValue Symbol
+    -- | Assignment to a static aggregate (array/table)
     | StaticRefLValue Symbol Int
+    -- | Assignment to a dynamically computed reference
     | DynamicLValue
+    -- | Assignment to the INPUT variable
     | InputLValue
+    -- | Assignment to the OUTPUT variable
     | OutputLValue
+    -- | Assignment to the PUNCH variable
     | PunchLValue
 
+-- | Generate bytecode from an AST
 compile :: Compiler m => Program -> m ()
 compile prog = do
     mapM_ compileStatement $ getProgram prog
     addUserLabel "END"
     addInstruction Finish
 
+-- | Generate bytecode for a statement
 compileStatement :: Compiler m => Stmt -> m ()
 compileStatement (EndStmt Nothing) = return ()
-compileStatement (EndStmt (Just lbl)) = setEntryPoint $ mkString lbl
+compileStatement (EndStmt (Just lbl)) = do
+    labelAddr <- getUserLabel $ mkString lbl
+    case labelAddr of
+        Just addr -> setEntryPoint addr
+        Nothing -> compileError BadEndLabel
 compileStatement stmt = do
     lbl <- allocSystemLabel
     compileStatementLabel stmt
@@ -57,11 +102,13 @@ compileStatement stmt = do
     compileStatementBody stmt
     compileStatementGoto lbl stmt
 
+-- | Generate bytecode/labels for a statement label
 compileStatementLabel :: Compiler m => Stmt -> m ()
 compileStatementLabel (Stmt Nothing _ _ _ _) = return ()
 compileStatementLabel (Stmt (Just lbl) _ _ _ _) = addUserLabel $ mkString lbl
 compileStatementLabel (EndStmt _) = undefined
 
+-- | Generate bytecode for a statement's body (subject, pattern, object)
 compileStatementBody :: Compiler m => Stmt -> m ()
 compileStatementBody (Stmt _ Nothing _ _ _) = return ()
 compileStatementBody (Stmt _ (Just sub) Nothing Nothing _) = do
@@ -141,7 +188,7 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) (Just obj) _) = do
         PunchLValue -> addInstruction Punch
 compileStatementBody (EndStmt _) = undefined
     
-
+-- | Generate bytecode for a evaluating and jumping to a goto
 compileGotoPart :: Compiler m => GotoPart -> m ()
 compileGotoPart (GotoPart (IdExpr "RETURN")) = addInstruction Return
 compileGotoPart (GotoPart (IdExpr "FRETURN")) = addInstruction FReturn
@@ -153,6 +200,7 @@ compileGotoPart (DirectGotoPart expr) = do
     compileGotoValue expr
     addInstruction $ DirectJump
 
+-- | Generate bytecode for a statement's goto
 compileStatementGoto :: Compiler m => SystemLabel -> Stmt -> m ()
 compileStatementGoto lbl (Stmt _ _ _ _ Nothing) = addSystemLabel lbl
 compileStatementGoto lbl (Stmt _ _ _ _ (Just (Goto part))) = do
@@ -182,15 +230,20 @@ compileStatementGoto lbl (Stmt _ _ _ _ (Just (BothGoto success failure))) = do
     compileGotoPart failure
 compileStatementGoto _ (EndStmt _) = undefined
 
+-- | Generate bytecode for a statement's subject (left side of assignment)
 compileSubject :: Compiler m => Expr -> m LValue
 compileSubject = compileLValue
 
+-- | Generate bytecode for a statement's pattern
 compilePattern :: Compiler m => Expr -> m ()
 compilePattern = compileRValue
 
+-- | Generate bytecode for a statement's object (right side of assignment)
 compileObject :: Compiler m => Expr -> m ()
 compileObject = compileRValue
 
+-- | Generate bytecode for evaluating an R-value.
+-- After running this code, the result of the expression is on the stack.
 compileRValue :: Compiler m => Expr -> m ()
 compileRValue (PrefixExpr And (IdExpr sym)) = do
     addInstruction $ LookupStaticKeyword $ Symbol $ mkString sym
@@ -269,7 +322,12 @@ compileRValue NullExpr = do
     addInstruction $ PushString nullString
 
 
-
+-- | Generate bytecode for evaluating an L-value, and indicate what kind it is.
+-- Static variables and keywords will produce no bytecode.
+-- Static aggregates will produce the bytecode to evaluate their arguments, and
+--  after running it, the values of their arguments will be on the stack.
+-- Dynamic L-values will generate bytecode that, when run, will place a
+--  reference on the stack.
 compileLValue :: Compiler m => Expr -> m LValue
 compileLValue (PrefixExpr And (IdExpr sym)) = return $ StaticKeywordLValue $ Symbol $ mkString sym
 compileLValue (PrefixExpr And (ParenExpr expr)) = compileLValue (PrefixExpr And expr)
@@ -328,6 +386,7 @@ compileLValue NullExpr = do
     compileError IllegalLValue
     return DynamicLValue
 
+-- | Generate the bytecode for evaluating a goto target
 compileGotoValue :: Compiler m => Expr -> m ()
 compileGotoValue (IdExpr name) = addInstruction $ PushString $ mkString name
 compileGotoValue expr = compileRValue expr

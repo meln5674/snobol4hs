@@ -83,10 +83,12 @@ raiseArgs a b
             
     | otherwise = programError IllegalDataType
 
-
+-- | Combine items into a tuple inside the maybe functor
 pairLeft :: (a -> a') -> Maybe a -> b -> Maybe (a',b)
 pairLeft _ Nothing _ = Nothing
 pairLeft f (Just a) b = Just (f a,b)
+
+-- | Combine items into a tuple inside the maybe functor
 pairRight :: a -> (b -> b') -> Maybe b -> Maybe (a,b')
 pairRight _ _ Nothing = Nothing
 pairRight a f (Just b) = Just (a,f b)

@@ -7,7 +7,6 @@ Maintainer      : meln5674@kettering.edu
 Portability     : Unknown
 
 
-Public interface to the SNOBOL4 interpreter
 -}
 
 module Language.Snobol4 
@@ -23,7 +22,5 @@ module Language.Snobol4
 import Language.Snobol4.Lexer
 import Language.Snobol4.Parser
 import Language.Snobol4.VM
-import Language.Snobol4.VM.Bytecode
-import Language.Snobol4.VM.IO
 import Language.Snobol4.Syntax.AST
 --import Language.Snobol4.Interpreter

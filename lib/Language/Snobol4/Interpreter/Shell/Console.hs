@@ -17,8 +17,9 @@ PUNCH. It also uses a StateT transformer to hold the last values of each.
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RankNTypes #-}
 module Language.Snobol4.Interpreter.Shell.Console 
-    ( ConsoleShell(..)
+    ( ConsoleShell
     , mkConsoleShell
     ) where
 
@@ -106,10 +107,22 @@ newtype ConsoleShell a
     }
     deriving (Functor, Applicative, Monad, MonadIO)
 
-mkConsoleShell :: IO a -> ConsoleShell a
-mkConsoleShell = liftIO
+-- | Don't ask
+--
+-- See Language.Snobol4.VM.Bytecode.Interpreter.Internal.mkVM
+mkConsoleShell :: ( forall s
+                  .  ( forall b . ConsoleShell b -> s -> IO (b, s) )
+                  -> ( forall b . (s -> IO (b, s)) -> ConsoleShell b )
+                  -> ( s -> IO (a, s) )
+                  ) 
+               -> ConsoleShell a
+mkConsoleShell f = ConsoleShell $ StateT $ f runFunc stateFunc
+  where
+    runFunc g st = runStateT (runConsoleShell g) st
+    stateFunc = ConsoleShell . StateT
 
--- |
+
+-- | Use stdin for INPUT, stdout for OUTPUT, and stderr for PUNCH
 instance InterpreterShell ConsoleShell where
     input = liftIO (tryIOError $ hGetLine stdin) >>= \case
         Right str -> do
@@ -130,7 +143,8 @@ instance InterpreterShell ConsoleShell where
         t2 <- getCurrentConsoleShellTime
         return $ consoleShellDateDiff t2 t1
 
--- |
+-- | Run the console shell and produce an IO action, starting by recording the
+-- current time
 instance InterpreterShellRun ConsoleShell where
     type BaseMonad ConsoleShell = IO
     start = do

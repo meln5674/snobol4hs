@@ -38,16 +38,14 @@ import Language.Snobol4.Interpreter.Error
 import Language.Snobol4.Interpreter.Types
 
 import Language.Snobol4.VM.Bytecode.Interpreter
-import Language.Snobol4.VM.Bytecode.Interpreter.StackMachine.Internal (StackMachine(..))
 
 import Language.Snobol4.VM.Bytecode
 import Language.Snobol4.Syntax.AST hiding (getProgram)
 
-deriving instance MonadException ConsoleShell
---deriving instance MonadException m => MonadException (VM m)
-deriving instance MonadException m => MonadException (StackMachine expr m)
-
-
+instance MonadException ConsoleShell where
+    controlIO f = mkConsoleShell $ \runFunc stateFunc s -> controlIO $ \(RunIO r) -> let
+        r' = RunIO (fmap (stateFunc . const) . r . flip runFunc s)
+        in fmap (flip runFunc s) $ f r'
 
 instance ( InterpreterShell m, MonadException m ) => MonadException (VM m) where
     controlIO f = mkVM $ \runFunc stateFunc s -> controlIO $ \(RunIO r) -> let
@@ -146,7 +144,7 @@ executeCmd "" = return False
 executeCmd "quit" = return True
 executeCmd "step" = do
     lift $ stepVM
-    prog <- lift $ liftM getCompiledProgram $ getProgram
+    prog <- lift $ liftM getCompiledProgram $ getLoadedProgram
     pc <- lift $ liftM (unmkInteger . getAddress) $ getProgramCounter
     flip V.imapM_ prog $ \ix inst -> do
         when (pc - 5 < ix && ix < pc + 5) $ do
@@ -156,7 +154,7 @@ executeCmd "step" = do
             outputStrLn $ "0x" ++ (showHex ix $ ": " ++ show inst)
     return False
 executeCmd "program" = do
-    prog <- lift $ liftM getCompiledProgram $ getProgram
+    prog <- lift $ liftM getCompiledProgram $ getLoadedProgram
     pc <- lift $ liftM (unmkInteger . getAddress) $ getProgramCounter
     flip V.imapM_ prog $ \ix inst -> do
         when (pc - 5 < ix && ix < pc + 5) $ do
@@ -176,19 +174,19 @@ executeCmd "stack" = do
 executeCmd "input" = do
     inputLine <- getInputLine ">>>"
     case inputLine of
-        Just line -> lift $ lift $ lift $ modifyInputs (line:)
+        Just line -> lift $ lift $ modifyInputs (line:)
         Nothing -> return ()
     return False
 executeCmd "inputs" = do
-    inputLines <- lift $ lift $ lift $ liftM reverse getInputs
+    inputLines <- lift $ lift $ liftM reverse getInputs
     mapM_ outputStrLn inputLines
     return False
 executeCmd "outputs" = do
-    outputLines <- lift $ lift $ lift $ liftM reverse getOutputs
+    outputLines <- lift $ lift $ liftM reverse getOutputs
     mapM_ outputStrLn outputLines
     return False
 executeCmd "punches" = do
-    punchLines <- lift $ lift $ lift $ liftM reverse getPunches
+    punchLines <- lift $ lift $ liftM reverse getPunches
     mapM_ outputStrLn punchLines
     return False
 executeCmd "lookup" = do

@@ -195,19 +195,20 @@ data Data expr
   deriving (Eq, Ord)
 
 
--- | 
+-- | Return the internal string
 instance Show Snobol4String where
     show = show . getString
 
--- | 
+-- | Convert the internal integer to a string
 instance Show Snobol4Integer where
     show = show . getInteger
 
--- | 
+-- | Convert the internal real to a string
 instance Show Snobol4Real where
     show = show . getReal
 
--- | 
+-- | Convert the internal value to a string if possible, otherwise return the
+-- formal identification in brackets
 instance Show (Data expr) where
     show (StringData s) = show s
     show (PatternData _) = "[PATTERN]"

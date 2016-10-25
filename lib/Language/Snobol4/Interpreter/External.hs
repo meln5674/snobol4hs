@@ -1,3 +1,19 @@
+{-|
+Module          : Language.Snobol4.Interpreter.External
+Description     : External Functions
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+External functions and data are handled by the Extern type. Types which
+can be converted to and from Extern are memeberes of the ExternClass and
+UnExternClass classes respectively.
+
+External functions can be called using callExtern and providing a list of
+arguments, converted to Extern.
+-}
+
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 module Language.Snobol4.Interpreter.External 
@@ -10,6 +26,7 @@ import Control.Monad
 
 import Language.Snobol4.Interpreter.Data
 
+-- | An external value
 data Extern
     = ExternInteger Snobol4Integer
     | ExternReal Snobol4Real
@@ -17,13 +34,16 @@ data Extern
     | ExternIntegerFunction (Snobol4Integer -> Extern)
     | ExternRealFunction (Snobol4Real -> Extern)
     | ExternStringFunction (Snobol4String -> Extern)
-    
+
+-- | Types which can be converted to an Extern
 class ExternClass a where
+    -- | Convert to an Extern
     extern :: a -> Extern
 
+-- | Types which can be converted from an Extern
 class ExternClass a => UnExternClass a where
+    -- | Convert from an Extern
     unExtern :: Extern -> Maybe a
-
 
 instance ExternClass Snobol4Integer where
     extern = ExternInteger
@@ -94,26 +114,15 @@ instance ExternClass Extern where
 instance UnExternClass Extern where
     unExtern = Just
 
-toExternInteger :: Extern -> Maybe Snobol4Integer
-toExternInteger (ExternInteger i) = Just i
-toExternInteger _ = Nothing
-
-toExternReal :: Extern -> Maybe Snobol4Real
-toExternReal (ExternReal r) = Just r
-toExternReal _ = Nothing
-
-toExternString :: Extern -> Maybe Snobol4String
-toExternString (ExternString s) = Just s
-toExternString _ = Nothing
-
+-- | Call an external function
 callExtern :: Extern -> [Extern] -> Maybe Extern
-callExtern (ExternIntegerFunction f) (arg:args) = case toExternInteger arg of
+callExtern (ExternIntegerFunction f) (arg:args) = case unExtern arg of
     Just i -> callExtern (f i) args
     Nothing -> Nothing
-callExtern (ExternRealFunction f) (arg:args) = case toExternReal arg of
+callExtern (ExternRealFunction f) (arg:args) = case unExtern arg of
     Just r -> callExtern (f r) args
     Nothing -> Nothing
-callExtern (ExternStringFunction f) (arg:args) = case toExternString arg of
+callExtern (ExternStringFunction f) (arg:args) = case unExtern arg of
     Just s -> callExtern (f s) args
     Nothing -> Nothing
 callExtern (ExternIntegerFunction f) [] = callExtern (f 0) []

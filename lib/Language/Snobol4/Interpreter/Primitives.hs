@@ -69,6 +69,7 @@ primitiveVars =
     , ("SUCCEED", TempPatternData SucceedPattern)
     ]
 
+-- | Initial values of unary operators
 primitiveUnOps :: ( NewSnobol4Machine m
                    , InterpreterShell m
                    , LocalVariablesClass m
@@ -79,6 +80,7 @@ primitiveUnOps =
     , (Dollar, PrimitiveOperator unOp_dollar)
     ]
 
+-- | Initial values of binary operators
 primitiveBinOps :: ( NewSnobol4Machine m
                    , InterpreterShell m
                    , LocalVariablesClass m
@@ -162,6 +164,7 @@ primitiveFunctions =
     , PrimitiveFunction "VALUE"     value
     ]
 
+-- | Initial values of protected keywords
 primitiveProtectedKeywords =
     [ ("ALPHABET", keyword_alphabet)
     , ("ABORT", keyword_abort)
@@ -180,6 +183,7 @@ primitiveProtectedKeywords =
     , ("SUCCEED", keyword_succeed)
     ]
 
+-- | Initial values of unprotected keywords
 primitiveUnprotectedKeywords =
     [ ("ABEND", keyword_abend)
     , ("ANCHOR", keyword_anchor)
@@ -196,6 +200,7 @@ primitiveUnprotectedKeywords =
     , ("TRIM", keyword_trim)
     ]
     
+-- | Raise an error if a value is Nothing
 maybeError :: Monad m 
            => ProgramError 
            -> Maybe a 
@@ -203,6 +208,7 @@ maybeError :: Monad m
 maybeError _ (Just x) = return x
 maybeError err _ = programError err
 
+-- | Raise an error if an action yields Nothing
 maybeErrorM :: Monad m 
             => ProgramError 
             -> InterpreterGeneric program m (Maybe a) 
@@ -231,7 +237,7 @@ addPrimitives = do
     putUnprotectedKeywords $ M.fromList primitiveUnprotectedKeywords
 
 -- | Generalization for lt, le, eq, ne, ge, and gt
-numericalPredicate :: (InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
+numericalPredicate :: (InterpreterShell m, LocalVariablesClass m ) 
                   => (forall a . (Eq a, Ord a, Num a) => a -> a -> Bool)
                   -> [Data (ExprType m)] 
                   -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -252,7 +258,7 @@ numericalPredicate _ _ = programError IncorrectNumberOfArguments
 
 -- | The any function, returns a pattern which matches any one of the provided
 -- characters
-any :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+any :: ( InterpreterShell m ) 
     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 any (a:_) = do
     cs <- toString a
@@ -264,7 +270,7 @@ any [] = any [StringData ""]
 
 -- | The apply function, calls a function by name with arguments
 apply :: ( InterpreterShell m
-         {-, Snobol4Machine program-}
+         
          , LocalVariablesClass m 
          )
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -276,7 +282,7 @@ apply (nameArg:args) = do
 apply _ = programError IncorrectNumberOfArguments
 
 -- | The array function, creates an array with the provided dimensions and initial value
-array :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+array :: ( InterpreterShell m ) 
       => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 array [dimStr,val] = do
     str <- toString dimStr
@@ -290,7 +296,7 @@ array _ = programError IncorrectNumberOfArguments
 
 -- | The arbno function, returns a pattern which matches an arbitrary number of
 -- repetitions of the provided pattern
-arbno :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+arbno :: ( InterpreterShell m ) 
       => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 arbno (a:_) = do
     p <- toPattern a
@@ -299,7 +305,7 @@ arbno [] = arbno [StringData ""]
 
 -- | The arg function, returns the name of the nth argument of a function
 arg :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
     => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -316,13 +322,13 @@ arg [fname,n] = do
 arg _ = programError IncorrectNumberOfArguments
 
 -- | TODO
-backspace :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+backspace :: ( InterpreterShell m ) 
           => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 backspace = const $ programError ErrorInSnobol4System
 
 -- | The break function, returns a pattern which matches the longest string
 -- containing none of the provided characters
-break :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+break :: ( InterpreterShell m ) 
       => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 break (a:_) = do
     s <- toString a
@@ -332,7 +338,7 @@ break (a:_) = do
 break [] = break [StringData ""]
 
 -- | The clear function, resets the values of all natural variables
-clear :: ( InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
+clear :: ( InterpreterShell m, LocalVariablesClass m ) 
       => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 clear [] = do
     ns <- naturalVarNames
@@ -342,7 +348,7 @@ clear _ = programError IncorrectNumberOfArguments
 
 -- | The code function, parses a string containing source code and creates a
 -- code object
-code :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+code :: ( InterpreterShell m ) 
       => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 code [src] = do
     src' <- toString src
@@ -355,14 +361,14 @@ code [src] = do
 code _ = programError IncorrectNumberOfArguments
 
 -- | TODO
-collect :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+collect :: ( InterpreterShell m ) 
         => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 collect = const $ programError ErrorInSnobol4System
 
 -- | The convert function, attempts to convert the first argument to the type
 -- specified by the second as a string
 convert :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
         => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -456,7 +462,7 @@ convert [toConvert,resultType] = do
 convert _ = programError IncorrectNumberOfArguments
 
 -- | The copy function, creates a new instance of the given array
-copy :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+copy :: ( InterpreterShell m ) 
      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 copy [arg] = do
     case arg of
@@ -468,12 +474,13 @@ copy [arg] = do
         _ -> programError IllegalDataType
 copy _ = programError ErrorInSnobol4System
 
+-- | Uncurry a 3-arity function
 uncurry3 :: (a -> b -> c -> d) -> ((a,b,c) -> d)
 uncurry3 f (a,b,c) = f a b c
 
 -- | The data function, parses a data prototype to create a user-defined
 -- datatype
-data_ :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+data_ :: ( InterpreterShell m ) 
       => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 data_ [arg] = do
     protoStr <- toString arg
@@ -490,7 +497,7 @@ data_ _ = programError IncorrectNumberOfArguments
 
 -- | The datatype function, returns the string representation of the type of
 -- the argument
-datatype :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+datatype :: ( InterpreterShell m ) 
          => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 datatype [arg] = do
     result <- case arg of
@@ -524,13 +531,13 @@ datatype [arg] = do
 datatype _ = programError IncorrectNumberOfArguments
 
 -- | The date function, returns the current date in mm/dd/yyyy format
-date :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+date :: ( InterpreterShell m ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 date [] = Just . StringData . mkString <$> (lift Shell.date)
 date _ = programError IncorrectNumberOfArguments
 
 -- | The define function, creates a user-defined function
-define :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+define :: ( InterpreterShell m ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 define [arg,labelArg] = do
     protoStr <- toString arg
@@ -562,13 +569,13 @@ define [arg] = do
 define _ = programError ErrorInSnobol4System
 
 -- | TODO
-detach :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+detach :: ( InterpreterShell m ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 detach = const $ programError ErrorInSnobol4System
 
 -- | The differ function, returns the null string if the two arguments are not
 -- the same
-differ :: ( InterpreterShell m{-, Snobol4Machine program-}, Eq (ExprType m) ) 
+differ :: ( InterpreterShell m, Eq (ExprType m) ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 differ [a,b] = do
     if a /= b
@@ -577,13 +584,13 @@ differ [a,b] = do
 differ _ = programError IncorrectNumberOfArguments
 
 -- | TODO
-dump :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+dump :: ( InterpreterShell m ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 dump = const $ programError ErrorInSnobol4System
 
 -- | The dupl function, creates a string by repeating a sub-string
 dupl :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -594,13 +601,13 @@ dupl [a,b] = do
 dupl _ = programError IncorrectNumberOfArguments
 
 -- | TODO
-endfile :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+endfile :: ( InterpreterShell m ) 
         => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 endfile = const $ programError ErrorInSnobol4System
 
 -- | Equality predicate
 eq :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -631,7 +638,7 @@ eval _ = programError IncorrectNumberOfArguments
 -- | The field function, returns the name of the nth field of a user-defined
 -- data type
 field :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -646,7 +653,7 @@ field _ = programError ErrorInSnobol4System
 
 -- | Greater than or equal predicate
 ge :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -654,7 +661,7 @@ ge = numericalPredicate (>=)
 
 -- | Greater than predicate
 gt :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -663,7 +670,7 @@ gt = numericalPredicate (>)
 -- | The ident function, returns the null string if the two arguments are the
 -- same
 ident :: ( InterpreterShell m
-         {-, Snobol4Machine program-}
+         
          , Eq (ExprType m)
          ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -675,7 +682,7 @@ ident _ = programError IncorrectNumberOfArguments
 
 -- | Integer predicate
 integer :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
         => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -687,7 +694,7 @@ integer _ = programError IncorrectNumberOfArguments
 
 -- | The item function, indexes an array or table
 item :: ( InterpreterShell m
-        {-, Snobol4Machine program-}
+        
         , LocalVariablesClass m
         , Ord (ExprType m)
         ) 
@@ -699,7 +706,7 @@ item _ = programError IncorrectNumberOfArguments
 
 -- | Less than or equal predicate
 le :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -708,7 +715,7 @@ le = numericalPredicate (<=)
 -- | The length function, returns a pattern with matches the provided number
 -- of characters
 len :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -721,7 +728,7 @@ len [] = len [StringData ""]
 
 -- | The lgt function, returns the null string if the first argument comes after
 -- the second, lexically
-lgt :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+lgt :: ( InterpreterShell m ) 
     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 lgt [a,b] = do
     a' <- toString a
@@ -732,7 +739,7 @@ lgt [a,b] = do
 lgt _ = programError IncorrectNumberOfArguments
 
 -- | The local function, returns the name of the nth local variable of a user-defined function
-local :: ( InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
+local :: ( InterpreterShell m, LocalVariablesClass m ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 local [fname,n] = do
     fname' <- toString fname
@@ -748,7 +755,7 @@ local _ = programError ErrorInSnobol4System
 
 -- | Less than predicate
 lt :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -756,7 +763,7 @@ lt = numericalPredicate (<)
 
 -- | Inequality predicate
 ne :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -764,7 +771,7 @@ ne = numericalPredicate (/=)
 
 -- | The notany function, returns a pattern which matches one character not
 -- provided
-notany :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+notany :: ( InterpreterShell m ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 notany (a:_) = do
     cs <- toString a
@@ -775,7 +782,7 @@ notany [] = notany [StringData ""]
 
 -- | TODO
 opsyn :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -783,7 +790,7 @@ opsyn = const $ programError ErrorInSnobol4System
 
 -- | The pos function, returns a pattern that succeeds if the cursor is at the
 -- given column
-pos :: ( InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
+pos :: ( InterpreterShell m, LocalVariablesClass m ) 
     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 pos [a] = do
     result <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
@@ -792,7 +799,7 @@ pos _ = programError IncorrectNumberOfArguments
 
 -- | TODO 
 prototype :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
           => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -801,7 +808,7 @@ prototype = const $ programError ErrorInSnobol4System
 -- | The remainder primitive, returns the the remainder of the second argument
 -- divided by the first
 remdr :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -814,7 +821,7 @@ remdr _ = programError IncorrectNumberOfArguments
 -- | The replace function, returns a string formed by replacing instances of a
 -- substring with another
 replace :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
         => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -829,7 +836,7 @@ replace _ = programError IncorrectNumberOfArguments
 
 -- | TODO 
 rewind :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -838,7 +845,7 @@ rewind = const $ programError ErrorInSnobol4System
 -- | The rpos function, creates a pattern which succeeds if the cursor is the
 -- current position from the right
 rpos :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -850,7 +857,7 @@ rpos _ = programError IncorrectNumberOfArguments
 -- | The rtab function, returns a pattern which matches the null string if the
 -- cursor is after the provided column, measured from the right
 rtab :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -863,7 +870,7 @@ rtab [] = rtab [StringData ""]
 
 -- | The size function, returns the length of the argument
 size :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -873,7 +880,7 @@ size _ = programError IncorrectNumberOfArguments
 -- | The span function, returns a pattern which matches the longest string
 -- containing only the provided characters
 span :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -886,7 +893,7 @@ span [] = span [StringData ""]
 
 -- | TODO 
 stoptr :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -895,7 +902,7 @@ stoptr = const $ programError ErrorInSnobol4System
 -- | The tab function, returns a pattern which matches the null string if the
 -- cursor is before the provided column, measured from the left
 tab :: ( InterpreterShell m
-    {-, Snobol4Machine program-}
+    
     , LocalVariablesClass m  
     ) 
     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
@@ -907,7 +914,7 @@ tab (a:_) = do
 tab [] = tab [StringData ""]
 
 -- | The table function, returns an empty table
-table :: ( InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
+table :: ( InterpreterShell m, LocalVariablesClass m ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 table (a:_) = do
     i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
@@ -918,18 +925,18 @@ table _ = Just . TableData <$> tablesNew
 
 -- | The time primitive, returns the number of seconds ellapsed since the
 -- beginning of the program
-time :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+time :: ( InterpreterShell m ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 time [] = Just . IntegerData . mkInteger <$> (lift Shell.time)
 time _ = programError IncorrectNumberOfArguments
 
 -- | TODO 
-trace :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+trace :: ( InterpreterShell m ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 trace = const $ programError ErrorInSnobol4System
 
 -- | The trim function, removes whitespace from a string
-trim :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+trim :: ( InterpreterShell m ) 
      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 trim [a] = do
     a' <- toString a
@@ -937,55 +944,61 @@ trim [a] = do
 trim _ = programError IncorrectNumberOfArguments
 
 -- | TODO
-unload :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+unload :: ( InterpreterShell m ) 
        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 unload = const $ programError ErrorInSnobol4System
 
 -- | The value function, looks up a variable by name
-value :: ( InterpreterShell m{-, Snobol4Machine program-} ) 
+value :: ( InterpreterShell m ) 
       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
 value [arg] = do
     name <- toString arg
     return $ Just $ Name $ LookupId name
 value _ = programError IncorrectNumberOfArguments
 
-
+-- | Binary + operator
 binOp_plus :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_plus [x,y] = liftM Just $ arithmetic (+) (+) x y
 binOp_plus _ = programError IncorrectNumberOfArguments
 
+-- | Binary - operator
 binOp_minus :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_minus [x,y] = liftM Just $ arithmetic (subtract) (subtract) x y
 binOp_minus _ = programError IncorrectNumberOfArguments
 
+-- | Binary * operator
 binOp_star :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_star [x,y] = liftM Just $ arithmetic (*) (*) x y
 binOp_star _ = programError IncorrectNumberOfArguments
 
+-- | Binary / operator
 binOp_slash :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_slash [x,y] = liftM Just $ arithmetic (div) (/) x y
 binOp_slash _ = programError IncorrectNumberOfArguments
 
+-- | Binary ! operator
 binOp_bang :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_bang [x,y] = liftM Just $ arithmetic (^) (**) x y
 binOp_bang _ = programError IncorrectNumberOfArguments
 
+-- | Binary ** operator
 binOp_doubleStar :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_doubleStar [x,y] = liftM Just $ arithmetic (^) (**) x y
 binOp_doubleStar _ = programError IncorrectNumberOfArguments
 
+-- | Binary ' ' operator
 binOp_blank :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -994,12 +1007,14 @@ binOp_blank [x,y] = liftM Just $ pattern (\p1 p2 -> case (p1,p2) of
     _ -> ConcatPattern p1 p2) x y
 binOp_blank _ = programError IncorrectNumberOfArguments
 
+-- | Binary | operator
 binOp_pipe :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_pipe [x,y] = liftM Just $ pattern AlternativePattern x y
 binOp_pipe _ = programError IncorrectNumberOfArguments
 
+-- | Binary $ operator
 binOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)] 
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -1015,6 +1030,7 @@ binOp_dollar [x,y] = do
     return $ Just $ TempPatternData $ ImmediateAssignmentPattern pat ref
 binOp_dollar _ = programError IncorrectNumberOfArguments
 
+-- | Binary . operator
 binOp_dot :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -1031,12 +1047,14 @@ binOp_dot [x,y] = do
     return $ Just $ TempPatternData $ AssignmentPattern pat ref
 binOp_dot _ = programError IncorrectNumberOfArguments
 
+-- | Unary & operator
 unOp_and :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 unOp_and [ReferenceId sym] = return $ Just $ ReferenceKeyword sym
 unOp_and _ = programError UnknownKeyword
 
+-- | Unary $ operator
 unOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -1047,32 +1065,88 @@ unOp_dollar [x] = do
 unOp_dollar _ = programError IncorrectNumberOfArguments
     
 
+
+-- | Initial value of &ALPHABET
 keyword_alphabet = StringData $ mkString ['A'..'Z']
+
+-- | Initial value of &ABORT
 keyword_abort = TempPatternData AbortPattern
+
+-- | Initial value of &ARB
 keyword_arb = TempPatternData ArbPattern
+
+-- | Initial value of &BAL
 keyword_bal = TempPatternData BalPattern
+
+-- | Initial value of &ERRTYPE
 keyword_errtype = IntegerData 0
+
+-- | Initial value of &FAIL
 keyword_fail = TempPatternData FailPattern
+
+-- | Initial value of &FENCE
 keyword_fence = TempPatternData FencePattern
+
+-- | Initial value of &FNCLEVEL
 keyword_fnclevel = IntegerData 0
+
+-- | Initial value of &LASTNO
 keyword_lastno = IntegerData (-1)
+
+-- | Initial value of &REM
 keyword_rem = TempPatternData $ RTabPattern 0
+
+-- | Initial value of &RTNTYPE
 keyword_rtntype = StringData nullString
+
+-- | Initial value of &STCOUNT
 keyword_stcount = IntegerData 0
+
+-- | Initial value of &STFCOUNT
 keyword_stfcount = IntegerData 0
+
+-- | Initial value of &STNO
 keyword_stno = IntegerData 0
+
+-- | Initial value of &SUCCEED
 keyword_succeed = TempPatternData SucceedPattern
 
+
+-- | Initial value of &ABEND
 keyword_abend = IntegerData 0
+
+-- | Initial value of &ANCHOR
 keyword_anchor = IntegerData 0
+
+-- | Initial value of &CODE
 keyword_code = IntegerData 0
+
+-- | Initial value of &DUMP
 keyword_dump = IntegerData 0
+
+-- | Initial value of &ERRLIMIT
 keyword_errlimit = IntegerData 0
+
+-- | Initial value of &FTRACE
 keyword_ftrace = IntegerData 0
+
+-- | Initial value of &FULLSCAN
 keyword_fullscan = IntegerData 0
+
+-- | Initial value of &INPUT
 keyword_input = IntegerData 1
+
+-- | Initial value of &MAXLNGTH
 keyword_maxlngth = IntegerData 5000
+
+-- | Initial value of &OUTPUT
 keyword_output = IntegerData 1
+
+-- | Initial value of &STLIMIT
 keyword_stlimit = IntegerData 50000
+
+-- | Initial value of &TRACE
 keyword_trace = IntegerData 0
+
+-- | Initial value of &TRIM
 keyword_trim = IntegerData 0

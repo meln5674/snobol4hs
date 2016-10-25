@@ -5,8 +5,6 @@ Copyright       : (c) Andrew Melnick 2016
 License         : MIT
 Maintainer      : meln5674@kettering.edu
 Portability     : Unknown
-
-TODO
 -}
 
 {-# LANGUAGE DeriveGeneric #-}
@@ -77,14 +75,6 @@ emptySymbolTable
 
 
 -- | A bytecode instruction.
--- Constructors are documented using the following format:
--- vN : Pop N items from the stack
--- $N : Reference the Nth item popped from the stack (1-based)
--- ^X : Push X onto the stack
--- !N : Reference the Nth argument of the constructor (1-based)
--- X; Y : Do X, then do Y
--- X ? Y : Z : If X, then do Y, else do Z
--- X := Y : Set X to the value of Y
 data Instruction
     = 
     -- | Push a string onto the stack
@@ -115,54 +105,6 @@ data Instruction
     -- | Reverse the order of the top two items on the stack
     | Rotate
     
-    {-
-    -- | Pop the top two items, push their sum
-    | Add
-    -- | Pop the top two items, push their difference
-    | Subtract
-    -- | Pop the top two items, push their product
-    | Multiply
-    -- | Pop the top two items, push their quotient
-    | Divide
-    -- | Pop the top two items, push their exponentiation
-    | Exponentiate
-
-    -- | Pop the top two items, push their concatenation
-    | ConcatString
-    -- | Pop the top two items, push a pattern 
-    | ConcatPattern
-    -- | v2; ^($2 | $1)
-    | AlternatePattern
-    
-    -- | v2; ($2 > $1) ? ^1 : ^0
-    | GreaterThan
-    -- | v2; ($2 >= $1) ? ^1 : ^0
-    | GreaterThanOrEqualTo
-    -- | v2; ($2 < $1) ? ^1 : ^0
-    | LessThan
-    -- | v2; ($2 <= $1) ? ^1 : ^0
-    | LessThanOrEqualTo
-    -- | v2; ($2 == $1) ? ^1 : ^0
-    | Equal
-    -- | v2; ($2 /= $1) ? ^1 : ^0
-    | NotEqual
-    
-    
-    
-    -- TODO: Rest of the patterns
-    -- | v2; ^(AssignmentPattern $2 $1)
-    | PrimitiveAssignmentPattern
-    -- | v2; ^(ImmediateAssignmentPattern $2 $1)
-    | PrimitiveImmediateAssignmentPattern
-    -- | v1; ^(LiteralPattern $1)
-    | PrimitiveLiteralPattern
-    -- etc
-    -- | v1; ^(AssignmentPattern $1)
-    | PrimitiveAnyPattern
-    -- etc
-    -}
-    
-    
     -- | Pop the top item off the stack, and push the value of the variable with
     -- that name
     | LookupDynamic
@@ -185,19 +127,10 @@ data Instruction
     -- the first to the second
     | AssignDynamic
 
-    {-
-    -- | v2; Create a new function using $1 as the entry label and $2 as the prototype
-    | Define
-    -- | ???
-    | CallDynamic
-    -}
     -- | Call the specified functions with N arguments currently on the stack.
     -- Also specifies if the call should be treated as an LValue
     | CallStatic Symbol Int Bool
-    {-
-    -- | ^(arg count)
-    | GetArgCount
-    -}
+    
     -- | Return from the current function call successfully
     | Return
     -- | Return from the current function call unsuccessfully
@@ -218,24 +151,9 @@ data Instruction
     | PopFailLabel
     -- | Jump to the failure label
     | JumpToFailureLabel
-    
-    {-
-    -- | v1; $1 == 0 || $1 == "" ? Jump to the failure label : noop
-    | JumpToFailureLabelIf
-    -- | v1; $1 == 0 || $1 == "" ? noop : Jump to the failure label
-    | JumpToFailureLabelElse
-    -}
 
     -- | Jump to a compiler defined label
     | JumpStatic SystemLabel
-    
-    {-
-    -- | v1; $1 == 0 || $1 == "" ? Jump to !1 : noop
-    | JumpStaticIf SystemLabel
-    -- | v1; $1 == 0 || $1 == "" ? noop : Jump to !1
-    | JumpStaticElse SystemLabel
-    -}
-    
     -- | Pop a label off the stack and jump to the user defined label with that
     -- name
     | JumpDynamic
@@ -252,26 +170,7 @@ data Instruction
     | InvokeScanner
     -- | Invoke the replacer
     | InvokeReplacer
-
-    {-    
-    -- | v1; $1 is stringable ? ^(string $1) : ^failure
-    | ConvertToString
-    -- | v1; $1 is integerable ? ^(integer $1) : ^failure
-    | ConvertToInteger
-    -- | v1; $1 is realable ? ^(real $1) : ^failure
-    | ConvertToReal
-    -- | v1; $1 is patternable ? ^(pattern $1) : ^failure
-    | ConvertToPattern
-    -}
     
-    {-
-    -- | v2; Invoke the array allocator using $1 as the initial value, and $2 as
-    -- the prototype
-    | AllocArray
-    -- | v1; Invoke the table allocator using $1 as the initial size
-    | AllocTable
-    -}
-
     -- | Panic with the given error
     | Panic ProgramError
     -- | Terminate the program successfully
@@ -298,27 +197,37 @@ deriving instance Generic SystemLabel
 deriving instance Generic Symbol
 deriving instance Generic Instruction
 
+-- | Serialize as a list
 instance Serialize a => Serialize (Vector a) where
     get = liftM V.fromList get
     put = put . V.toList
 
+-- | Serialize as a string
 instance Serialize Snobol4String where
     put = put . (unmkString :: Snobol4String -> String)
     get = liftM mkString (get :: Get String)
 
+-- | Serialize an an int
 instance Serialize Snobol4Integer where
     put = put . (unmkInteger :: Snobol4Integer -> Int)
     get = liftM mkInteger (get :: Get Int)
 
+-- | Serialize as a float
 instance Serialize Snobol4Real where
     put = put . (unmkReal :: Snobol4Real -> Float)
     get = liftM mkReal (get :: Get Float)
 
+-- | Auto-generated
 instance Serialize Operator
+-- | Auto-generated
 instance Serialize ProgramError
+-- | Auto-generated
 instance Serialize SystemLabel
+-- | Auto-generated
 instance Serialize Symbol
+-- | Auto-generated
 instance Serialize Instruction
+-- | Auto-generated
 instance Serialize SymbolTable
 
 deriving instance Serialize CompiledProgram

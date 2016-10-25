@@ -33,6 +33,7 @@ data FunctionPrototype
         [Snobol4String]
   deriving Show
 
+-- | Prototype of a user-defined datatype
 data DataPrototype
     = DataPrototype
         Snobol4String

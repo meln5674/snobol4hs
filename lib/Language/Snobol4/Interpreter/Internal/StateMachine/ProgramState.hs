@@ -54,5 +54,6 @@ modifyProgramCounter :: InterpreterShell m => (Address -> Address) -> Interprete
 modifyProgramCounter f = modifyProgramState $
     \st -> st { programCounter = f $ programCounter st }
 
+-- | Increment the program counter
 incProgramCounter :: InterpreterShell m => InterpreterGeneric program m ()
 incProgramCounter = modifyProgramCounter (+1)

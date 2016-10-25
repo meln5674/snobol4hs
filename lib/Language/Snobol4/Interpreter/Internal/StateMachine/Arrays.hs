@@ -40,6 +40,7 @@ modifyArrays :: InterpreterShell m
 modifyArrays f = modifyProgramState $
     \st -> st { arrays = f $ arrays st }
 
+-- | Get the next key availible for referencing an array
 arraysNextKey :: InterpreterShell m => InterpreterGeneric program m ArrayKey
 arraysNextKey = liftM (maybe (toEnum 0) (succ . fst . fst) . M.maxViewWithKey) getArrays 
 

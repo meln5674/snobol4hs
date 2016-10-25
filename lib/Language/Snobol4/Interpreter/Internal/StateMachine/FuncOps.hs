@@ -1,3 +1,12 @@
+{-|
+Module          : Language.Snobol4.Interpreter.Internal.StateMachine.FuncOps
+Description     : Maintaining functions and operators
+Copyright       : (c) Andrew Melnick 2016
+License         : MIT
+Maintainer      : meln5674@kettering.edu
+Portability     : Unknown
+
+-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE LambdaCase #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.FuncOps where
@@ -17,7 +26,6 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState
 import Language.Snobol4.Interpreter.Internal.StateMachine.GC
 import Language.Snobol4.Interpreter.Internal.StateMachine.Variables
---import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 import qualified Data.Map as M
 
@@ -26,7 +34,6 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Types
 
 -- | Empty collection of functions
 noFunctions :: ( InterpreterShell m
---               {-, Snobol4Machine program-} 
                ) 
             => Functions program m
 noFunctions = M.empty
@@ -58,6 +65,7 @@ functionsNew :: ( InterpreterShell m{-, Snobol4Machine program-} )
              -> InterpreterGeneric program m ()
 functionsNew func = modifyFunctions $ M.insert (funcName func) $ UserFunction func
 
+-- | Create a new datatype selector function
 selectorFunctionsNew :: ( InterpreterShell m
                         )
                      => Snobol4String
@@ -66,6 +74,7 @@ selectorFunctionsNew :: ( InterpreterShell m
                      -> InterpreterGeneric program m ()
 selectorFunctionsNew name dataname ix = modifyFunctions $ M.insert name $ DataSelectorFunction name dataname ix
 
+-- | Create a new datatype constructor function
 constructorFunctionsNew :: ( InterpreterShell m
                            )
                         => Snobol4String
@@ -73,26 +82,28 @@ constructorFunctionsNew :: ( InterpreterShell m
                         -> InterpreterGeneric program m ()
 constructorFunctionsNew name count = modifyFunctions $ M.insert name $ DataConstructorFunction name count
 
-
+-- | Empty collection of unary operators
 noUnOpSyns :: ( InterpreterShell m
               {-, Snobol4Machine program-}
               )
            => OpSyns program m
 noUnOpSyns = M.empty
 
-
+-- | Empty collectino of binary operators
 noBinOpSyns :: ( InterpreterShell m
                {-, Snobol4Machine program-}
                ) 
             => OpSyns program m
 noBinOpSyns = M.empty
 
+-- | Get unary operators
 getUnOpSyns :: ( InterpreterShell m
                {-, Snobol4Machine program-}
                ) 
             => InterpreterGeneric program m (OpSyns program m)
 getUnOpSyns = getsProgramState unOpSyns
 
+-- | Get unary operators and apply a transformation
 getsUnOpSyns :: ( InterpreterShell m
                 {-, Snobol4Machine program-}
                 ) 
@@ -100,12 +111,14 @@ getsUnOpSyns :: ( InterpreterShell m
              -> InterpreterGeneric program m a
 getsUnOpSyns f = liftM f getUnOpSyns
 
+-- | Get binary operators
 getBinOpSyns :: ( InterpreterShell m
                {-, Snobol4Machine program-}
                ) 
             => InterpreterGeneric program m (OpSyns program m)
 getBinOpSyns = getsProgramState binOpSyns
 
+-- | Get binary operators and apply a transformation
 getsBinOpSyns :: ( InterpreterShell m
                 {-, Snobol4Machine program-}
                 ) 
@@ -113,6 +126,7 @@ getsBinOpSyns :: ( InterpreterShell m
              -> InterpreterGeneric program m a
 getsBinOpSyns f = liftM f getBinOpSyns
 
+-- | Set unary operators
 putUnOpSyns :: ( InterpreterShell m
                {-, Snobol4Machine program-}
                ) 
@@ -121,6 +135,7 @@ putUnOpSyns :: ( InterpreterShell m
 putUnOpSyns ops = modifyProgramState $
     \st -> st { unOpSyns = ops }
 
+-- | Set binary operators
 putBinOpSyns :: ( InterpreterShell m
                {-, Snobol4Machine program-}
                ) 
@@ -130,7 +145,7 @@ putBinOpSyns ops = modifyProgramState $
     \st -> st { binOpSyns = ops }
 
 
-
+-- | Apply a transformation to unary operators
 modifyUnOpSyns :: ( InterpreterShell m
                   {-, Snobol4Machine program-}
                   ) 
@@ -139,6 +154,7 @@ modifyUnOpSyns :: ( InterpreterShell m
 modifyUnOpSyns f = modifyProgramState $
     \st -> st { unOpSyns = f $ unOpSyns st }
 
+-- | Apply a transformation to binary operators
 modifyBinOpSyns :: ( InterpreterShell m
                   {-, Snobol4Machine program-}
                   ) 
@@ -147,6 +163,7 @@ modifyBinOpSyns :: ( InterpreterShell m
 modifyBinOpSyns f = modifyProgramState $
     \st -> st { binOpSyns = f $ binOpSyns st }
 
+-- | Look up a unary operator
 lookupUnOpSyn :: ( InterpreterShell m
                  {-, Snobol4Machine program-}
                  ) 
@@ -154,6 +171,7 @@ lookupUnOpSyn :: ( InterpreterShell m
               -> InterpreterGeneric program m (Maybe (OpSyn program m))
 lookupUnOpSyn = getsUnOpSyns . M.lookup
 
+-- | Look up a binary operator
 lookupBinOpSyn :: ( InterpreterShell m
                  {-, Snobol4Machine program-}
                  ) 
@@ -161,6 +179,7 @@ lookupBinOpSyn :: ( InterpreterShell m
               -> InterpreterGeneric program m (Maybe (OpSyn program m))
 lookupBinOpSyn = getsBinOpSyns . M.lookup
 
+-- | Set a unary operator
 setUnOpSyn :: ( InterpreterShell m
               {-, Snobol4Machine program-}
               ) 
@@ -169,6 +188,7 @@ setUnOpSyn :: ( InterpreterShell m
            -> InterpreterGeneric program m ()
 setUnOpSyn op syn = modifyUnOpSyns $ M.insert op syn
 
+-- | Set a binary operator
 setBinOpSyn :: ( InterpreterShell m
               {-, Snobol4Machine program-}
               ) 
