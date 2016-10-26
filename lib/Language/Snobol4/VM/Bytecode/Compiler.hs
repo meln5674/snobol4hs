@@ -112,7 +112,9 @@ compileStatementLabel (EndStmt _) = undefined
 compileStatementBody :: Compiler m => Stmt -> m ()
 compileStatementBody (Stmt _ Nothing _ _ _) = return ()
 compileStatementBody (Stmt _ (Just sub) Nothing Nothing _) = do
-    lvalue <- compileSubject sub
+    compileRValue sub
+    addInstruction Pop
+    {-
     case lvalue of
         StaticLValue sym -> do
             addInstruction $ LookupStatic sym
@@ -133,8 +135,10 @@ compileStatementBody (Stmt _ (Just sub) Nothing Nothing _) = do
         PunchLValue -> do
             addInstruction LastPunch
             addInstruction Pop
+        -}
 compileStatementBody (Stmt _ (Just sub) (Just pat) Nothing _) = do
-    lvalue <- compileSubject sub
+    compileRValue sub
+    {-
     case lvalue of
         StaticLValue sym -> do
             addInstruction $ LookupStatic sym
@@ -145,6 +149,7 @@ compileStatementBody (Stmt _ (Just sub) (Just pat) Nothing _) = do
         InputLValue -> addInstruction $ Input
         OutputLValue -> addInstruction $ LastOutput
         PunchLValue -> addInstruction $ LastPunch
+    -}
     compilePattern pat
     addInstruction $ InvokeScanner
     addInstruction $ Pop

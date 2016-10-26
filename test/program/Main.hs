@@ -251,10 +251,190 @@ test_pg36_1 = ExpectSuccess
         , mockTime = 0
         }
     }
-    
+
+test_pg34 = ExpectSuccess
+    { testLabel = "Page 34"
+    , testProgram = ex_pg34
+    , testInputs = []
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "R"
+            , "E"
+            , "EA"
+            , "D"
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+test_pg37 = ExpectSuccess
+    { testLabel = "Page 37"
+    , testProgram = ex_pg37
+    , testInputs =
+        [ "1290 SEP. 27 CHINA, CHIHLI           100,000"
+        , "1293 MAY  20 JAPAN, KAMARKURA         30,000"
+        , "1531 JAN. 26 PORTUGAL, LIBSON         30,000"
+        ]        
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "SEP. 27, 1290   CHINA, CHIHLI           100,000"
+            , "MAY  20, 1293   JAPAN, KAMARKURA         30,000"
+            , "JAN. 26, 1531   PORTUGAL, LIBSON         30,000"
+            ]        
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
+test_pg39 = ExpectSuccess
+    { testLabel = "Page 39"
+    , testProgram = ex_pg39
+    , testInputs =
+        [ "ACTINIUM     AC    89    227*      1899    DEBIERNE"
+        , "ALUMINUM     AL    13     26.9815  1825    OERSTED"
+        , "AMERICIUM    AM    95    243*      1944    SEABORG"
+        , "ANTIMONY     SB    51    121.75    1450    VALENTINE"
+        ]        
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.empty
+        , mockPunches = V.fromList
+            [ "ACTINIUM:AC:89:227*:1899:DEBIERNE"
+            , "ALUMINUM:AL:13:26.9815:1825:OERSTED"
+            , "AMERICIUM:AM:95:243*:1944:SEABORG"
+            , "ANTIMONY:SB:51:121.75:1450:VALENTINE"
+            ]
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
+test_pg42 = ExpectSuccess
+    { testLabel = "Page 42"
+    , testProgram = ex_pg42
+    , testInputs =
+        [ " 1 WILLIAM T. CAHILL         REP   COLLINGSWOOD"
+        , " 2 THOMAS C. MCGRATH, JR.    DEM   MARGATE CITY"
+        , " 3 JAMES J. HOWARD           DEM   WALL"
+        , "14 DOMINICK V. DANIELS       DEM   JERSEY CITY"
+        , "15 EDWARD J. PATTEN          DEM   PERTH AMBOY"
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "WILLIAM T. CAHILL               COLLINGSWOOD"
+            , "THOMAS C. MCGRATH, JR.          MARGATE CITY"
+            , "JAMES J. HOWARD                         WALL"
+            , "DOMINICK V. DANIELS              JERSEY CITY"
+            , "EDWARD J. PATTEN                 PERTH AMBOY"
+            ]
+        , mockPunches = V.fromList
+            [ "WILLIAM T. CAHILL               COLLINGSWOOD"
+            , "THOMAS C. MCGRATH, JR.          MARGATE CITY"
+            , "JAMES J. HOWARD                         WALL"
+            , "DOMINICK V. DANIELS              JERSEY CITY"
+            , "EDWARD J. PATTEN                 PERTH AMBOY"
+            ]
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
+
+test_pg46 = ExpectSuccess
+    { testLabel = "Page 46"
+    , testProgram = ex_pg46
+    , testInputs =
+        [ " XXXXXXXXX   XXXXXXX     XXXXX         X "
+        , "             XXXXXXX     XXXXX         X "
+        , " XXXXXXXXX   XXXXXXX     XXXXX         X "
+        , " XXXXXXXXX               XXXXX         X "
+        , " XXXXXXXXX   XXXXXXX     XXXXX         X "
+        , " XXXXXXXXX   XXXXXXX     XXXXX           "
+        , " XXXXXXXXX   XXXXXXX     XXXXX         X "
+        , " XXXXXXXXX   XXXXXXX     XXXXX         XX"
+        , " XXXXXXXXX   XXXXXXX     XXXXX         X "
+        , "XXXXXXXXXX   XXXXXXX     XXXXX         X "
+        , " XXXXXXXXX   XXXXXXX     XXXXX         X "
+        , " XXXXXXXXX   XXXXXXX     XXXXX         X         X "
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "CARDS WITH IMPROPER FORMAT ARE:"
+            , ""
+            , "#2               XXXXXXX     XXXXX         X "
+            , "#4   XXXXXXXXX               XXXXX         X "
+            , "#6   XXXXXXXXX   XXXXXXX     XXXXX           "
+            , "#8   XXXXXXXXX   XXXXXXX     XXXXX         XX"
+            , "#10 XXXXXXXXXX   XXXXXXX     XXXXX         X "
+            , "#12  XXXXXXXXX   XXXXXXX     XXXXX         X         X "
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+test_pg48 = ExpectSuccess
+    { testLabel = "Page 48"
+    , testProgram = ex_pg48
+    , testInputs =
+        [ "ALPHA"
+        , "BETA"
+        , "ABRACADABRA"
+        , "ABSOLUTELY"
+        , "AWFUL"
+        , "ALBEIT"
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "ACCEPTABLE WORDS ARE:"
+            , ""
+            , " BETA"
+            , " ABSOLUTELY"
+            , " ALBEIT"
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
+
+
+
 allMockTests = 
     [ test_pg20
+    , test_pg34
     , test_pg36_1
+    , test_pg37
+    , test_pg39
+    , test_pg42
+    , test_pg46
+    , test_pg48
     ]
 
 allTests = TestList $ map makeMockTest allMockTests

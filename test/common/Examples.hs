@@ -262,3 +262,72 @@ ex_pg36 = unlines
     , "NOPAT    OUTPUT = 'P FAILED TO MATCH.' :(BLLINE)"
     , "END"
     ]
+
+ex_pg34 = unlines
+    [ "     BR = ('B' | 'R') $ OUTPUT ('E' | 'EA') $ OUTPUT"
+    , "+          ('D' | 'DS') $ OUTPUT"
+    , "     'READS' BR"
+    , "END"
+    ]
+
+ex_pg37 = unlines
+    [ "         &ANCHOR = 1"
+    , "         DATE = LEN(4) . YR ' ' LEN(4) . MO ' ' LEN(2) . DAY"
+    , "LOOP     CARD = INPUT                            :F(END)"
+    , "         CARD DATE = MO ' ' DAY ', ' YR '  '     :F(NOGOOD)"
+    , "         OUTPUT = CARD                           :(LOOP)"
+    , "NOGOOD   OUTPUT = CARD '  IMPORPERLY FORMATTED'  :(LOOP)"
+    , "END"
+    ]
+
+ex_pg39 = unlines
+    [ "         &ANCHOR = 1"
+    , "         FIELD = BREAK(' ') . CHARS SPAN(' ')"
+    , "LOOP     CARD = INPUT                            :F(END)"
+    , "INLOOP   CARD FIELD = CHARS ':'                  :S(INLOOP)"
+    , "         PUNCH = CARD                            :(LOOP)"
+    , "END"
+    ]
+
+ex_pg42 = unlines
+    [ "         &ANCHOR = 1; &TRIM = 1"
+    , "         NAMEANDPO = TAB(3) (TAB(29) . NAME) TAB(35) (REM . PO)"
+    , "LOOP     CARD = INPUT                                :F(END)"
+    , "         CARD NAMEANDPO                              :F(ERROR)"
+    , "         NAME = TRIM(NAME)"
+    , "         OUTPUT = NAME DUPL(' ',44 - (SIZE(NAME) + SIZE(PO))) PO"
+    , "         PUNCH = OUTPUT                              :(LOOP)"
+    , "END"
+    ]
+
+ex_pg46 = unlines
+    [ "         &ANCHOR = 1"
+    , "         FIELD = SPAN(' ') BREAK(' ')"
+    , "         FORMAT = POS(0) FIELD POS(10) FIELD POS(20) FIELD"
+    , "+                 POS(30) FIELD POS(40) SPAN(' ') RPOS(0)"
+    , "         OUTPUT = 'CARDS WITH IMPROPER FORMAT ARE:'"
+    , "         OUTPUT = "
+    , "LOOP     N = N + 1"
+    , "         CARD = INPUT                                :F(END)"
+    , "         CARD FORMAT                                 :S(LOOP)"
+    , "         OUTPUT = '#' N DUPL(' ',3 - SIZE(N)) CARD     :(LOOP)"
+    , "END"
+    ]
+
+ex_pg48 = unlines
+    [ "         &ANCHOR = 1; &TRIM = 1"
+    , "         OUTPUT = 'ACCEPTABLE WORDS ARE:'"
+    , "         OUTPUT = "
+    , "         PAT = (BREAK('A') $ A | BREAK('B') $ B |"
+    , "+               BREAK('C') $ C) FAIL"
+    , "LOOP     STRING = ' ' INPUT                  :F(END)"
+    , "         A = "
+    , "         B = "
+    , "         C = "
+    , "         STRING PAT"
+    , "         (DIFFER(A) DIFFER(B) IDENT(C))      :F(LOOP)"
+    , "         OUTPUT = STRING                     :(LOOP)"
+    , "END"
+    ]
+    
+    

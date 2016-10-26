@@ -669,8 +669,8 @@ fixPrec (RefExpr i args) = RefExpr i $ map fixPrec args
 fixPrec (ParenExpr expr) = ParenExpr $ fixPrec expr
 fixPrec (BinaryExpr exprA op exprB) = case fixPrec exprB of
     BinaryExpr exprA' op' exprB'
-        | prec op > prec op' -> BinaryExpr (BinaryExpr exprA op exprA') op' exprB'
-    _ -> BinaryExpr exprA op exprB
+        | prec op > prec op' -> fixPrec $ BinaryExpr (BinaryExpr exprA op exprA') op' exprB'
+    _ -> BinaryExpr (fixPrec exprA) op (fixPrec exprB)
 fixPrec x = x
 
 -- | Take an expression tree and manipulate it so that a top-down evaluation

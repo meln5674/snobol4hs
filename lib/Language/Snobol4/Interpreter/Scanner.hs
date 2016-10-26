@@ -42,7 +42,7 @@ scanPattern toScan pat anchor = loop 0 $ if anchor
             result <- runExceptT 
                     $ flip runStateT (startState toScan skip)
                     $ runScanner 
-                    $ match pat return nullString
+                    $ match pat (\s _ -> return s) nullString nullString
             case result of
                 Right (matchResult, st) -> do
                     let ScannerState
@@ -50,7 +50,7 @@ scanPattern toScan pat anchor = loop 0 $ if anchor
                          , startPos=matchStart
                          , endPos=matchEnd
                          } = st
-                    return $ Scan (StringData matchResult) toAssign (skip + matchStart) (skip + matchEnd)
+                    return $ Scan (StringData matchResult) (reverse toAssign) (skip + matchStart) (skip + matchEnd)
                 Left _ -> loop (skip+1) maxSkip
         
     

@@ -157,7 +157,7 @@ primitiveFunctions =
     , PrimitiveFunction "SIZE"      size
     , PrimitiveFunction "SPAN"      span
     , PrimitiveFunction "STOPTR"    stoptr
-    , PrimitiveFunction "TAB"       rtab
+    , PrimitiveFunction "TAB"       tab
     , PrimitiveFunction "TABLE"     table
     , PrimitiveFunction "TIME"      time
     , PrimitiveFunction "TRACE"     trace
@@ -582,6 +582,7 @@ differ [a,b] = do
     if a /= b
         then return $ Just $ StringData ""
         else return Nothing
+differ [a] = differ [a,StringData nullString]
 differ _ = programError IncorrectNumberOfArguments
 
 -- | TODO
@@ -679,6 +680,7 @@ ident [a,b] = do
     if a == b
         then return $ Just $ StringData ""
         else return Nothing
+ident [a] = ident [a,StringData nullString]
 ident _ = programError IncorrectNumberOfArguments
 
 -- | Integer predicate

@@ -26,6 +26,7 @@ process for each remaining alternative.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.Scanner.Internal where
 
 import Control.Monad
@@ -63,6 +64,9 @@ newtype ScannerGeneric program expr {-error-} m a
         :: StateT (ScannerState expr) (ExceptT FailType (InterpreterGeneric program m)) a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadTrans (ScannerGeneric program expr) where
+    lift = Scanner . lift . lift . lift
 
 -- | The type of failure in the scanner
 data FailType
@@ -140,6 +144,12 @@ getRCursorPos = snobol4Length <$> getInput
 addAssignment :: Monad m => (Lookup (ExprType m)) -> (Data (ExprType m)) -> ScannerGeneric (ProgramType m) (ExprType m) {-error-} m ()
 addAssignment l d = Scanner $ modify $ \st -> st{ assignments = (l,d):assignments st}
 
+assertNotEnd :: Monad m => ScannerGeneric (ProgramType m) (ExprType m) m ()
+assertNotEnd = do
+    rpos <- getRCursorPos
+    when (rpos == 0) backtrack
+    
+
 -- | Immediately assign a value
 immediateAssignment :: ( InterpreterShell m
                        {-, Snobol4Machine program-}
@@ -212,6 +222,13 @@ consumeAny cs = do
         then consumeN 1
         else backtrack
 
+peekAny :: Monad m => Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) m Snobol4String
+peekAny cs = do
+    c <- nextChar
+    if c `snobol4Elem` cs
+        then return c
+        else backtrack
+
 -- | Consume any of the characters not in the given string, otherwise fail
 consumeNotAny :: Monad m => Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m Snobol4String
 consumeNotAny cs = do
@@ -233,13 +250,30 @@ startState s skip = ScannerState
 -- | I haven't thought up a name for this yet
 func :: Monad m 
      => ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m Snobol4String 
-     -> (Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m a) 
-     -> (Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m a)
-func f next = \s1 -> f >>= \s2 -> next (s1 <> s2)
+     -> ScannerCont m
+     -> ScannerCont m
+func f next = \s1 _ -> f >>= \s2 -> next (s1 <> s2) s2
 
 -- | I haven't thought up a name for this either
 bar :: Monad m => (a -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m b) -> a -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m a
 bar f v = f v >> return v
+
+type ScannerCont m = Snobol4String -> Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) m Snobol4String
+
+
+-- | `foo first second handler` is almost equivalent to
+-- `catchScan (first >>= second) handler`, except that only `first` may fail
+-- if `second` fails, the computation fails as normal
+foo :: Monad m
+    => ScannerGeneric (ProgramType m) (ExprType m)  m a 
+    -> (a -> ScannerGeneric (ProgramType m) (ExprType m) m b)
+    -> ScannerGeneric (ProgramType m) (ExprType m) m b 
+    -> ScannerGeneric (ProgramType m) (ExprType m) m b
+foo first second handler = do
+    try <- catchScan (liftM Just first) (return Nothing)
+    case try of
+        Just result -> second result
+        Nothing -> handler
 
 -- | Main scanner function
 -- `match p next` attempts to match the pattern `p`, and if successful, calls
@@ -254,73 +288,80 @@ match :: ( InterpreterShell m
          , Ord (ExprType m)
          )
       => Pattern (ExprType m)
-      -> (Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m Snobol4String)
-      -> (Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m Snobol4String)
-match (AssignmentPattern p l) next = match p $ \s -> do
-    addAssignment l $ StringData s
-    next s
-match (ImmediateAssignmentPattern p l) next = match p $ \s -> do
-    immediateAssignment l $ StringData s
-    next s
+      -> ScannerCont m
+      -> ScannerCont m
+match (AssignmentPattern p l) next = match p $ \s prev -> do
+    addAssignment l $ StringData prev
+    next s prev
+match (ImmediateAssignmentPattern p l) next = match p $ \s prev -> do
+    immediateAssignment l $ StringData prev
+    next s prev 
 match (LiteralPattern lit) next = func (consume $ mkString lit) next
-match (AlternativePattern p1 p2) next = \s -> catchScan (match p1 next s) (match p2 next s)
-match (ConcatPattern p1 p2) next = match p1 $ match p2 next
+match (AlternativePattern p1 p2) next = \s prev -> catchScan (match p1 next s prev) (match p2 next s prev)
+match (ConcatPattern p1 p2) next = \s prev -> 
+    match p1 (\s1 prev1 -> 
+        match p2 (\s2 prev2 -> next s2 (prev1 <> prev2)) s1 prev1
+    ) 
+    s prev
 match (LengthPattern len) next = func (consumeN len) next
 match EverythingPattern next = func consumeAll next
-match (UnevaluatedExprPattern expr) next = \s -> do
+match (UnevaluatedExprPattern expr) next = \s prev -> do
     patResult <- do
         result <- Scanner $ lift $ lift $ eval expr
         case result of
             Just val -> Scanner $ lift $ lift $ toPattern val
             Nothing -> backtrack
-    match patResult next s
-match (HeadPattern l) next = \s -> do
+    match patResult next s prev
+match (HeadPattern l) next = \s prev -> do
     pos <- getCursorPos
     immediateAssignment l $ IntegerData pos
-    next s
+    next s prev
     
-match (SpanPattern cs) next = \s1 -> (consumeAny cs >>= \s2 -> loop next (s1 <> s2))
+match (SpanPattern cs) next = \s1 _ -> (consumeAny cs >>= \s2 -> loop next (s1 <> s2) s2)
   where
-    loop loopNext = \s1 -> catchScan
-        (consumeAny cs >>= \s2 -> loop loopNext (s1 <> s2))
-        (loopNext s1)
-
-match (BreakPattern cs) next = \s1 -> (consumeNotAny cs >>= \s2 -> loop next (s1 <> s2))
+    loop loopNext = \s1 prev -> foo
+        (consumeAny cs)
+        (\s2 -> loop loopNext (s1 <> s2) (prev <> s2))
+        (loopNext s1 prev)
+match (BreakPattern cs) next = \s1 _ -> loop next s1 ""
   where
-    loop loopNext = \s1 -> catchScan
-        (consumeNotAny cs >>= \s2 -> loop loopNext (s1 <> s2))
-        (loopNext s1)
-
+    loop loopNext = \s1 prev -> foo 
+        (consumeNotAny cs) 
+        (\s2 -> loop loopNext (s1 <> s2) (prev <> s2))
+        (peekAny cs >> loopNext s1 prev)
 match (AnyPattern cs) next = func (consumeAny cs) next
 match (NotAnyPattern cs) next = func (consumeNotAny cs) next
-match (TabPattern col) next = \s -> do
+match (TabPattern col) next = \s prev -> do
     pos <- getCursorPos
     if pos <= col
-        then next s
+        then func (consumeN $ col - pos) next s prev
         else backtrack
-match (RTabPattern col) next = \s -> do
+match (RTabPattern col) next = \s prev -> do
     pos <- getRCursorPos
-    if pos < col
-        then next s
+    if pos > col
+        then func (consumeN $ pos - col) next s prev
         else backtrack
-match (PosPattern col) next = \s -> do
+match (PosPattern col) next = \s _ -> do
     pos <- getCursorPos
     if pos == col
-        then next s
+        then next s ""
         else backtrack
-match (RPosPattern col) next = \s -> do
+match (RPosPattern col) next = \s _ -> do
     pos <- getRCursorPos
     if pos == col
-        then next s
+        then next s ""
         else backtrack
-match FailPattern _ = const backtrack
-match FencePattern next = \s -> catchScan (next s) abort
-match AbortPattern _ = const abort
-match ArbPattern next = \s1 -> catchScan
-    (consumeN 1 >>= \s2 -> match ArbPattern next (s1 <> s2))
-    (next s1)
-match (ArbNoPattern p) next = \s1 -> catchScan
-    (match p (match (ArbNoPattern p) next) s1)
-    (next s1)
+match FailPattern _ = \_ _ -> backtrack
+match FencePattern next = \s _ -> catchScan (next s "") abort
+match AbortPattern _ = \_ _ -> abort
+match ArbPattern next =  \s1 _ -> (consumeN 1 >>= \s2 -> loop next (s1 <> s2) s2)
+  where
+    loop loopNext = \s1 prev -> catchScan
+        (consumeN 1 >>= \s2 -> loop loopNext (s1 <> s2) (prev <> s2))
+        (loopNext s1 prev)
+
+match (ArbNoPattern p) next = \s1 _ -> catchScan (loop next s1 "") (next s1 "")
+  where
+    loop loopNext = \s1 prev -> catchScan (match p loopNext s1 prev) (loopNext s1 prev)
 match BalPattern next = undefined
-match SucceedPattern next = \s1 -> catchScan (next s1) (match SucceedPattern next s1)
+match SucceedPattern next = \s1 _ -> catchScan (next s1 "") (match SucceedPattern next s1 "")
