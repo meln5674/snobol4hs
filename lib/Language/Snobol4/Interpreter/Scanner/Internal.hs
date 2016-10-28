@@ -320,14 +320,13 @@ match (ImmediateAssignmentPattern pThunk l) next = scannerForce pThunk $ \p -> m
     next s prev 
 match (LiteralPattern lit) next = func (consume $ mkString lit) next
 match (AlternativePattern pThunk1 pThunk2) next =
-    scannerForce pThunk1 $ \p1 -> 
-    scannerForce pThunk2 $ \p2 -> 
-    \s prev -> catchScan (match p1 next s prev) (match p2 next s prev)
+    \s prev -> catchScan (scannerForce pThunk1 (\p1 -> match p1 next) s prev) 
+                         (scannerForce pThunk2 (\p2 -> match p2 next) s prev)
 match (ConcatPattern pThunk1 pThunk2) next = 
     scannerForce pThunk1 $ \p1 ->
-    scannerForce pThunk2 $ \p2 -> 
-    match p1 (\s1 prev1 -> 
-        match p2 (\s2 prev2 -> next s2 (prev1 <> prev2)) s1 prev1
+    match p1 (scannerForce pThunk2 $ \p2 -> 
+        \s1 prev1 -> 
+            match p2 (\s2 prev2 -> next s2 (prev1 <> prev2)) s1 prev1
     ) 
 match (LengthPattern lenThunk) next = scannerForce lenThunk $ \len -> func (consumeN len) next
 match EverythingPattern next = func consumeAll next

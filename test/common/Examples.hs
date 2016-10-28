@@ -371,3 +371,11 @@ ex_pg51_2 = unlines
     , "END"
     ]
 
+ex_pg52_1 = unlines
+    [ "         PAIR = ((LEN(1) $ X) *X) . OUTPUT"
+    , "         'COOK' PAIR"
+    , "         'COMMON' PAIR"
+    , "         'AARON' PAIR"
+    , "         'CHICKADEE' PAIR"
+    , "END"
+    ]
