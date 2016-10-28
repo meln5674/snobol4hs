@@ -47,7 +47,8 @@ doMain args = do
     (program,table) <- ExceptT $ liftM decode $ BS.readFile path
     let _ = program :: CompiledProgram
         _ = table :: SymbolTable
-    lift $ mapM_ print $ getCompiledProgram program
+    lift $ flip V.imapM_ (getCompiledProgram program) $ \ix inst -> do
+        putStrLn $ show ix ++ ": " ++ show inst
     lift $ print table
 
 main :: IO ()

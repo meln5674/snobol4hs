@@ -7,6 +7,8 @@ Maintainer      : meln5674@kettering.edu
 Portability     : Unknown
 
 -}
+
+{-# LANGUAGE StrictData #-}
 module Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types where
 
 -- | A pair of an item and the number of references to it

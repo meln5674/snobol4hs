@@ -94,9 +94,16 @@ instance ( InterpreterShell m
         putProgramCounter addr
         result <- runExpr
         putProgramCounter returnAddr
-        if result
-            then liftM Just pop
-            else return Nothing
+        case result of
+            ExprFinished -> do
+                value <- liftM Just pop
+                popFailLabel
+                return value
+            ExprFailed -> do
+                popFailStack
+                popFailLabel
+                return Nothing
+            _ -> return Nothing
         
 -- | Push a reference to a variable onto the stack
 pushReference :: ( InterpreterShell m ) => Snobol4String -> VM m ()
@@ -566,6 +573,8 @@ data ExprResult
     = 
     -- | Expression has been evaluated
       ExprFinished
+    -- | Expression failed
+    | ExprFailed
     -- | Expression has not been evaluated
     | ExprUnfinished Bool
 
@@ -581,20 +590,22 @@ execExpr :: ( InterpreterShell m
            ) 
         => Instruction -> VM m ExprResult
 execExpr ExprReturn = return ExprFinished
+execExpr ExprFReturn = return ExprFailed
 execExpr x = liftM ExprUnfinished $ exec x
 
 -- | Run the virtual machine in dynamic mode
 runExpr :: ( InterpreterShell m
           )
-       => VM m Bool
+       => VM m ExprResult
 runExpr = loop
   where
     loop = do
         result <- stepExpr
         case result of
-            ExprFinished -> return True
+            ExprFinished -> return ExprFinished
+            ExprFailed -> return ExprFailed
             ExprUnfinished False -> loop
-            ExprUnfinished True -> return False
+            ExprUnfinished True -> return $ ExprUnfinished True
 
 -- | Execute the next instruction in dynamic mode
 stepExpr :: ( InterpreterShell m

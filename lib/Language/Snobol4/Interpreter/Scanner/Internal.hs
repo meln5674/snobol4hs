@@ -285,8 +285,8 @@ foo first second handler = do
         Just result -> second result
         Nothing -> handler
 
--- | Force the evaluation of a lazy value inside a scanner continuation, aborting
--- the scan if evaluation fails
+-- | Force the evaluation of a lazy value inside a scanner continuation,
+-- backtracking if evaluation fails
 scannerForce :: ( InterpreterShell m
                 , NewSnobol4Machine m
                 , LocalVariablesClass m
@@ -296,7 +296,7 @@ scannerForce :: ( InterpreterShell m
              => Lazy (ExprType m) a
              -> (a -> ScannerCont m)
              -> ScannerCont m
-scannerForce x f s prev = liftInterpreter (force x) >>= maybe abort (\y -> f y s prev)
+scannerForce x f s prev = liftInterpreter (force x) >>= maybe backtrack (\y -> f y s prev)
 
 -- | Main scanner function
 -- `match p next` attempts to match the pattern `p`, and if successful, calls

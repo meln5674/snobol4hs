@@ -504,6 +504,27 @@ test_pg52_1 = ExpectSuccess
         }
     }
 
+test_pg52_2 = ExpectSuccess
+    { testLabel = "Page 52 #2"
+    , testProgram = ex_pg52_2
+    , testInputs =
+        [ 
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "LARGEST NUMBER IS  4,807,844"
+            , "LARGEST WORD IS  ATTENDANCE"
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
 {-
 test_pg = ExpectSuccess
     { testLabel = "Page "
@@ -541,6 +562,7 @@ allMockTests =
     , test_pg51_1
     , test_pg51_2
     , test_pg52_1
+    , test_pg52_2
     ]
 
 allTests = TestList $ map makeMockTest allMockTests

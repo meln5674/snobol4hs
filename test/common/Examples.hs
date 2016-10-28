@@ -372,10 +372,26 @@ ex_pg51_2 = unlines
     ]
 
 ex_pg52_1 = unlines
-    [ "         PAIR = ((LEN(1) $ X) *X) . OUTPUT"
+    [ "         PAIR = (LEN(1) $ X *X) . OUTPUT"
     , "         'COOK' PAIR"
     , "         'COMMON' PAIR"
     , "         'AARON' PAIR"
     , "         'CHICKADEE' PAIR"
+    , "END"
+    ]
+
+
+ex_pg52_2 = unlines
+    [ "         BIGP = (*P $ TRY *GT(SIZE(TRY),SIZE(BIG))) $ BIG FAIL"
+    , "         STR = 'IN 1964 NFL ATTENDANCE JUMPED TO 4,807,844; '"
+    , "+             'AN INCREASE OF 401,810.'"
+    , "         P = SPAN('0123456789,')"
+    , "         BIG = "
+    , "         STR BIGP"
+    , "         OUTPUT = 'LARGEST NUMBER IS  ' BIG"
+    , "         P = SPAN('ABCDEFGHIJKLMNOPQRSTUVWXYZ')"
+    , "         BIG = "
+    , "         STR BIGP"
+    , "         OUTPUT = 'LARGEST WORD IS  ' BIG "
     , "END"
     ]

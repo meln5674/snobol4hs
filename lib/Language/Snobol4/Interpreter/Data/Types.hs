@@ -12,6 +12,7 @@ Portability     : Unknown
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 module Language.Snobol4.Interpreter.Data.Types where
 
 import Data.Array
@@ -252,6 +253,7 @@ instance Show (Data expr) where
     show (ReferenceKeyword _) = "[REFERENCE]"
     show (CodeData _) = "[CODE]"
     show (UserData _) = "[USERDATA]"
+    show (ExprData _) = "[EXPRESSION]"
 
 -- | Class of types which can be read from a string
 class Snobol4Read s where

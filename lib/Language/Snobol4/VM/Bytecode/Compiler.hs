@@ -255,10 +255,18 @@ compileRValue (PrefixExpr And (IdExpr sym)) = do
 compileRValue (PrefixExpr Star expr) = do
     exprLabel <- allocSystemLabel
     afterLabel <- allocSystemLabel
+    exprFailLabel <- allocSystemLabel
+    
     addInstruction $ JumpStatic afterLabel
+    
     addSystemLabel exprLabel
+    addInstruction $ PushFailLabel exprFailLabel
     compileRValue expr
-    addInstruction $ ExprReturn
+    addInstruction ExprReturn
+    addSystemLabel exprFailLabel
+    addInstruction ExprFReturn
+    
+    
     addSystemLabel afterLabel
     addInstruction $ PushExpression exprLabel
 compileRValue (PrefixExpr Not expr) = do

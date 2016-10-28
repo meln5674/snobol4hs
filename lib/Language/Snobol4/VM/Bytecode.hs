@@ -141,6 +141,8 @@ data Instruction
 
     -- | Return from an unevaluated expression
     | ExprReturn
+    -- | Return from an unevaluated expression with failure
+    | ExprFReturn
 
     
     -- | Overwrite the system label to jump to on failure
