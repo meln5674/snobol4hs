@@ -220,6 +220,7 @@ decRef _ = return ()
 -- | Assign a value to the location pointed to by a lookup
 assign :: ( InterpreterShell m
           , LocalVariablesClass m
+          , NewSnobol4Machine m
           , Ord (ExprType m)
           ) 
        => (Lookup (ExprType m)) 
@@ -260,6 +261,7 @@ assign _ _ = programError VariableNotPresentWhereRequired
 -- variable is not present
 lookup :: ( InterpreterShell m
           , LocalVariablesClass m
+          , NewSnobol4Machine m
           , Ord (ExprType m)
           ) 
        => (Lookup (ExprType m)) 
@@ -273,6 +275,7 @@ lookup l = do
 -- | Get the data pointed to by a lookup
 execLookup :: ( InterpreterShell m
               , LocalVariablesClass m
+--              , NewSnobol4Machine m
               , Ord (ExprType m)
               ) 
            => (Lookup (ExprType m)) 

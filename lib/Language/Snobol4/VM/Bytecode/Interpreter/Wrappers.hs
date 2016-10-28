@@ -137,13 +137,17 @@ incProgramCounter :: InterpreterShell m => VM m ()
 incProgramCounter = VM I.incProgramCounter
 
 -- | Retreive the value of a variable, etc, or null if it doesn't exist
-lookup :: ( InterpreterShell m )
+lookup :: ( InterpreterShell m 
+          , NewSnobol4Machine (StackMachine m)
+          )
        => Lookup ExprKey
        -> VM m (Data ExprKey)
 lookup = VM . I.lookup
 
 -- | Assign the value of a variable, etc
-assign :: ( InterpreterShell m )
+assign :: ( InterpreterShell m
+          , NewSnobol4Machine (StackMachine m)
+          )
        => Lookup ExprKey
        -> Data ExprKey
        -> VM m ()
@@ -155,13 +159,17 @@ getLoadedProgram :: InterpreterShell m => VM m CompiledProgram
 getLoadedProgram = VM I.getProgram
 
 -- | Look up a variable, array, etc
-execLookup :: InterpreterShell m 
+execLookup :: ( InterpreterShell m 
+              , NewSnobol4Machine (StackMachine m)
+              )
     => Lookup ExprKey
     -> VM m (Maybe (Data ExprKey))
 execLookup = VM . I.execLookup
 
 -- | Convert a value to a string
-toString :: InterpreterShell m
+toString :: ( InterpreterShell m
+            , NewSnobol4Machine (StackMachine m)
+            )
          => Data ExprKey
          -> VM m Snobol4String
 toString = VM . I.toString

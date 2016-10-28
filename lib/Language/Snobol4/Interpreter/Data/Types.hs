@@ -42,47 +42,45 @@ newtype Snobol4Real = Snobol4Real { getReal :: Float }
 data Pattern expr
     -- | A pattern which records the matched value in the provided lookup on 
     -- success
-    = AssignmentPattern (Pattern expr) (Lookup expr)
+    = AssignmentPattern (LazyPattern expr) (Lookup expr)
     -- | A pattern which records the matched value in the provided lookup 
     -- immediately after matching
-    | ImmediateAssignmentPattern (Pattern expr) (Lookup expr)
+    | ImmediateAssignmentPattern (LazyPattern expr) (Lookup expr)
     -- | A pattern to match a literal string
     | LiteralPattern Snobol4String
     -- | An alternative between two ore more patterns
-    | AlternativePattern (Pattern expr) (Pattern expr)
+    | AlternativePattern (LazyPattern expr) (LazyPattern expr)
     -- | A concatination of two or more patterns
-    | ConcatPattern (Pattern expr) (Pattern expr)
+    | ConcatPattern (LazyPattern expr) (LazyPattern expr)
     -- | A pattern which matches any string of N characters
-    | LengthPattern Snobol4Integer
+    | LengthPattern (LazyInteger expr)
     -- | A pattern which matches anything
     | EverythingPattern
-    -- | A pattern which contains an unevaluated expression
-    | UnevaluatedExprPattern expr
-    -- | A pattern which assigns the cursor position to a variable and matches
+     -- | A pattern which assigns the cursor position to a variable and matches
     -- the null string
     | HeadPattern (Lookup expr)
     -- | A pattern which matches the longest string containing only certain
     -- characters
-    | SpanPattern Snobol4String
+    | SpanPattern (LazyString expr)
     -- | A pattern which matches the longest string not containing certain
     -- characters
-    | BreakPattern Snobol4String
+    | BreakPattern (LazyString expr)
     -- | A pattern which matches one character of a list of characters
-    | AnyPattern Snobol4String
+    | AnyPattern (LazyString expr)
     -- | A pattern which matches one character not in a list of characters
-    | NotAnyPattern Snobol4String
+    | NotAnyPattern (LazyString expr)
     -- | A pattern which succeeds if the cursor is before the given column
     -- measured from the start
-    | TabPattern Snobol4Integer
+    | TabPattern (LazyInteger expr)
     -- | A pattern which succeeds if the cursor is after the given column
     -- measured from the end
-    | RTabPattern Snobol4Integer
+    | RTabPattern (LazyInteger expr)
     -- | A pattern which succeeds if the cursor is at the given column measured
     -- from the start
-    | PosPattern Snobol4Integer
+    | PosPattern (LazyInteger expr)
     -- | A pattern which succeeds if the cursor is at the given column measured
     -- from the end
-    | RPosPattern Snobol4Integer
+    | RPosPattern (LazyInteger expr)
     -- | A pattern which always fails
     | FailPattern
     -- | A pattern which succeeds the first time, but fails any time after
@@ -92,7 +90,7 @@ data Pattern expr
     -- | A pattern which matches any string
     | ArbPattern
     -- | A pattern which matches any number of repetitions of another pattern
-    | ArbNoPattern (Pattern expr)
+    | ArbNoPattern (LazyPattern expr)
     -- | A pattern wihch maches any nonnull string with balanced parenthesis
     | BalPattern
     -- | A pattern which matches the null string and prevents backtracking
@@ -159,6 +157,27 @@ data Lookup expr
     | LookupUserData UserKey Snobol4String Snobol4Integer
   deriving (Show, Eq, Ord)
 
+-- | Data that may or may not be evaluated
+data Lazy expr a
+    = 
+    -- | An unevaluated thunk, pointing to the expression to evaluate
+      Thunk expr
+    -- | An evaluated thunk containing the result of evaluating it
+    | EvaluatedThunk a
+  deriving (Eq,Ord,Show)
+  
+instance Functor (Lazy expr) where
+    fmap _ (Thunk expr) = Thunk expr
+    fmap f (EvaluatedThunk x) = EvaluatedThunk $ f x
+
+orLazy :: Lazy expr a -> a -> a
+orLazy (Thunk _) x = x
+orLazy (EvaluatedThunk x) _ = x
+
+type LazyPattern expr = Lazy expr (Pattern expr)
+type LazyInteger expr = Lazy expr Snobol4Integer
+type LazyString expr = Lazy expr Snobol4String
+
 -- | A SNOBOL4 Value
 data Data expr
     -- | A string
@@ -177,6 +196,7 @@ data Data expr
     | TableData TableKey
     -- | Passing an expression by name
     | Name (Lookup expr)
+    | ExprData expr
     -- | A refernence to a variable
     | ReferenceId Snobol4String
     -- | A reference to a an aggregate, along with the number of arguments

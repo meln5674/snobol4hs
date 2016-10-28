@@ -38,6 +38,9 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , ScanResult (..)
     , fetch
     , ExecResult (..)
+    
+    , Forceable (..)
+    , force
 
     , getProgramCounter
     , putProgramCounter
@@ -97,6 +100,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.Error
 import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
 import Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
 import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
+import Language.Snobol4.Interpreter.Internal.StateMachine.Lazy
 --import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
 

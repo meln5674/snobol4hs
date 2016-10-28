@@ -164,7 +164,7 @@ exec PushReferencePunch = do
     incProgramCounter
     return False
 exec (PushExpression lbl) = do
-    push $ TempPatternData $ UnevaluatedExprPattern lbl
+    push $ ExprData lbl
     incProgramCounter
     return False
 exec Pop = do

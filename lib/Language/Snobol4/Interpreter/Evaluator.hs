@@ -34,14 +34,14 @@ import Language.Snobol4.Interpreter.Internal.StateMachine
 
 -- | Evaluate an arithmetic operation
 arithmetic :: ( InterpreterShell m
---              {-, Snobol4Machine program-}
-              , LocalVariablesClass m 
+--              , NewSnobol4Machine m
+--              , LocalVariablesClass m 
               ) 
            => (Snobol4Integer -> Snobol4Integer -> Snobol4Integer) -- ^ Integer version 
            -> (Snobol4Real -> Snobol4Real -> Snobol4Real) -- ^ Real version
            -> (Data (ExprType m)) -- ^ Left argument
            -> (Data (ExprType m)) -- ^ Right argument
-           -> InterpreterGeneric program m (Data (ExprType m))
+           -> InterpreterGeneric (ProgramType m) m (Data (ExprType m))
 arithmetic f_int f_real a b = do
     result <- raiseArgs a b
     case result of
@@ -51,31 +51,34 @@ arithmetic f_int f_real a b = do
 
 -- | Evaluate a pattern operation
 pattern :: ( InterpreterShell m
---           {-, Snobol4Machine program-}
+           , NewSnobol4Machine m
            ) 
         => ((Pattern (ExprType m)) -> (Pattern (ExprType m)) -> (Pattern (ExprType m)))
         -> (Data (ExprType m)) 
         -> (Data (ExprType m)) 
-        -> InterpreterGeneric program m (Data (ExprType m))
+        -> InterpreterGeneric (ProgramType m) m (Data (ExprType m))
 pattern f a b = do
     a' <- toPattern a
     b' <- toPattern b
     return $ TempPatternData $ f a' b'
 
 -- | Evaluate a binary operation on data
-evalOp :: ( InterpreterShell m{-, Snobol4Machine program-}, LocalVariablesClass m ) 
+evalOp :: ( InterpreterShell m
+          , NewSnobol4Machine m
+          , LocalVariablesClass m
+          )
        => Operator 
        -> (Data (ExprType m)) 
        -> (Data (ExprType m)) 
-       -> InterpreterGeneric program m (Data (ExprType m))
+       -> InterpreterGeneric (ProgramType m) m (Data (ExprType m))
 evalOp Plus = arithmetic (+) (+)
 evalOp Minus = arithmetic (-) (-)
 evalOp Star = arithmetic (*) (*)
 evalOp Slash = arithmetic div (/)
 evalOp Bang = arithmetic (^) (**)
 evalOp DoubleStar = evalOp Bang
-evalOp Pipe = pattern AlternativePattern
-evalOp Blank = pattern ConcatPattern
+evalOp Pipe = undefined --pattern AlternativePattern
+evalOp Blank = undefined --pattern ConcatPattern
 evalOp _ = \_ _ -> programError ErrorInSnobol4System
 
 {-

@@ -76,6 +76,7 @@ library
         Language.Snobol4.Interpreter.Internal.StateMachine.GC.Types
         Language.Snobol4.Interpreter.Internal.StateMachine.Keywords
         Language.Snobol4.Interpreter.Internal.StateMachine.Labels
+        Language.Snobol4.Interpreter.Internal.StateMachine.Lazy
         Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
         Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
         Language.Snobol4.Interpreter.Internal.StateMachine.ProgramState

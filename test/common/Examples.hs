@@ -331,3 +331,43 @@ ex_pg48 = unlines
     ]
     
     
+ex_pg50 = unlines
+    [ "         &ANCHOR = 0; &TRIM = 1"
+    , "         WORD = BREAK(' .,') . W SPAN(' .,')"
+    , "         STRING1 = INPUT ' '                     :F(ERROR)"
+    , "         STRING2 = ' ' INPUT ' '                 :F(ERROR)"
+    , "LOOP     STRING1 WORD =                          :F(OUTPUT)"
+    , "         STRING2 ' ' W ANY(' .,')                :F(LOOP)"
+    , "         LIST = LIST W ', '                      :(LOOP)"
+    , "OUTPUT  OUTPUT = LIST"
+    , "END"
+    ]
+
+
+    
+ex_pg51_1 = unlines
+    [ "         &ANCHOR = 0; &TRIM = 1"
+    , "         WORD = BREAK(' .,') . W SPAN(' .,')"
+    , "         FINDW = ' ' *W ANY(' .,')"
+    , "         STRING1 = INPUT ' '                     :F(ERROR)"
+    , "         STRING2 = ' ' INPUT ' '                 :F(ERROR)"
+    , "LOOP     STRING1 WORD =                          :F(OUTPUT)"
+    , "         STRING2 FINDW                           :F(LOOP)"
+    , "         LIST = LIST W ', '                      :(LOOP)"
+    , "OUTPUT  OUTPUT = LIST"
+    , "END"
+    ]
+
+ex_pg51_2 = unlines
+    [ "         &ANCHOR = 1; &TRIM = 1;"
+    , "         CHAR = LEN(1) . CH"
+    , "         FINDCH = BREAK(*CH)"
+    , "         STRING1 = INPUT             :F(ERROR)"
+    , "         STRING2 = INPUT             :F(ERROR)"
+    , "LOOP     STRING1 CHAR =              :F(OUTPUT)"
+    , "         STRING2 FINDCH              :F(LOOP)"
+    , "         LIST = LIST CH              :(LOOP)"
+    , "OUTPUT   OUTPUT = LIST"
+    , "END"
+    ]
+

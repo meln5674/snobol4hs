@@ -422,6 +422,87 @@ test_pg48 = ExpectSuccess
         }
     }
 
+test_pg50 = ExpectSuccess
+    { testLabel = "Page 50"
+    , testProgram = ex_pg50
+    , testInputs =
+        [ "THESE TWO STRINGS ARE ALMOST ALIKE."
+        , "THE TWO STRINGS AREN'T ALIKE."
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "TWO, STRINGS, ALIKE, "
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+test_pg51_1 = ExpectSuccess
+    { testLabel = "Page 51 #1"
+    , testProgram = ex_pg51_1
+    , testInputs =
+        [ "THESE TWO STRINGS ARE ALMOST ALIKE."
+        , "THE TWO STRINGS AREN'T ALIKE."
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "TWO, STRINGS, ALIKE, "
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+test_pg51_2 = ExpectSuccess
+    { testLabel = "Page 51 #2"
+    , testProgram = ex_pg51_2
+    , testInputs =
+        [ "TWO STRINGS FOR TESTING"
+        , "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "TWOSTRINGSFORTESTING"
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
+{-
+test_pg = ExpectSuccess
+    { testLabel = "Page "
+    , testProgram = ex_pg
+    , testInputs =
+        [ 
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ 
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+-}
 
 
 
@@ -435,6 +516,9 @@ allMockTests =
     , test_pg42
     , test_pg46
     , test_pg48
+    , test_pg50
+    , test_pg51_1
+    , test_pg51_2
     ]
 
 allTests = TestList $ map makeMockTest allMockTests

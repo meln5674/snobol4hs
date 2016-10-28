@@ -21,6 +21,7 @@ module Language.Snobol4.Interpreter.Data
     , module Language.Snobol4.Interpreter.Data.UserData
     , module Language.Snobol4.Interpreter.Data.ObjectCode
     , module Language.Snobol4.Interpreter.Data.Pattern
+    , module Language.Snobol4.Interpreter.Data.Lazy
     , Lookup (..)
     , Snobol4Read (..)
     , Data (..)
@@ -46,6 +47,7 @@ import Language.Snobol4.Interpreter.Data.Table
 import Language.Snobol4.Interpreter.Data.UserData
 import Language.Snobol4.Interpreter.Data.ObjectCode
 import Language.Snobol4.Interpreter.Data.Pattern
+import Language.Snobol4.Interpreter.Data.Lazy
 
 import Language.Snobol4.Syntax.AST
 

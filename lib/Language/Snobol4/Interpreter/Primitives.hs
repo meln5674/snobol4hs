@@ -53,6 +53,7 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
 import Language.Snobol4.Interpreter.Internal.StateMachine.Convert
 import Language.Snobol4.Interpreter.Internal.StateMachine.Labels
 import Language.Snobol4.Interpreter.Internal.StateMachine.Error
+import Language.Snobol4.Interpreter.Internal.StateMachine.Patterns
 import Language.Snobol4.Interpreter.Primitives.Prototypes
 
 
@@ -60,7 +61,7 @@ import Language.Snobol4.Interpreter.Primitives.Prototypes
 primitiveVars :: [(Snobol4String, Data expr)]
 primitiveVars =
     [ ("NULL",  StringData nullString)
-    , ("REM",   TempPatternData $ RTabPattern 0)
+    , ("REM",   TempPatternData $ RTabPattern $ EvaluatedThunk 0)
     , ("FAIL",  TempPatternData FailPattern)
     , ("FENCE", TempPatternData FencePattern)
     , ("ABORT", TempPatternData AbortPattern)
@@ -71,10 +72,10 @@ primitiveVars =
 
 -- | Initial values of unary operators
 primitiveUnOps :: ( NewSnobol4Machine m
-                   , InterpreterShell m
-                   , LocalVariablesClass m
-                   )
-                => [(Operator, OpSyn (ProgramType m) m)]
+                  , InterpreterShell m
+                  , LocalVariablesClass m
+                  )
+               => [(Operator, OpSyn (ProgramType m) m)]
 primitiveUnOps =
     [ (And, PrimitiveOperator unOp_and)
     , (Dollar, PrimitiveOperator unOp_dollar)
@@ -166,6 +167,7 @@ primitiveFunctions =
     ]
 
 -- | Initial values of protected keywords
+primitiveProtectedKeywords :: [(Snobol4String, Data expr)]
 primitiveProtectedKeywords =
     [ ("ALPHABET", keyword_alphabet)
     , ("ABORT", keyword_abort)
@@ -238,7 +240,10 @@ addPrimitives = do
     putUnprotectedKeywords $ M.fromList primitiveUnprotectedKeywords
 
 -- | Generalization for lt, le, eq, ne, ge, and gt
-numericalPredicate :: (InterpreterShell m, LocalVariablesClass m ) 
+numericalPredicate :: ( InterpreterShell m
+--                      , LocalVariablesClass m
+--                      , NewSnobol4Machine m
+                      ) 
                   => (forall a . (Eq a, Ord a, Num a) => a -> a -> Bool)
                   -> [Data (ExprType m)] 
                   -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
@@ -259,22 +264,24 @@ numericalPredicate _ _ = programError IncorrectNumberOfArguments
 
 -- | The any function, returns a pattern which matches any one of the provided
 -- characters
-any :: ( InterpreterShell m ) 
-    => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
-any (a:_) = do
-    cs <- toString a
+any :: ( InterpreterShell m 
+       , NewSnobol4Machine m
+       ) 
+    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
+any [a] = do
+    cs <- toLazyString a
     case cs of
-        "" -> programError NullStringInIllegalContext
+        (EvaluatedThunk "") -> programError NullStringInIllegalContext
         _ -> return $ Just $ TempPatternData $ AnyPattern cs
 any [] = any [StringData ""]
-
+any _ = programError IncorrectNumberOfArguments
 
 -- | The apply function, calls a function by name with arguments
 apply :: ( InterpreterShell m
          
          , LocalVariablesClass m 
          )
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 {-
 apply (nameArg:args) = do
     name <- toString nameArg
@@ -283,8 +290,10 @@ apply (nameArg:args) = do
 apply _ = programError IncorrectNumberOfArguments
 
 -- | The array function, creates an array with the provided dimensions and initial value
-array :: ( InterpreterShell m ) 
-      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+array :: ( InterpreterShell m 
+         , NewSnobol4Machine m
+         ) 
+      => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 array [dimStr,val] = do
     str <- toString dimStr
     parseResult <- parseT $ unmkString str
@@ -298,9 +307,9 @@ array _ = programError IncorrectNumberOfArguments
 -- | The arbno function, returns a pattern which matches an arbitrary number of
 -- repetitions of the provided pattern
 arbno :: ( InterpreterShell m ) 
-      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 arbno (a:_) = do
-    p <- toPattern a
+    p <- toLazyPattern a
     return $ Just $ TempPatternData $ ArbNoPattern p
 arbno [] = arbno [StringData ""]
 
@@ -309,7 +318,7 @@ arg :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-    => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+    => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 arg [fname,n] = do
     fname' <- toString fname
     n' <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger n
@@ -324,23 +333,23 @@ arg _ = programError IncorrectNumberOfArguments
 
 -- | TODO
 backspace :: ( InterpreterShell m ) 
-          => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+          => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 backspace = const $ programError ErrorInSnobol4System
 
 -- | The break function, returns a pattern which matches the longest string
 -- containing none of the provided characters
 break :: ( InterpreterShell m ) 
-      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 break (a:_) = do
-    s <- toString a
+    s <- toLazyString a
     case s of
-        "" -> programError NullStringInIllegalContext
+        (EvaluatedThunk "") -> programError NullStringInIllegalContext
         _ ->  return $ Just $ TempPatternData $ BreakPattern s
 break [] = break [StringData ""]
 
 -- | The clear function, resets the values of all natural variables
 clear :: ( InterpreterShell m, LocalVariablesClass m ) 
-      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 clear [] = do
     ns <- naturalVarNames
     forM ns clearVar
@@ -350,7 +359,7 @@ clear _ = programError IncorrectNumberOfArguments
 -- | The code function, parses a string containing source code and creates a
 -- code object
 code :: ( InterpreterShell m ) 
-      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 code [src] = do
     src' <- toString src
     result <- parseT $ unmkString src'
@@ -363,7 +372,7 @@ code _ = programError IncorrectNumberOfArguments
 
 -- | TODO
 collect :: ( InterpreterShell m ) 
-        => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+        => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 collect = const $ programError ErrorInSnobol4System
 
 -- | The convert function, attempts to convert the first argument to the type
@@ -372,7 +381,7 @@ convert :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-        => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+        => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 convert [toConvert,resultType] = do
     resultType' <- toString resultType
     case toConvert of
@@ -380,8 +389,8 @@ convert [toConvert,resultType] = do
             | resultType' == datatypeNameString -> return $ Just toConvert
             | resultType' == datatypeNameInteger -> liftM (liftM IntegerData) $ toInteger toConvert
             | resultType' == datatypeNameReal -> liftM (liftM RealData) $ toReal toConvert
-            | resultType' == datatypeNameExpression -> undefined
-            | resultType' == datatypeNameCode -> undefined
+            | resultType' == datatypeNameExpression -> return $ Just $ StringData datatypeNameExpression
+            | resultType' == datatypeNameCode -> return $ Just $ StringData datatypeNameCode
             | otherwise -> return Nothing
         IntegerData{}
             | resultType' == datatypeNameString -> Just . StringData <$> toString toConvert
@@ -393,7 +402,6 @@ convert [toConvert,resultType] = do
             | resultType' == datatypeNameInteger -> liftM (liftM IntegerData) $ toInteger toConvert
             | resultType' == datatypeNameReal -> return $ Just toConvert
             | otherwise -> return Nothing
-        TempPatternData (UnevaluatedExprPattern{}) -> undefined
         TempPatternData{}
             | resultType' == datatypeNameString -> return $ Just $ StringData datatypeNamePattern
             | resultType' == datatypeNamePattern -> return $ Just toConvert
@@ -464,7 +472,7 @@ convert _ = programError IncorrectNumberOfArguments
 
 -- | The copy function, creates a new instance of the given array
 copy :: ( InterpreterShell m ) 
-     => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 copy [arg] = do
     case arg of
         ArrayData k -> do
@@ -482,7 +490,7 @@ uncurry3 f (a,b,c) = f a b c
 -- | The data function, parses a data prototype to create a user-defined
 -- datatype
 data_ :: ( InterpreterShell m ) 
-      => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 data_ [arg] = do
     protoStr <- toString arg
     parseResult <- parseT $ unmkString protoStr
@@ -499,7 +507,7 @@ data_ _ = programError IncorrectNumberOfArguments
 -- | The datatype function, returns the string representation of the type of
 -- the argument
 datatype :: ( InterpreterShell m ) 
-         => [(Data (ExprType m))] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+         => [(Data (ExprType m))] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 datatype [arg] = do
     result <- case arg of
         UserData k -> do
@@ -513,7 +521,7 @@ datatype [arg] = do
                         Just datatype -> return $ Just $ datatypeName datatype
         StringData{} -> return $ Just datatypeNameString
         PatternData{} -> return $ Just datatypeNamePattern
-        TempPatternData (UnevaluatedExprPattern _) -> return $ Just datatypeNameExpression
+        --TempPatternData (UnevaluatedExprPattern _) -> return $ Just datatypeNameExpression
         TempPatternData{} -> return $ Just datatypeNamePattern
         IntegerData{} -> return $ Just datatypeNameInteger
         RealData{} -> return $ Just datatypeNameReal
@@ -533,13 +541,13 @@ datatype _ = programError IncorrectNumberOfArguments
 
 -- | The date function, returns the current date in mm/dd/yyyy format
 date :: ( InterpreterShell m ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 date [] = Just . StringData . mkString <$> (lift Shell.date)
 date _ = programError IncorrectNumberOfArguments
 
 -- | The define function, creates a user-defined function
 define :: ( InterpreterShell m ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 define [arg,labelArg] = do
     protoStr <- toString arg
     labelStr <- toString labelArg
@@ -571,13 +579,13 @@ define _ = programError ErrorInSnobol4System
 
 -- | TODO
 detach :: ( InterpreterShell m ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 detach = const $ programError ErrorInSnobol4System
 
 -- | The differ function, returns the null string if the two arguments are not
 -- the same
 differ :: ( InterpreterShell m, Eq (ExprType m) ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 differ [a,b] = do
     if a /= b
         then return $ Just $ StringData ""
@@ -587,7 +595,7 @@ differ _ = programError IncorrectNumberOfArguments
 
 -- | TODO
 dump :: ( InterpreterShell m ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 dump = const $ programError ErrorInSnobol4System
 
 -- | The dupl function, creates a string by repeating a sub-string
@@ -595,7 +603,7 @@ dupl :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 dupl [a,b] = do
     a' <- toString a
     b' <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger b
@@ -604,7 +612,7 @@ dupl _ = programError IncorrectNumberOfArguments
 
 -- | TODO
 endfile :: ( InterpreterShell m ) 
-        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+        => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 endfile = const $ programError ErrorInSnobol4System
 
 -- | Equality predicate
@@ -623,11 +631,7 @@ eval :: ( InterpreterShell m
      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 eval [a] = do
     expr <- case a of
-        (PatternData _) -> do
-            pat <- toPattern a
-            case pat of
-                UnevaluatedExprPattern expr -> return expr
-                _ -> programError IllegalArgumentToPrimitiveFunction
+        ExprData expr -> return expr
         _ -> do
             a' <- toString a
             result <- parseT (unmkString a')
@@ -643,7 +647,7 @@ field :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 field [dname,n] = do
     dname' <- toString dname
     n' <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger n
@@ -675,7 +679,7 @@ ident :: ( InterpreterShell m
          
          , Eq (ExprType m)
          ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 ident [a,b] = do
     if a == b
         then return $ Just $ StringData ""
@@ -688,7 +692,7 @@ integer :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+        => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 integer [a] = do
     result <- toInteger a
     return $ Just $ StringData ""
@@ -697,7 +701,7 @@ integer _ = programError IncorrectNumberOfArguments
 
 -- | The item function, indexes an array or table
 item :: ( InterpreterShell m
-        
+--        , NewSnobol4Machine m
         , LocalVariablesClass m
         , Ord (ExprType m)
         ) 
@@ -721,10 +725,10 @@ len :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-    => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 len (a:_) = do
-    i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
-    if i >= 0
+    i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toLazyInteger a
+    if ((0 <=) <$> i) `orLazy` True
         then return $ Just $ TempPatternData $ LengthPattern i
         else programError NegativeNumberInIllegalContext
 len [] = len [StringData ""]
@@ -732,7 +736,7 @@ len [] = len [StringData ""]
 -- | The lgt function, returns the null string if the first argument comes after
 -- the second, lexically
 lgt :: ( InterpreterShell m ) 
-    => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 lgt [a,b] = do
     a' <- toString a
     b' <- toString b
@@ -743,7 +747,7 @@ lgt _ = programError IncorrectNumberOfArguments
 
 -- | The local function, returns the name of the nth local variable of a user-defined function
 local :: ( InterpreterShell m, LocalVariablesClass m ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 local [fname,n] = do
     fname' <- toString fname
     n' <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger n
@@ -775,11 +779,11 @@ ne = numericalPredicate (/=)
 -- | The notany function, returns a pattern which matches one character not
 -- provided
 notany :: ( InterpreterShell m ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 notany (a:_) = do
-    cs <- toString a
+    cs <- toLazyString a
     case cs of
-        "" -> programError NullStringInIllegalContext
+        (EvaluatedThunk "") -> programError NullStringInIllegalContext
         _ -> return $ Just $ TempPatternData $ NotAnyPattern cs
 notany [] = notany [StringData ""]
 
@@ -788,15 +792,15 @@ opsyn :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 opsyn = const $ programError ErrorInSnobol4System
 
 -- | The pos function, returns a pattern that succeeds if the cursor is at the
 -- given column
 pos :: ( InterpreterShell m, LocalVariablesClass m ) 
-    => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 pos [a] = do
-    result <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
+    result <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toLazyInteger a
     return $ Just $ TempPatternData $ PosPattern result
 pos _ = programError IncorrectNumberOfArguments
 
@@ -805,7 +809,7 @@ prototype :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-          => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+          => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 prototype = const $ programError ErrorInSnobol4System
 
 -- | The remainder primitive, returns the the remainder of the second argument
@@ -814,7 +818,7 @@ remdr :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 remdr [a,b] = do
     a' <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
     b' <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger b
@@ -827,7 +831,7 @@ replace :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-        => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+        => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 replace [x,y,z] = do
     x' <- toString x
     y' <- toString y
@@ -842,7 +846,7 @@ rewind :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 rewind = const $ programError ErrorInSnobol4System
 
 -- | The rpos function, creates a pattern which succeeds if the cursor is the
@@ -851,9 +855,9 @@ rpos :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 rpos [a] = do
-    result <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
+    result <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toLazyInteger a
     return $ Just $ TempPatternData $ RPosPattern result
 rpos _ = programError IncorrectNumberOfArguments
 
@@ -863,10 +867,10 @@ rtab :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 rtab (a:_) = do
-    i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
-    if i >= 0
+    i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toLazyInteger a
+    if ((0 <=) <$> i) `orLazy` True
         then return $ Just $ TempPatternData $ RTabPattern i
         else programError NegativeNumberInIllegalContext
 rtab [] = rtab [StringData ""]
@@ -876,7 +880,7 @@ size :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 size [arg] = Just . IntegerData . snobol4Length <$> toString arg
 size _ = programError IncorrectNumberOfArguments
 
@@ -886,11 +890,11 @@ span :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 span (a:_) = do
-    s <- toString a
+    s <- toLazyString a
     case s of
-        "" -> programError NullStringInIllegalContext
+        (EvaluatedThunk "") -> programError NullStringInIllegalContext
         _ -> return $ Just $ TempPatternData $ SpanPattern s
 span [] = span [StringData ""]
 
@@ -899,7 +903,7 @@ stoptr :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 stoptr = const $ programError ErrorInSnobol4System
 
 -- | The tab function, returns a pattern which matches the null string if the
@@ -908,17 +912,17 @@ tab :: ( InterpreterShell m
     
     , LocalVariablesClass m  
     ) 
-    => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+    => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 tab (a:_) = do
-    i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
-    if i >= 0
+    i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toLazyInteger a
+    if ((0 <=) <$> i) `orLazy` True
         then return $ Just $ TempPatternData $ TabPattern i
         else programError NegativeNumberInIllegalContext
 tab [] = tab [StringData ""]
 
 -- | The table function, returns an empty table
 table :: ( InterpreterShell m, LocalVariablesClass m ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 table (a:_) = do
     i <- maybeErrorM IllegalArgumentToPrimitiveFunction $ toInteger a
     if i >= 0
@@ -929,18 +933,18 @@ table _ = Just . TableData <$> tablesNew
 -- | The time primitive, returns the number of seconds ellapsed since the
 -- beginning of the program
 time :: ( InterpreterShell m ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 time [] = Just . IntegerData . mkInteger <$> (lift Shell.time)
 time _ = programError IncorrectNumberOfArguments
 
 -- | TODO 
 trace :: ( InterpreterShell m ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 trace = const $ programError ErrorInSnobol4System
 
 -- | The trim function, removes whitespace from a string
 trim :: ( InterpreterShell m ) 
-     => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+     => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 trim [a] = do
     a' <- toString a
     return $ Just $ StringData $ snobol4Trim a' 
@@ -948,12 +952,12 @@ trim _ = programError IncorrectNumberOfArguments
 
 -- | TODO
 unload :: ( InterpreterShell m ) 
-       => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+       => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 unload = const $ programError ErrorInSnobol4System
 
 -- | The value function, looks up a variable by name
 value :: ( InterpreterShell m ) 
-      => [Data (ExprType m)] -> InterpreterGeneric program m (Maybe (Data (ExprType m)))
+      => [Data (ExprType m)] -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 value [arg] = do
     name <- toString arg
     return $ Just $ Name $ LookupId name
@@ -1005,16 +1009,47 @@ binOp_doubleStar _ = programError IncorrectNumberOfArguments
 binOp_blank :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
-binOp_blank [x,y] = liftM Just $ pattern (\p1 p2 -> case (p1,p2) of
-    (LiteralPattern l1, LiteralPattern l2) -> LiteralPattern $ l1 <> l2
-    _ -> ConcatPattern p1 p2) x y
+binOp_blank [x, StringData ""] = return $ Just x
+binOp_blank [StringData "", y] = return $ Just y
+binOp_blank [x@TempPatternData{},y] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ ConcatPattern x' y'
+binOp_blank [x, y@TempPatternData{}] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ ConcatPattern x' y'
+binOp_blank [x@PatternData{}, y] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ ConcatPattern x' y'
+binOp_blank [x, y@PatternData{}] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ ConcatPattern x' y'
+binOp_blank [x@ExprData{}, y] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ ConcatPattern x' y'
+binOp_blank [x, y@ExprData{}] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ ConcatPattern x' y'
+binOp_blank [x,y] = do
+    x' <- toString x
+    y' <- toString y
+    return $ Just $ StringData $ x' <> y'
+binOp_blank [x] = binOp_blank [x,StringData nullString]
 binOp_blank _ = programError IncorrectNumberOfArguments
 
 -- | Binary | operator
 binOp_pipe :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
-binOp_pipe [x,y] = liftM Just $ pattern AlternativePattern x y
+binOp_pipe [x, y] = do
+    x' <- toLazyPattern x
+    y' <- toLazyPattern y
+    return $ Just $ TempPatternData $ AlternativePattern x' y'
 binOp_pipe _ = programError IncorrectNumberOfArguments
 
 -- | Binary $ operator
@@ -1022,7 +1057,7 @@ binOp_dollar :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)] 
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_dollar [x,y] = do
-    pat <- toPattern x
+    pat <- toLazyPattern x
     ref <- case y of
         ReferenceId sym -> return $ LookupId sym
         ReferenceAggregate sym args -> return $ LookupAggregate sym args
@@ -1038,7 +1073,7 @@ binOp_dot :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))
 binOp_dot [x,y] = do
-    pat <- toPattern x
+    pat <- toLazyPattern x
     ref <- case y of
         ReferenceId sym -> return $ LookupId sym
         ReferenceKeyword sym -> return $ LookupKeyword sym
@@ -1082,48 +1117,63 @@ unOp_at _ = programError IncorrectNumberOfArguments
 
 
 -- | Initial value of &ALPHABET
+keyword_alphabet :: Data expr
 keyword_alphabet = StringData $ mkString ['A'..'Z']
 
 -- | Initial value of &ABORT
+keyword_abort :: Data expr
 keyword_abort = TempPatternData AbortPattern
 
 -- | Initial value of &ARB
+keyword_arb :: Data expr
 keyword_arb = TempPatternData ArbPattern
 
 -- | Initial value of &BAL
+keyword_bal :: Data expr
 keyword_bal = TempPatternData BalPattern
 
 -- | Initial value of &ERRTYPE
+keyword_errtype :: Data expr
 keyword_errtype = IntegerData 0
 
 -- | Initial value of &FAIL
+keyword_fail :: Data expr
 keyword_fail = TempPatternData FailPattern
 
 -- | Initial value of &FENCE
+keyword_fence :: Data expr
 keyword_fence = TempPatternData FencePattern
 
 -- | Initial value of &FNCLEVEL
+keyword_fnclevel :: Data expr
 keyword_fnclevel = IntegerData 0
 
 -- | Initial value of &LASTNO
+keyword_lastno :: Data expr
 keyword_lastno = IntegerData (-1)
 
 -- | Initial value of &REM
-keyword_rem = TempPatternData $ RTabPattern 0
+keyword_rem :: Data expr
+keyword_rem = TempPatternData $ RTabPattern $ EvaluatedThunk 0
 
 -- | Initial value of &RTNTYPE
+keyword_rtntype :: Data expr
 keyword_rtntype = StringData nullString
 
 -- | Initial value of &STCOUNT
+keyword_stcount :: Data expr
 keyword_stcount = IntegerData 0
 
 -- | Initial value of &STFCOUNT
+keyword_stfcount :: Data expr
 keyword_stfcount = IntegerData 0
 
 -- | Initial value of &STNO
+keyword_stno :: Data expr
 keyword_stno = IntegerData 0
 
 -- | Initial value of &SUCCEED
+keyword_succeed :: Data expr
 keyword_succeed = TempPatternData SucceedPattern
 
 

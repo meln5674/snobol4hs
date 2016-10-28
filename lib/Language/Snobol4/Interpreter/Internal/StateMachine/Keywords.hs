@@ -119,6 +119,7 @@ assignKeyword sym val = do
 -- | Test if the interpreter is in anchor mode
 getAnchorMode :: ( InterpreterShell m 
                  , LocalVariablesClass m
+                 , NewSnobol4Machine m
                  ) => InterpreterGeneric (ProgramType m) m Bool
 getAnchorMode = do
     anchorValue <- lookupKeyword "ANCHOR" >>= toInteger
@@ -126,8 +127,10 @@ getAnchorMode = do
 
 -- | Increment the function level
 incFunctionLevel :: ( InterpreterShell m 
-                 , LocalVariablesClass m
-                 ) => InterpreterGeneric (ProgramType m) m ()
+                    , LocalVariablesClass m
+                    , NewSnobol4Machine m
+                    )
+                  => InterpreterGeneric (ProgramType m) m ()
 incFunctionLevel = do
     functionLevel <- lookupKeyword "FNCLEVEL" >>= toInteger
     case functionLevel of
@@ -137,6 +140,7 @@ incFunctionLevel = do
 -- | Decrement the function level
 decFunctionLevel :: ( InterpreterShell m 
                  , LocalVariablesClass m
+                 , NewSnobol4Machine m
                  ) => InterpreterGeneric (ProgramType m) m ()
 decFunctionLevel = do
     functionLevel <- lookupKeyword "FNCLEVEL" >>= toInteger
@@ -155,6 +159,7 @@ setReturnType = modifyKeyword "RTNTYPE" . StringData
 -- | Increase the counter of failed statements
 incFailCount :: ( InterpreterShell m 
                  , LocalVariablesClass m
+--                 , NewSnobol4Machine m
                  ) 
               => InterpreterGeneric (ProgramType m) m ()
 incFailCount = do
@@ -166,18 +171,21 @@ incFailCount = do
 -- | Test if outputs are enabled
 getOutputSwitch :: ( InterpreterShell m 
                  , LocalVariablesClass m
+--                 , NewSnobol4Machine m
                  ) => InterpreterGeneric (ProgramType m) m Bool
 getOutputSwitch = liftM (maybe True (0/=)) $ lookupKeyword "OUTPUT" >>= toInteger
 
 -- | Test if inputs are enabled
 getInputSwitch :: ( InterpreterShell m 
                  , LocalVariablesClass m
+--                 , NewSnobol4Machine m
                  ) => InterpreterGeneric (ProgramType m) m Bool
 getInputSwitch = liftM (maybe True (0/=)) $ lookupKeyword "INPUT" >>= toInteger
 
 -- | Test if the interpreter is in trim mode
 getTrimMode :: ( InterpreterShell m 
                  , LocalVariablesClass m
+--                 , NewSnobol4Machine m
                  ) => InterpreterGeneric (ProgramType m) m Bool
 getTrimMode = liftM (maybe True (0/=)) $ lookupKeyword "TRIM" >>= toInteger
 
