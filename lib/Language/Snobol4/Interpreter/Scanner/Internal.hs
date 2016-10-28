@@ -66,9 +66,11 @@ newtype ScannerGeneric program expr {-error-} m a
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+-- | Lift an action into the scanner
 instance MonadTrans (ScannerGeneric program expr) where
     lift = Scanner . lift . lift . lift
 
+-- | Lift an interpreter action into the scanner
 liftInterpreter :: ( Monad m 
                    ) 
                 => InterpreterGeneric program m a 
@@ -151,12 +153,6 @@ getRCursorPos = snobol4Length <$> getInput
 addAssignment :: Monad m => (Lookup (ExprType m)) -> (Data (ExprType m)) -> ScannerGeneric (ProgramType m) (ExprType m) {-error-} m ()
 addAssignment l d = Scanner $ modify $ \st -> st{ assignments = (l,d):assignments st}
 
-assertNotEnd :: Monad m => ScannerGeneric (ProgramType m) (ExprType m) m ()
-assertNotEnd = do
-    rpos <- getRCursorPos
-    when (rpos == 0) backtrack
-    
-
 -- | Immediately assign a value
 immediateAssignment :: ( InterpreterShell m
                        , NewSnobol4Machine m
@@ -229,6 +225,8 @@ consumeAny cs = do
         then consumeN 1
         else backtrack
 
+-- | Fail if the next character is not one of the supplied characters, but don't
+-- consume it if it is
 peekAny :: Monad m => Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) m Snobol4String
 peekAny cs = do
     c <- nextChar
@@ -265,6 +263,11 @@ func f next = \s1 _ -> f >>= \s2 -> next (s1 <> s2) s2
 bar :: Monad m => (a -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m b) -> a -> ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m a
 bar f v = f v >> return v
 
+-- | Continuation type used by the scanner.
+--
+-- First argument is the entire string matched so far
+--
+-- Second argument is the string matched by the previously matched pattern
 type ScannerCont m = Snobol4String -> Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) m Snobol4String
 
 
@@ -282,6 +285,8 @@ foo first second handler = do
         Just result -> second result
         Nothing -> handler
 
+-- | Force the evaluation of a lazy value inside a scanner continuation, aborting
+-- the scan if evaluation fails
 scannerForce :: ( InterpreterShell m
                 , NewSnobol4Machine m
                 , LocalVariablesClass m

@@ -10,7 +10,8 @@ Portability     : Unknown
 -}
 
 module Language.Snobol4.Interpreter.Data.Lazy
-    ( LazyPattern
+    ( module Language.Snobol4.Interpreter.Data.Lazy
+    , LazyPattern
     , LazyString
     , LazyInteger
     , Lazy(..)

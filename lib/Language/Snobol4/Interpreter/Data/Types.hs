@@ -165,17 +165,24 @@ data Lazy expr a
     -- | An evaluated thunk containing the result of evaluating it
     | EvaluatedThunk a
   deriving (Eq,Ord,Show)
-  
+ 
+-- | Apply the function to an evaluated thunk, or ignore it if its unevaluated 
 instance Functor (Lazy expr) where
     fmap _ (Thunk expr) = Thunk expr
     fmap f (EvaluatedThunk x) = EvaluatedThunk $ f x
 
+-- | Get the contents of an evaluated thunk or a default value if unevaluated
 orLazy :: Lazy expr a -> a -> a
 orLazy (Thunk _) x = x
 orLazy (EvaluatedThunk x) _ = x
 
+-- | A lazy pattern
 type LazyPattern expr = Lazy expr (Pattern expr)
+
+-- | A lazy integer
 type LazyInteger expr = Lazy expr Snobol4Integer
+
+-- | A lazy string
 type LazyString expr = Lazy expr Snobol4String
 
 -- | A SNOBOL4 Value

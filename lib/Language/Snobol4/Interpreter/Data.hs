@@ -12,19 +12,19 @@ Portability     : Unknown
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Language.Snobol4.Interpreter.Data 
-    ( module Language.Snobol4.Interpreter.Data
+    ( Data (..)
+    , Snobol4Read (..)
+    , module Language.Snobol4.Interpreter.Data.Lazy
     , module Language.Snobol4.Interpreter.Data.Integer
     , module Language.Snobol4.Interpreter.Data.String
     , module Language.Snobol4.Interpreter.Data.Real
+    , module Language.Snobol4.Interpreter.Data.Pattern
     , module Language.Snobol4.Interpreter.Data.Array
     , module Language.Snobol4.Interpreter.Data.Table
     , module Language.Snobol4.Interpreter.Data.UserData
     , module Language.Snobol4.Interpreter.Data.ObjectCode
-    , module Language.Snobol4.Interpreter.Data.Pattern
-    , module Language.Snobol4.Interpreter.Data.Lazy
     , Lookup (..)
-    , Snobol4Read (..)
-    , Data (..)
+    , module Language.Snobol4.Interpreter.Data
     , (<>)
     ) where
 

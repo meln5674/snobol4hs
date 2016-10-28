@@ -59,6 +59,7 @@ library
         Language.Snobol4.Interpreter.Data.Table
         Language.Snobol4.Interpreter.Data.Types
         Language.Snobol4.Interpreter.Data.UserData
+        Language.Snobol4.Interpreter.Data.Lazy
         Language.Snobol4.Interpreter.Evaluator
         Language.Snobol4.Interpreter.Scanner
         Language.Snobol4.Interpreter.Primitives

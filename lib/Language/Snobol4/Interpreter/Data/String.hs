@@ -22,8 +22,9 @@ import qualified Data.Map as M
 import Language.Snobol4.Interpreter.Data.Types
 
 -- | Generalization of head
-snobol4Head :: Snobol4String -> Snobol4String
-snobol4Head (Snobol4String s) = Snobol4String $ [head s]
+snobol4Head :: Snobol4String -> Maybe Snobol4String
+snobol4Head (Snobol4String (c:cs)) = Just $ Snobol4String [c]
+snobol4Head _ = Nothing
 
 -- | Split a string into its head and tail
 snobol4Uncons :: Snobol4String -> Maybe (Snobol4String,Snobol4String)

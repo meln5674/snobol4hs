@@ -1102,6 +1102,7 @@ unOp_dollar [x] = do
     return $ Just $ ReferenceId sym
 unOp_dollar _ = programError IncorrectNumberOfArguments
 
+-- | Unary @ operator
 unOp_at :: ( InterpreterShell m, LocalVariablesClass m )
         => [Data (ExprType m)]
         -> InterpreterGeneric (ProgramType m) m (Maybe (Data (ExprType m)))

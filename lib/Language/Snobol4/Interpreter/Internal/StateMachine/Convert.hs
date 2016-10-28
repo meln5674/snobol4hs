@@ -31,29 +31,36 @@ import Language.Snobol4.Interpreter.Internal.StateMachine.ObjectCode
 import Language.Snobol4.Interpreter.Internal.StateMachine.Lazy
 --import Language.Snobol4.Interpreter.Internal.StateMachine.Run
 
+-- | Extract by converting to an integer
 instance ( InterpreterShell m
          , NewSnobol4Machine m
          ) 
       => Forceable Snobol4Integer m where
     fromForce = toInteger
 
+-- | Extract by converting to a string
 instance ( InterpreterShell m
          , NewSnobol4Machine m
          ) 
       => Forceable Snobol4String m where
     fromForce = liftM Just . toString
 
+-- | Extract by converting to a pattern
 instance ( InterpreterShell m
          , NewSnobol4Machine m
          ) 
       => Forceable Snobol4Real m where
     fromForce = toReal
 
+-- | Extract by converting to a pattern
 instance ( InterpreterShell m
          , NewSnobol4Machine m
          , expr ~ ExprType m
          ) 
       => Forceable (Pattern expr) m where
+    fromForce = liftM Just . toPattern
+    {-
+    -- Not sure if should force down the tree
     fromForce d = runMaybeT $ (lift $ toPattern d) >>= \case
         AssignmentPattern pat l -> 
             AssignmentPattern <$> force' pat <*> pure l
@@ -82,7 +89,7 @@ instance ( InterpreterShell m
         -- BalPattern -> BalPattern
         -- SuccessPattern -> SuccessPattern
         otherPattern -> return otherPattern
-    
+    -}
 -- | Attempt to convert an array to a table
 arrayToTable :: InterpreterShell m => (Snobol4Array (ExprType m)) -> InterpreterGeneric program m (Maybe (Snobol4Table (ExprType m)))
 arrayToTable arr = undefined
@@ -213,6 +220,8 @@ toString (PatternData k) = return $ datatypeNamePattern
 toString (TempPatternData p) = return $ datatypeNamePattern
 toString _ = programError IllegalDataType
 
+-- | Convert an unevaluated expression to a string thunk, and other data to an
+-- evaluated string thunk
 toLazyString :: ( InterpreterShell m
                 ) 
              => Data (ExprType m)
@@ -235,6 +244,8 @@ toPattern (PatternData k) = do
 toPattern (TempPatternData p) = return p
 toPattern x = liftM LiteralPattern $ toString x
 
+-- | Convert an unevaluated expression to a pattern thunk, and other data to an
+-- evaluated pattern thunk
 toLazyPattern :: ( InterpreterShell m 
                  )
               => Data (ExprType m)
@@ -274,6 +285,8 @@ toInteger x = runMaybeT $ do
         then return 0
         else MaybeT $ return $ snobol4Read s
 
+-- | Convert an unevaluated expression to an integer thunk, and other data to an
+-- evaluated integer thunk
 toLazyInteger :: ( InterpreterShell m 
              )
           => (Data (ExprType m)) 

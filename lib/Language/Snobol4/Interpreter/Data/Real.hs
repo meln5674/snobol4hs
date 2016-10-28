@@ -9,9 +9,9 @@ Portability     : Unknown
 -}
 
 module Language.Snobol4.Interpreter.Data.Real 
-    ( module Language.Snobol4.Interpreter.Data.Real
+    ( Snobol4Real
     , Snobol4RealClass (..)
-    , Snobol4Real
+    , module Language.Snobol4.Interpreter.Data.Real
     ) where
 
 import Control.Monad
