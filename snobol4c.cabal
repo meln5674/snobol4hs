@@ -65,6 +65,7 @@ library
         Language.Snobol4.Interpreter.Primitives
         Language.Snobol4.Interpreter.Primitives.Prototypes
         Language.Snobol4.Interpreter.Scanner.Internal
+        Language.Snobol4.Interpreter.Scanner.New
         Language.Snobol4.Interpreter.Internal.Types
         Language.Snobol4.Interpreter.Internal.StateMachine
         Language.Snobol4.Interpreter.Internal.StateMachine.Arrays
