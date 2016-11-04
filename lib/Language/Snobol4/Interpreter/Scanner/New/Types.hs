@@ -1,6 +1,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Language.Snobol4.Interpreter.Scanner.New.Types where
+{-# LANGUAGE ConstraintKinds #-}
+module Language.Snobol4.Interpreter.Scanner.New.Types 
+    ( module Language.Snobol4.Interpreter.Scanner.New.Types 
+    , ScanResult (..)
+    ) where
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Reader
@@ -8,6 +12,7 @@ import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Except
 
 import Language.Snobol4.Interpreter.Data
+import Language.Snobol4.Interpreter.Internal.StateMachine.Types (ScanResult(..))
 
 -- | A reason for scanner failure
 data ScanFailure
@@ -89,6 +94,7 @@ data ScannerState expr = ScannerState
     , offset :: Snobol4Integer
     }
 
+{-
 data ScannerEnv expr m = ScannerEnv
     { anchorMode :: Bool
     , fullscanMode :: Bool
@@ -98,46 +104,55 @@ data ScannerEnv expr m = ScannerEnv
     , assignFunc :: Lookup expr -> Data expr -> m ()
     }
 
+
 newtype ScannerEnvT expr m a = ScannerEnvT
     { runScannerEnvT :: ReaderT (ScannerEnv expr m) m a }
   deriving (Functor, Applicative, Monad, MonadIO)
 
+
 instance MonadTrans (ScannerEnvT expr) where
     lift = ScannerEnvT . lift
+-}
 
 newtype ScannerT expr m a = ScannerT
     { runScannerT :: ExceptT ScanFailure 
                     (StateT (ScannerState expr)
-                    (ScannerEnvT expr
-                     m)) a 
+--                    (ScannerEnvT expr
+                     m){-)-} a 
     }
   deriving (Functor, Applicative, Monad, MonadIO)
 
 instance MonadTrans (ScannerT expr) where
-    lift = ScannerT . lift . lift . lift
+    lift = ScannerT . lift . lift {-. lift-}
 
 -- | Continuation monad for the quickscanner
 type ScannerContT expr m a = ScannerT expr m a -> ScannerT expr m a
 
 
-class Monad m => ResolveClass m where
+class Monad m => ResolveClass' m where
     type Resolvable m
     resolvePattern :: Resolvable m -> m (Maybe (Pattern (Resolvable m)))
     resolveInteger :: Resolvable m -> m (Maybe Snobol4Integer)
     resolveString :: Resolvable m -> m (Maybe Snobol4String)
-    assign :: Lookup (Resolvable m) -> Data (Resolvable m) -> m ()
+    immediateAssign :: Lookup (Resolvable m) -> Data (Resolvable m) -> m ()
 
+{-
 instance Monad m => ResolveClass (ScannerEnvT expr m) where
     type Resolvable (ScannerEnvT expr m) = expr
     resolvePattern expr = (ScannerEnvT $ asks resolvePatternFunc) >>= lift . ($ expr)
     resolveInteger expr = (ScannerEnvT $ asks resolveIntegerFunc) >>= lift . ($ expr)
     resolveString expr = (ScannerEnvT $ asks resolveStringFunc) >>= lift . ($ expr)
     assign l x = (ScannerEnvT $ asks assignFunc) >>= lift . ($ (l,x)) . uncurry
+-}
 
-instance Monad m => ResolveClass (ScannerT expr m) where
+instance ( Monad m 
+         , ResolveClass expr m
+         )
+      => ResolveClass' (ScannerT expr m) where
     type Resolvable (ScannerT expr m) = expr
     resolvePattern = ScannerT . lift . lift . resolvePattern
     resolveInteger = ScannerT . lift . lift . resolveInteger
     resolveString = ScannerT . lift . lift . resolveString
-    assign l = ScannerT . lift . lift . assign l
+    immediateAssign l = ScannerT . lift . lift . immediateAssign l
 
+type ResolveClass expr m = (ResolveClass' m, Resolvable m ~ expr)

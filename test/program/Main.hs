@@ -612,7 +612,7 @@ allMockTests =
     , test_pg52_1
     , test_pg52_2
     , test_pg54_1
-    -- , test_pg54_2
+    , test_pg54_2
     ]
 
 allTests = TestList $ map makeMockTest allMockTests

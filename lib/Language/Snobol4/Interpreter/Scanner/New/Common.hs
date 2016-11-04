@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 module Language.Snobol4.Interpreter.Scanner.New.Common where
 
 import Control.Monad.Trans
@@ -12,31 +13,31 @@ import Language.Snobol4.Interpreter.Data
 import Language.Snobol4.Interpreter.Scanner.New.Types
 
 
-getToMatch :: Monad m => ScannerT expr m Snobol4String
+getToMatch :: ResolveClass expr m => ScannerT expr m Snobol4String
 getToMatch = ScannerT $ lift $ gets toMatch
 
-putToMatch :: Monad m => Snobol4String -> ScannerT expr m ()
+putToMatch :: ResolveClass expr m => Snobol4String -> ScannerT expr m ()
 putToMatch x = ScannerT $ lift $ modify $ \st -> st { toMatch = x}
 
-getMatched :: Monad m => ScannerT expr m Snobol4String
+getMatched :: ResolveClass expr m => ScannerT expr m Snobol4String
 getMatched = ScannerT $ lift $ gets matched
 
-putMatched :: Monad m => Snobol4String -> ScannerT expr m ()
+putMatched :: ResolveClass expr m => Snobol4String -> ScannerT expr m ()
 putMatched x = ScannerT $ lift $ modify $ \st -> st { matched = x}
 
-getPrevMatch :: Monad m => ScannerT expr m Snobol4String
+getPrevMatch :: ResolveClass expr m => ScannerT expr m Snobol4String
 getPrevMatch = ScannerT $ lift $ gets prevMatch
 
-putPrevMatch :: Monad m => Snobol4String -> ScannerT expr m ()
+putPrevMatch :: ResolveClass expr m => Snobol4String -> ScannerT expr m ()
 putPrevMatch x = ScannerT $ lift $ modify $ \st -> st { prevMatch = x}
 
-addAssignment :: Monad m => Lookup expr -> Data expr -> ScannerT expr m ()
+addAssignment :: ResolveClass expr m => Lookup expr -> Data expr -> ScannerT expr m ()
 addAssignment l x = ScannerT $ lift $ modify $ \st -> st { assignments = (l,x) : assignments st }
 
-getOffset :: Monad m => ScannerT expr m Snobol4Integer
+getOffset :: ResolveClass expr m => ScannerT expr m Snobol4Integer
 getOffset = ScannerT $ lift $ gets offset
 
-incOffset :: Monad m => ScannerT expr m ()
+incOffset :: ResolveClass expr m => ScannerT expr m ()
 incOffset = ScannerT $ lift $ modify $ \st -> st { offset = 1 + offset st }
 
 -- | Apply one of two functions, depending on if a lazy value has been evaluated or not
@@ -53,6 +54,7 @@ buildFullScanPath (ImmediateAssignmentPattern pat l) =
     let pat' = buildLazy UnevaluatedPattern buildFullScanPath pat
     in  ScanImmediateAssign pat' l ()
 buildFullScanPath (LiteralPattern s) = ScanNode (ScanLiteral s) ()
+buildFullScanPath (LengthPattern i) = ScanNode (ScanLen i) ()
 buildFullScanPath (AlternativePattern a b) = 
     let a' = buildLazy UnevaluatedPattern buildFullScanPath a
         b' = buildLazy UnevaluatedPattern buildFullScanPath b
@@ -82,7 +84,7 @@ buildFullScanPath BalPattern = ScanNode ScanBal ()
 buildFullScanPath SucceedPattern = ScanNode ScanSucceed ()
 
 -- | Attempt to consume a string
-consumeString :: (Monad m)
+consumeString :: (ResolveClass expr m)
               => Snobol4String
               -> ScannerT expr m ()
 consumeString toConsume = do
@@ -100,7 +102,7 @@ consumeString toConsume = do
             then notEnoughCharacters
             else backtrack
 
-consumeN :: Monad m
+consumeN :: ResolveClass expr m
          => Snobol4Integer
          -> ScannerT expr m ()
 consumeN n = do
@@ -116,7 +118,7 @@ consumeN n = do
             putPrevMatch consumed
         else notEnoughCharacters
 
-consumeAny :: (Monad m)
+consumeAny :: (ResolveClass expr m)
            => Snobol4String
            -> ScannerT expr m ()
 consumeAny cs = do
@@ -132,7 +134,7 @@ consumeAny cs = do
                     putPrevMatch c
                 else backtrack
 
-consumeNotAny :: (Monad m)
+consumeNotAny :: (ResolveClass expr m)
            => Snobol4String
            -> ScannerT expr m ()
 consumeNotAny cs  = do
@@ -149,7 +151,7 @@ consumeNotAny cs  = do
                 else backtrack
 
 
-many1 :: (Monad m)
+many1 :: (ResolveClass expr m)
       => ScannerT expr m a
       -> ScannerContT expr m b
 many1 f next = f >> go
@@ -163,7 +165,7 @@ many1 f next = f >> go
                                   }
                         )
                         next
-many :: (Monad m)
+many :: (ResolveClass expr m)
       => ScannerT expr m a
       -> ScannerContT expr m b
 many f next = go
@@ -171,14 +173,14 @@ many f next = go
     go = do
         prevMatch <- getPrevMatch
         catchScan' f 
-                        (\_ -> do { prevMatch' <- getPrevMatch
-                                  ; putPrevMatch (prevMatch <> prevMatch')
-                                  ; go
-                                  }
-                        )
-                        next
+                   (\_ -> do { prevMatch' <- getPrevMatch
+                             ; putPrevMatch (prevMatch <> prevMatch')
+                             ; go
+                             }
+                   )
+                   next
 
-repeat :: (Monad m)
+repeat :: (ResolveClass expr m)
        => Snobol4Integer
        -> ScannerT expr m a
        -> ScannerContT expr m b
@@ -192,7 +194,7 @@ repeat n f next = putPrevMatch "" >> go n
             putPrevMatch (prevMatch <> prevMatch')
             go (n-1)
 
-withLazyStr :: Monad m 
+withLazyStr :: ResolveClass expr m
             => (LazyString expr) 
             -> (Snobol4String -> ScannerT expr m a) 
             -> ScannerT expr m a
@@ -204,7 +206,7 @@ withLazyStr (Thunk expr) f = do
 withLazyStr (EvaluatedThunk s) f = f s
 
 
-withLazyInt :: Monad m 
+withLazyInt :: ResolveClass expr m 
             => (LazyInteger expr) 
             -> (Snobol4Integer -> ScannerT expr m a) 
             -> ScannerT expr m a
@@ -217,38 +219,38 @@ withLazyInt (EvaluatedThunk s) f = f s
 
 
 
-failScan :: Monad m => ScanFailure -> ScannerT expr m a
+failScan :: ResolveClass expr m => ScanFailure -> ScannerT expr m a
 failScan = ScannerT . throwE
 
 -- | Backtrack to the nearest checkpoint
-backtrack :: (Monad m) => ScannerT expr m a
+backtrack :: (ResolveClass expr m) => ScannerT expr m a
 backtrack = failScan Backtrack
 
 -- | Abort the scan
-abort :: (Monad m) => ScannerT expr m a
+abort :: (ResolveClass expr m) => ScannerT expr m a
 abort = failScan Abort
 
 -- | Backtrack to the nearest checkpoint, noting that there were not enough
 -- characters to match the pattern
-notEnoughCharacters :: Monad m => ScannerT expr m a
+notEnoughCharacters :: ResolveClass expr m => ScannerT expr m a
 notEnoughCharacters = failScan NotEnoughCharacters
 
 -- | Complete the scan with success
-succeed :: Monad m => ScannerT expr m Snobol4String
+succeed :: ResolveClass expr m => ScannerT expr m Snobol4String
 succeed = getMatched
 
 -- | Perform an action, with a backup contination to take if it fails
-catchScan :: (Monad m)
+catchScan :: (ResolveClass expr m)
                => ScannerT expr m a -- ^ Action to attempt
                -> ScannerT expr m a -- ^ Action to take if it fails
                -> ScannerT expr m a
 catchScan try catch = do
     st <- ScannerT $ lift get
-    env <- ScannerT $ lift $ lift $ ScannerEnvT $ ask
+    {-env <- ScannerT $ lift $ lift $ ScannerEnvT $ ask-}
     (result, st') <- lift 
-            $ flip runReaderT env
-            $ runScannerEnvT
-            $ flip runStateT st 
+            {-$ flip runReaderT env
+            $ runScannerEnvT-}
+            $ flip runStateT st
             $ runExceptT 
             $ runScannerT
             $ try
@@ -261,17 +263,17 @@ catchScan try catch = do
         Left NotEnoughCharacters -> catch
 
 
-catchScan' :: (Monad m)
+catchScan' :: (ResolveClass expr m)
                => ScannerT expr m a -- ^ Action to attempt
                -> (a -> ScannerT expr m b) -- ^ Action to take if successful 
                -> ScannerT expr m b -- ^ Action to take if it fails
                -> ScannerT expr m b
 catchScan' try then_ catch = do
     st <- ScannerT $ lift get
-    env <- ScannerT $ lift $ lift $ ScannerEnvT $ ask
+    {-env <- ScannerT $ lift $ lift $ ScannerEnvT $ ask-}
     (result, st') <- lift 
-            $ flip runReaderT env
-            $ runScannerEnvT
+            {-$ flip runReaderT env
+            $ runScannerEnvT-}
             $ flip runStateT st 
             $ runExceptT 
             $ runScannerT

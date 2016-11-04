@@ -59,6 +59,8 @@ import Language.Snobol4.Interpreter.Primitives
 import Language.Snobol4.Interpreter.Primitives.Prototypes
 
 import Language.Snobol4.Interpreter.Scanner
+import Language.Snobol4.Interpreter.Scanner.New hiding (assign)
+import qualified Language.Snobol4.Interpreter.Scanner.New 
 
 import Language.Snobol4.Syntax.AST hiding (getProgram)
 
@@ -104,7 +106,16 @@ instance ( InterpreterShell m
                 popFailLabel
                 return Nothing
             _ -> return Nothing
-        
+
+instance ( InterpreterShell m
+         )
+      => ResolveClass' (VM m) where
+    type Resolvable (VM m) = ExprKey
+    resolvePattern lbl = VM $ runMaybeT $ (MaybeT $ eval lbl) >>= lift . toPattern
+    resolveInteger lbl = VM $ runMaybeT $ (MaybeT $ eval lbl) >>= MaybeT . toInteger
+    resolveString lbl = runMaybeT $ (MaybeT $ VM $ eval lbl) >>= lift . toString
+    immediateAssign = assign
+          
 -- | Push a reference to a variable onto the stack
 pushReference :: ( InterpreterShell m ) => Snobol4String -> VM m ()
 pushReference name = do
@@ -507,7 +518,8 @@ exec InvokeScanner = do
     matchStr <- toString toMatch
     anchorMode <- VM $ getAnchorMode
     fullscanMode <- VM $ getFullscanMode
-    result <- VM $ scanPattern matchStr pat anchorMode fullscanMode
+    --result <- VM $ scanPattern matchStr pat anchorMode fullscanMode
+    result <- runScan pat matchStr anchorMode fullscanMode
     case result of
         NoScan -> do
             addr <- getFailLabel

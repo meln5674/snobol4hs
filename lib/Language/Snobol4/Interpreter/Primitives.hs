@@ -17,7 +17,9 @@ expressed in the source language.
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
-module Language.Snobol4.Interpreter.Primitives where
+module Language.Snobol4.Interpreter.Primitives 
+    ( addPrimitives
+    ) where
 
 import Prelude hiding ( span, break, any, toInteger )
 

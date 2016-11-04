@@ -44,7 +44,12 @@ Quickscanning is performed in the following steps:
 
 
 {-# LANGUAGE LambdaCase #-}
-module Language.Snobol4.Interpreter.Scanner.New where
+{-# LANGUAGE TypeFamilies #-}
+module Language.Snobol4.Interpreter.Scanner.New 
+    ( module Language.Snobol4.Interpreter.Scanner.New 
+    , ResolveClass' (..)
+    , ResolveClass
+    ) where
 
 import Prelude hiding (repeat)
 
@@ -57,20 +62,21 @@ import Control.Monad.Trans.Reader
 
 import Language.Snobol4.Interpreter.Data
 
+import Language.Snobol4.Interpreter.Scanner.New.Types
 import Language.Snobol4.Interpreter.Scanner.New.QuickScan
 import Language.Snobol4.Interpreter.Scanner.New.FullScan
 
-runScan :: (Monad m)
+runScan :: (ResolveClass expr m)
           => Pattern expr
           -> Snobol4String
           -> Bool
           -> Bool
-          -> (expr -> m (Maybe (Pattern expr)))
+          {- -> (expr -> m (Maybe (Pattern expr)))
           -> (expr -> m (Maybe Snobol4Integer))
-          -> (expr -> m (Maybe Snobol4String))
-          -> (Lookup expr -> Data expr -> m ())
-          -> m (Maybe Snobol4String)
-runScan pat toMatch anchorMode False toPat toInt toStr set =
-    quickscan pat toMatch anchorMode toPat toInt toStr set
-runScan pat toMatch anchorMode True toPat toInt toStr set =
-    fullscan pat toMatch anchorMode toPat toInt toStr set
+          -> (expr -> m (Maybe Snobol4String)) 
+          -> (Lookup expr -> Data expr -> m ()) -}
+          -> m (ScanResult expr)
+runScan pat toMatch anchorMode False {-toPat toInt toStr set-} =
+    quickscan pat toMatch anchorMode {-toPat toInt toStr set-}
+runScan pat toMatch anchorMode True {-toPat toInt toStr set-} =
+    fullscan pat toMatch anchorMode {-toPat toInt toStr set-}

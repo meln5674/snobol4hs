@@ -31,9 +31,17 @@ snobol4Uncons :: Snobol4String -> Maybe (Snobol4String,Snobol4String)
 snobol4Uncons (Snobol4String (x:xs)) = Just (Snobol4String [x],Snobol4String xs)
 snobol4Uncons _ = Nothing
 
+snobol4Last :: Snobol4String -> Maybe Snobol4String
+snobol4Last (Snobol4String "") = Nothing
+snobol4Last (Snobol4String s) = Just $ Snobol4String [last s]
+
 -- | Generalization of length
 snobol4Length :: Snobol4String -> Snobol4Integer
 snobol4Length (Snobol4String s) = Snobol4Integer $ length s
+
+snobol4Null :: Snobol4String -> Bool
+snobol4Null (Snobol4String "") = True
+snobol4Null _ = False
 
 -- | Generalization of take
 snobol4Take :: Snobol4Integer -> Snobol4String -> Snobol4String

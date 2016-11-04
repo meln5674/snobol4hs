@@ -403,7 +403,7 @@ ex_pg54_1 = unlines
     , "         'YZZZ' PO"
     , "         'XYZ' PO"
     , "         'YZZX' PO"
-    , "         'AYZZZB' PO"
+    , "         'AYZZZZB' PO"
     , "END"
     ]
 
@@ -418,6 +418,6 @@ ex_pg54_2 = unlines
     , "LOOP     STRING = TRIM(INPUT)                      :F(END)"   
     , "         STRING EXP RPOS(0)                        :F(NOGOOD)"
     , "         OUTPUT = STRING '  IS AN EXPRESSION.'     :(LOOP)"
-    , "NOGOOD   OUTPUT = STRNIG '  IS NOT AN EXPRESSION.' :(LOOP)"
+    , "NOGOOD   OUTPUT = STRING '  IS NOT AN EXPRESSION.' :(LOOP)"
     , "END"
     ]
