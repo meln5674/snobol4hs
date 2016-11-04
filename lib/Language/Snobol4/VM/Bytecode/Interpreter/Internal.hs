@@ -506,7 +506,8 @@ exec InvokeScanner = do
     toMatch <- pop
     matchStr <- toString toMatch
     anchorMode <- VM $ getAnchorMode
-    result <- VM $ scanPattern matchStr pat anchorMode
+    fullscanMode <- VM $ getFullscanMode
+    result <- VM $ scanPattern matchStr pat anchorMode fullscanMode
     case result of
         NoScan -> do
             addr <- getFailLabel

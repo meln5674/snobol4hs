@@ -68,6 +68,7 @@ module Language.Snobol4.Interpreter.Internal.StateMachine
     , userDataConstruct
     
     , getAnchorMode
+    , getFullscanMode
     , incFailCount
     , setReturnType
     , incFunctionLevel

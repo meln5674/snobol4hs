@@ -56,6 +56,8 @@ data ScannerState expr
     , endPos :: Snobol4Integer
     -- | The number of characters that were skipped in non-anchor mode
     , anchorPos :: Snobol4Integer
+    -- | True if the scanner is in fullscan mode
+    , fullscan :: Bool
     }
 
 -- | The scanner type
@@ -83,6 +85,8 @@ data FailType
     = BackTrack 
     -- | The entire scan failed
     | Abort
+    -- | In quickscan mode, the number of characters is insufficient to match the pattern
+    | InsufficientCharacters
 
 -- | Cause the scanner to fail, jumping back to the most recent call to catchScan
 throwScan :: Monad m => FailType -> ScannerGeneric program expr {-error-} m a
@@ -92,6 +96,9 @@ throwScan = Scanner . lift . throwE
 -- catchScan, and continue with the next path
 backtrack :: Monad m => ScannerGeneric (ProgramType m) expr {-error-} m a
 backtrack = throwScan BackTrack
+
+quickscanFail :: Monad m => ScannerGeneric (ProgramType m) expr {-error-} m a
+quickscanFail = throwScan InsufficientCharacters
 
 -- | Cause the scanner to fail completely
 abort :: Monad m => ScannerGeneric (ProgramType m) expr {-error-} m a
@@ -117,6 +124,9 @@ catchScan try catch = do
             Scanner $ put st'
             return x
         Left BackTrack -> do
+            Scanner $ put st
+            catch
+        Left InsufficientCharacters -> do
             Scanner $ put st
             catch
         Left Abort -> abort
@@ -243,20 +253,21 @@ consumeNotAny cs = do
         else backtrack
 
 -- | Create a start state from input
-startState :: Snobol4String -> Snobol4Integer -> ScannerState expr
-startState s skip = ScannerState
+startState :: Snobol4String -> Snobol4Integer -> Bool -> ScannerState expr
+startState s skip fullscan = ScannerState
              { inputStr = snobol4Drop skip s
              , assignments = []
              , startPos = 0
              , endPos = 0
              , anchorPos = skip
+             , fullscan = fullscan
              }
 
 -- | I haven't thought up a name for this yet
 func :: Monad m 
      => ScannerGeneric (ProgramType m) (ExprType m) {-(EvaluationError program)-} m Snobol4String 
-     -> ScannerCont m
-     -> ScannerCont m
+     -> ScannerCont m Snobol4String
+     -> ScannerCont m Snobol4String
 func f next = \s1 _ -> f >>= \s2 -> next (s1 <> s2) s2
 
 -- | I haven't thought up a name for this either
@@ -268,7 +279,7 @@ bar f v = f v >> return v
 -- First argument is the entire string matched so far
 --
 -- Second argument is the string matched by the previously matched pattern
-type ScannerCont m = Snobol4String -> Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) m Snobol4String
+type ScannerCont m a = Snobol4String -> Snobol4String -> ScannerGeneric (ProgramType m) (ExprType m) m a
 
 
 -- | `foo first second handler` is almost equivalent to
@@ -285,18 +296,130 @@ foo first second handler = do
         Just result -> second result
         Nothing -> handler
 
+minChars' :: (a -> Snobol4Integer)
+          -> Lazy expr a
+          -> Snobol4Integer
+minChars' _ (Thunk _) = 1
+minChars' f (EvaluatedThunk x) = f x
+
+minStringChars :: LazyString expr
+               -> Snobol4Integer
+minStringChars = minChars' snobol4Length
+
+minPatChars :: LazyPattern expr
+            -> Snobol4Integer
+            -> Snobol4Integer
+            -> Snobol4Integer
+minPatChars pat pos rpos = minChars' (\pat -> minChars pat pos rpos) pat
+
+
+minIntChars :: LazyInteger expr
+            -> Snobol4Integer
+minIntChars = minChars' id
+
+
+minChars :: Pattern expr
+         -> Snobol4Integer
+         -> Snobol4Integer
+         -> Snobol4Integer
+minChars (AssignmentPattern pat _) pos rpos = minPatChars pat pos rpos
+minChars (ImmediateAssignmentPattern pat _) pos rpos = minPatChars pat pos rpos
+minChars (LiteralPattern s) _ _ = snobol4Length s
+minChars (AlternativePattern patA patB) pos rpos = min (minPatChars patA pos rpos) (minPatChars patB pos rpos)
+minChars (ConcatPattern patA patB) pos rpos = (+) (minPatChars patA pos rpos) (minPatChars patB pos rpos)
+minChars (LengthPattern len) _ _ = minIntChars len
+minChars EverythingPattern _ rpos = rpos
+minChars HeadPattern{} _ _ = 0
+minChars SpanPattern{} _ _ = 1
+minChars BreakPattern{} _ _ = 0
+minChars AnyPattern{} _ _ = 1
+minChars NotAnyPattern{} _ _ = 1
+minChars (TabPattern col) pos _ =
+    let col' = minIntChars col
+    in min 0 (col'-pos)
+minChars (RTabPattern rcol) _ rpos =
+    let col' = minIntChars rcol
+    in min 0 (rpos-col')
+minChars PosPattern{} _ _ = 0
+minChars RPosPattern{} _ _ = 0
+minChars FailPattern _ _ = 0
+minChars FencePattern _ _ = 0
+minChars AbortPattern _ _ = 0
+minChars ArbPattern _ _ = 0
+minChars ArbNoPattern{} _ _ = 0
+minChars BalPattern _ _ = 0
+minChars SucceedPattern _ _ = 0
+
+expandRecursive :: ( InterpreterShell m
+                , NewSnobol4Machine m
+                , LocalVariablesClass m
+            )
+         => Pattern (ExprType m)
+         -> Snobol4Integer
+         -> ScannerGeneric (ProgramType m) (ExprType m) m (Pattern (ExprType m))
+expandRecursive p n
+    | n <= 0 = return p
+expandRecursive (ConcatPattern (Thunk x) y) limit = do
+    x' <- liftInterpreter (force $ Thunk x) >>= maybe backtrack return
+    let p' = ConcatPattern (EvaluatedThunk x') y
+    taken <- getCursorPos
+    remaining <- getRCursorPos
+    let needed = minChars p' taken remaining
+    if needed < limit
+        then expandRecursive p' limit
+        else return p'
+{-
+expandRecursive (ConcatPattern x (Thunk y)) limit = do
+    y' <- liftInterpreter (force $ Thunk y) >>= maybe backtrack return
+    let p' = ConcatPattern x (EvaluatedThunk y')
+    needed <- minChars p'
+    if needed < limit
+        then expandRecursive p' limit
+        else return p'
+-}
+expandRecursive (ConcatPattern (EvaluatedThunk x) y) limit = do
+    taken <- getCursorPos
+    remaining <- getRCursorPos
+    let yMin = minPatChars y taken remaining
+    x' <- expandRecursive x $ limit - yMin
+    return $ ConcatPattern (EvaluatedThunk x') y
+expandRecursive (AlternativePattern (EvaluatedThunk x) y) limit = do
+    x' <- expandRecursive x limit
+    return $ AlternativePattern (EvaluatedThunk x') y
+expandRecursive p _ = return p
+
 -- | Force the evaluation of a lazy value inside a scanner continuation,
 -- backtracking if evaluation fails
 scannerForce :: ( InterpreterShell m
                 , NewSnobol4Machine m
                 , LocalVariablesClass m
-                , Ord (ExprType m)
+--                , Ord (ExprType m)
                 , Forceable a m
                 )
              => Lazy (ExprType m) a
-             -> (a -> ScannerCont m)
-             -> ScannerCont m
+             -> (a -> ScannerCont m b)
+             -> ScannerCont m b
 scannerForce x f s prev = liftInterpreter (force x) >>= maybe backtrack (\y -> f y s prev)
+
+quickscan :: ( InterpreterShell m
+                , NewSnobol4Machine m
+                , LocalVariablesClass m
+             )
+          => ( Pattern (ExprType m) -> ScannerCont m a)
+          -> Pattern (ExprType m)
+          -> ScannerCont m a
+quickscan f pat s prev = do
+    quickscanEnabled <- Scanner $ gets $ not . fullscan
+    if quickscanEnabled
+        then do
+            taken <- getCursorPos
+            remaining <- getRCursorPos
+            pat' <- expandRecursive pat remaining
+            let needed = minChars pat' taken remaining
+            if needed <= remaining
+                then f pat' s prev
+                else quickscanFail
+        else f pat s prev
 
 -- | Main scanner function
 -- `match p next` attempts to match the pattern `p`, and if successful, calls
@@ -310,21 +433,21 @@ match :: ( InterpreterShell m
          , Ord (ExprType m)
          )
       => Pattern (ExprType m)
-      -> ScannerCont m
-      -> ScannerCont m
-match (AssignmentPattern pThunk l) next = scannerForce pThunk $ \p -> match p $ \s prev -> do
+      -> ScannerCont m Snobol4String
+      -> ScannerCont m Snobol4String
+match (AssignmentPattern pThunk l) next = scannerForce pThunk $ quickscan $ \p -> match p $ \s prev -> do
     addAssignment l $ StringData prev
     next s prev
-match (ImmediateAssignmentPattern pThunk l) next = scannerForce pThunk $ \p -> match p $ \s prev -> do
+match (ImmediateAssignmentPattern pThunk l) next = scannerForce pThunk $ quickscan $ \p -> match p $ \s prev -> do
     immediateAssignment l $ StringData prev
     next s prev 
 match (LiteralPattern lit) next = func (consume $ mkString lit) next
 match (AlternativePattern pThunk1 pThunk2) next =
-    \s prev -> catchScan (scannerForce pThunk1 (\p1 -> match p1 next) s prev) 
-                         (scannerForce pThunk2 (\p2 -> match p2 next) s prev)
+    \s prev -> catchScan (scannerForce pThunk1 (quickscan (\p1 -> match p1 next)) s prev) 
+                         (scannerForce pThunk2 (quickscan (\p2 -> match p2 next)) s prev)
 match (ConcatPattern pThunk1 pThunk2) next = 
-    scannerForce pThunk1 $ \p1 ->
-    match p1 (scannerForce pThunk2 $ \p2 -> 
+    scannerForce pThunk1 $ quickscan $ \p1 ->
+    match p1 (scannerForce pThunk2 $ quickscan $ \p2 -> 
         \s1 prev1 -> 
             match p2 (\s2 prev2 -> next s2 (prev1 <> prev2)) s1 prev1
     ) 

@@ -165,7 +165,11 @@ data Lazy expr a
       Thunk expr
     -- | An evaluated thunk containing the result of evaluating it
     | EvaluatedThunk a
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord)
+
+instance Show a => Show (Lazy expr a) where
+    show (Thunk expr) = "[THUNK]"
+    show (EvaluatedThunk x) = "(" ++ show x ++ ")"
  
 -- | Apply the function to an evaluated thunk, or ignore it if its unevaluated 
 instance Functor (Lazy expr) where

@@ -525,6 +525,54 @@ test_pg52_2 = ExpectSuccess
     }
 
 
+test_pg54_1 = ExpectSuccess
+    { testLabel = "Page 54 #1"
+    , testProgram = ex_pg54_1
+    , testInputs =
+        [ 
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "Y"
+            , "YZZZ"
+            , "YZ"
+            , "YZZ"
+            , "YZZZZ"
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+test_pg54_2 = ExpectSuccess
+    { testLabel = "Page 54 #2"
+    , testProgram = ex_pg54_2
+    , testInputs =
+        [ "X+Y*(Z+X)"
+        , "X+Y+Z"
+        , "XY"
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "X+Y*(Z+X)  IS AN EXPRESSION."
+            , "X+Y+Z  IS AN EXPRESSION."
+            , "XY  IS NOT AN EXPRESSION."
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
+
 {-
 test_pg = ExpectSuccess
     { testLabel = "Page "
@@ -563,6 +611,8 @@ allMockTests =
     , test_pg51_2
     , test_pg52_1
     , test_pg52_2
+    , test_pg54_1
+    -- , test_pg54_2
     ]
 
 allTests = TestList $ map makeMockTest allMockTests

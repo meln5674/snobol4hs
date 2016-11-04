@@ -189,3 +189,8 @@ getTrimMode :: ( InterpreterShell m
                  ) => InterpreterGeneric (ProgramType m) m Bool
 getTrimMode = liftM (maybe True (0/=)) $ lookupKeyword "TRIM" >>= toInteger
 
+getFullscanMode :: ( InterpreterShell m 
+                 , LocalVariablesClass m
+--                 , NewSnobol4Machine m
+                 ) => InterpreterGeneric (ProgramType m) m Bool
+getFullscanMode = liftM (maybe True (0/=)) $ lookupKeyword "FULLSCAN" >>= toInteger

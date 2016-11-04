@@ -31,8 +31,9 @@ scanPattern :: ( InterpreterShell m
             => Snobol4String
             -> Pattern (ExprType m)
             -> Bool
+            -> Bool
             -> InterpreterGeneric (ProgramType m) m (ScanResult (ExprType m))
-scanPattern toScan pat anchor = loop 0 $ if anchor 
+scanPattern toScan pat anchor fullscan = loop 0 $ if anchor 
     then 0
     else unmkInteger $ snobol4Length toScan
   where
@@ -40,7 +41,7 @@ scanPattern toScan pat anchor = loop 0 $ if anchor
         | skip > maxSkip = return NoScan
         | otherwise = do
             result <- runExceptT 
-                    $ flip runStateT (startState toScan skip)
+                    $ flip runStateT (startState toScan skip fullscan)
                     $ runScanner 
                     $ match pat (\s _ -> return s) nullString nullString
             case result of
@@ -51,6 +52,7 @@ scanPattern toScan pat anchor = loop 0 $ if anchor
                          , endPos=matchEnd
                          } = st
                     return $ Scan (StringData matchResult) (reverse toAssign) (skip + matchStart) (skip + matchEnd)
+                Left InsufficientCharacters -> return NoScan
                 Left _ -> loop (skip+1) maxSkip
         
     

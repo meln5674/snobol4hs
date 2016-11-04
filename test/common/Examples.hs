@@ -395,3 +395,29 @@ ex_pg52_2 = unlines
     , "         OUTPUT = 'LARGEST WORD IS  ' BIG "
     , "END"
     ]
+
+ex_pg54_1 = unlines
+    [ "         P = *P 'Z' | 'Y'"
+    , "         PO = P . OUTPUT"
+    , "         'Y' PO"
+    , "         'YZZZ' PO"
+    , "         'XYZ' PO"
+    , "         'YZZX' PO"
+    , "         'AYZZZB' PO"
+    , "END"
+    ]
+
+ex_pg54_2 = unlines
+    [ "         &ANCHOR = 1"
+    , "         VARIABLE = ANY('XYZ')"
+    , "         ADDOP = ANY('+-')"
+    , "         MULOP = ANY('*/')"
+    , "         FACTOR = VARIABLE | '(' *EXP ')'"
+    , "         TERM = FACTOR | *TERM MULOP FACTOR"
+    , "         EXP = ADDOP TERM | TERM | *EXP ADDOP TERM"
+    , "LOOP     STRING = TRIM(INPUT)                      :F(END)"   
+    , "         STRING EXP RPOS(0)                        :F(NOGOOD)"
+    , "         OUTPUT = STRING '  IS AN EXPRESSION.'     :(LOOP)"
+    , "NOGOOD   OUTPUT = STRNIG '  IS NOT AN EXPRESSION.' :(LOOP)"
+    , "END"
+    ]
