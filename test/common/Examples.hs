@@ -421,3 +421,10 @@ ex_pg54_2 = unlines
     , "NOGOOD   OUTPUT = STRING '  IS NOT AN EXPRESSION.' :(LOOP)"
     , "END"
     ]
+
+ex_pg72 = unlines
+    [ "         &ANCHOR = 1"
+    , "         &FULLSCAN  = 1"
+    , "         '12345' (LEN(1) ARB) $ OUTPUT FAIL"
+    , "END"
+    ]

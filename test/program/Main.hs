@@ -573,6 +573,40 @@ test_pg54_2 = ExpectSuccess
 
 
 
+test_pg72 = ExpectSuccess
+    { testLabel = "Page 72"
+    , testProgram = ex_pg72
+    , testInputs =
+        [ 
+        ]
+    , testDate = ""
+    , testTime = 0
+    , successPredicate = simplePredicate MockShellResults
+        { mockInputs = V.empty
+        , mockOutputs = V.fromList
+            [ "1"
+            , "12"
+            , "123"
+            , "1234"
+            , "12345"
+            , "2"
+            , "23"
+            , "234"
+            , "2345"
+            , "3"
+            , "34"
+            , "345"
+            , "4"
+            , "45"
+            , "5"
+            ]
+        , mockPunches = V.empty
+        , mockDate = ""
+        , mockTime = 0
+        }
+    }
+
+
 {-
 test_pg = ExpectSuccess
     { testLabel = "Page "
@@ -613,6 +647,7 @@ allMockTests =
     , test_pg52_2
     , test_pg54_1
     , test_pg54_2
+    , test_pg72
     ]
 
 allTests = TestList $ map makeMockTest allMockTests

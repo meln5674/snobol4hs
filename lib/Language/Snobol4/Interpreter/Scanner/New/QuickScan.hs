@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds #-}
 module Language.Snobol4.Interpreter.Scanner.New.QuickScan where
 
 
@@ -29,7 +31,7 @@ type AnnotatedQuickScanPath expr = ScanPath expr (Maybe Snobol4Integer)
 type QuickScanPath expr = ScanPath expr Snobol4Integer
 
 
-
+type instance ScannerPath False expr = QuickScanPath expr
 
 -- | Annotate a fullscan path with absent optional values to create an incomplete
 -- quickscan tree
@@ -287,6 +289,14 @@ catchQuickScanArb try catch = do
         Left Backtrack -> catch
         Left NotEnoughCharacters -> notEnoughCharacters
 
+checkRequiredLength :: (ResolveClass expr m)
+                    => Snobol4Integer
+                    -> ScannerContT expr m Snobol4String
+checkRequiredLength count next = getToMatch >>= \toMatch -> case () of
+    _ | count <= snobol4Length toMatch -> next
+      | otherwise -> notEnoughCharacters
+    
+
 -- | Match a branch pattern
 runQuickScan :: forall expr m 
               . (ResolveClass expr m)
@@ -305,35 +315,26 @@ runQuickScan (ScanConcat a@(UnevaluatedPattern expr) b count) next = getToMatch 
                 runQuickScan (ScanConcat a' b count') next
       | otherwise -> notEnoughCharacters
 -}
-runQuickScan (ScanConcat a b count) next = getToMatch >>= \toMatch -> case () of
-    _ | count <= snobol4Length toMatch -> do
-        runQuickScan a $ do
-            prevMatch <- getPrevMatch
-            runQuickScan b $ do
-                prevMatch' <- getPrevMatch
-                putPrevMatch (prevMatch <> prevMatch')
-                next
-      | otherwise -> notEnoughCharacters
-runQuickScan (ScanChoice a b count) next = getToMatch >>= \toMatch -> case () of
-    _ | count <= snobol4Length toMatch -> catchScan (runQuickScan a next) (runQuickScan b next)
-      | otherwise -> notEnoughCharacters
-runQuickScan (ScanAssign pat l count) next = getToMatch >>= \toMatch -> case () of
-    _ | count <= snobol4Length toMatch -> do
-        runQuickScan pat $ do
-            prev <- getPrevMatch
-            addAssignment l $ StringData prev
+runQuickScan (ScanConcat a b count) next = checkRequiredLength count $ do
+    runQuickScan a $ do
+        prevMatch <- getPrevMatch
+        runQuickScan b $ do
+            prevMatch' <- getPrevMatch
+            putPrevMatch (prevMatch <> prevMatch')
             next
-      | otherwise -> notEnoughCharacters
-runQuickScan (ScanImmediateAssign pat l count) next = getToMatch >>= \toMatch -> case () of
-    _ | count <= snobol4Length toMatch -> do
-        runQuickScan pat $ do
-            prev <- getPrevMatch
-            immediateAssign l $ StringData prev
-            next
-      | otherwise -> notEnoughCharacters
-runQuickScan (ScanArbNo pat count) next = getToMatch >>= \toMatch -> case () of
-    _ | count <= snobol4Length toMatch -> go 0
-      | otherwise -> notEnoughCharacters
+runQuickScan (ScanChoice a b count) next = checkRequiredLength count $ do
+    catchScan (runQuickScan a next) (runQuickScan b next)
+runQuickScan (ScanAssign pat l count) next = checkRequiredLength count $ do
+    runQuickScan pat $ do
+        prev <- getPrevMatch
+        addAssignment l $ StringData prev
+        next
+runQuickScan (ScanImmediateAssign pat l count) next = checkRequiredLength count $ do
+    runQuickScan pat $ do
+        prev <- getPrevMatch
+        immediateAssign l $ StringData prev
+        next
+runQuickScan (ScanArbNo pat count) next = checkRequiredLength count $ go 0
   where
     go :: Int -> ScannerT expr m Snobol4String
     go x = do
@@ -347,20 +348,17 @@ runQuickScan (ScanArbNo pat count) next = getToMatch >>= \toMatch -> case () of
               prevMatch' <- getPrevMatch
               putPrevMatch $ (prevMatch <> prevMatch')
               go2 $ n-1
-runQuickScan (ScanNode pat count) next = getToMatch >>= \toMatch -> case () of
-    _ | count <= snobol4Length toMatch -> matchQuickScanPattern pat next
-      | otherwise -> notEnoughCharacters
+runQuickScan (ScanNode pat count) next = checkRequiredLength count $ matchQuickScanPattern pat next
 runQuickScan (UnevaluatedPattern expr) next = do
     pat <- resolvePattern expr
     toMatch <- getToMatch
     let limit = snobol4Length toMatch
     let path = fmap (labelQuickScanPath . fst . getQuickScanLength . makeQuickScanPath . buildFullScanPath) pat
     case path of
-        Just path{-@ScanNode{}-} -> do
+        Just path -> do
             (path', _) <- expandQuickScanPath limit path
             runQuickScan path' next
         Nothing -> backtrack
-        --Just path@_ -> error "AAAAAAA"
 runQuickScan DeadNode _ = notEnoughCharacters
 
 

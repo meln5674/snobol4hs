@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 module Language.Snobol4.Interpreter.Scanner.New.Types 
     ( module Language.Snobol4.Interpreter.Scanner.New.Types 
     , ScanResult (..)
@@ -156,3 +157,8 @@ instance ( Monad m
     immediateAssign l = ScannerT . lift . lift . immediateAssign l
 
 type ResolveClass expr m = (ResolveClass' m, Resolvable m ~ expr)
+
+class RequiredCharClass a where
+    isSufficient :: Snobol4Integer -> a -> Bool
+
+type family ScannerPath (full :: Bool) expr
