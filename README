@@ -1,0 +1,7 @@
+Snobol4hs is comprised of 5 components:
+ * snobol4c: Bytecode compiler, use with snobol4c [-o object] source
+ * snobol4: Bytecode interpreter, use with snobol4 object
+ * snobol4ci: Interactive AST interpreter, currently non-functional
+ * snobol4cat: Bytecode reader, displays human readable bytecode and symbol
+    table, use with snobol4cat object
+ * snobol4db: Bytecode debugger, use with snobol4db object

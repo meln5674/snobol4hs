@@ -1,4 +1,4 @@
-name: snobol4c
+name: snobol4hs
 version: 0.1.0.0
 cabal-version: >=1.10
 build-type: Simple
@@ -6,7 +6,7 @@ license: MIT
 license-file: LICENSE
 copyright: 2016 Andrew Melnick
 maintainer: meln5674@kettering.edu
-homepage: https://github.com/githubuser/snobol4c#readme
+homepage: https://github.com/meln5674/snobol4hs#readme
 synopsis: Interpreter/Compiler for the SNOBOL4 language
 description:
     Please see README.md
@@ -104,7 +104,7 @@ library
 --    main-is: Main.hs
 --    build-depends:
 --        base >=4.7 && <5,
---        snobol4c -any
+--        snobol4hs -any
 --    default-language: Haskell2010
 --    hs-source-dirs: src/runsnobol4
 
@@ -112,7 +112,7 @@ library
 --    main-is: Main.hs
 --    build-depends:
 --        base >=4.7 && <5,
---        snobol4c -any,
+--        snobol4hs -any,
 --        haskeline -any,
 --        transformers -any,
 --        mtl -any,
@@ -126,7 +126,7 @@ executable snobol4c
     main-is: Main.hs
     build-depends:
         base,
-        snobol4c, 
+        snobol4hs, 
         mtl,
         transformers, 
         vector,
@@ -139,7 +139,7 @@ executable snobol4
     main-is: Main.hs
     build-depends:
         base,
-        snobol4c, 
+        snobol4hs, 
         mtl,
         transformers, 
         vector,
@@ -152,7 +152,7 @@ executable snobol4cat
     main-is: Main.hs
     build-depends:
         base,
-        snobol4c, 
+        snobol4hs, 
         mtl,
         transformers, 
         vector,
@@ -165,7 +165,7 @@ executable snobol4db
     main-is: Main.hs
     build-depends:
         base,
-        snobol4c, 
+        snobol4hs, 
         mtl,
         transformers, 
         vector,
